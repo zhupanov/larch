@@ -2,6 +2,106 @@
 
 Claudin is a Claude Code workflow automation framework that orchestrates multi-agent design, code review, and implementation through collaborative AI-driven processes.
 
+## Getting Started
+
+There are two ways to integrate claudin into your repository:
+
+- **Flow A (Git Submodule)** — recommended for teams that want automatic upstream updates
+- **Flow B (Copy Skills)** — for teams that want to vendor a subset of skills and own them
+
+Both flows require environment variables for Slack integration (see [Environment Variables](#environment-variables) below). If you don't use Slack, you can skip them — skills degrade gracefully when Slack is not configured.
+
+### Flow A — Git Submodule
+
+Add claudin as a submodule and use `update-claudin.sh` to create symlinks from your `.claude/` directory into the submodule:
+
+```bash
+# 1. Add the submodule
+git submodule add <claudin-repo-url> claudin
+git commit -m "Add claudin submodule"
+
+# 2. Create symlinks from .claude/ into claudin/.claude/
+./claudin/update-claudin.sh
+
+# 3. Commit the symlinks and any new directories
+git add .claude
+git commit -m "Set up claudin symlinks"
+```
+
+**Updating to the latest version**: Every time you bump the claudin submodule to a newer version, re-run the update script to sync symlinks (create new ones, remove stale ones):
+
+```bash
+git submodule update --remote claudin
+git add claudin
+./claudin/update-claudin.sh
+git add .claude
+git commit -m "Bump claudin submodule"
+```
+
+**How it works**: `update-claudin.sh` creates symlinks from your `.claude/` directory tree into `claudin/.claude/`. Skill directories (those containing `SKILL.md`) get directory-level symlinks, while individual files (scripts, agents, shared docs) get file-level symlinks. Your repo can have its own additional skills, scripts, and agents alongside the symlinked ones.
+
+**Important notes**:
+
+- **`settings.json` is not symlinked.** Your repo must maintain its own `.claude/settings.json` with the permission entries needed by claudin scripts. At minimum, include bash permissions for `$PWD/.claude/scripts/generic/*` and the `block-submodule-edit.sh` hook.
+- **Edits to `claudin/` are blocked.** The `block-submodule-edit.sh` hook prevents Claude Code from editing files inside git submodules. This is intentional — changes to claudin should be made via PRs to the claudin repo, then pulled in by updating the submodule.
+- **Conflicts**: If a non-symlink file or directory already exists at a path the script needs to symlink, it exits with an error. Resolve the conflict manually (rename or remove the existing file) and re-run.
+
+### Flow B — Copy Selected Skills
+
+Copy the skills you need along with their shared dependencies into your repo's `.claude/` directory. Understanding the directory structure is essential to avoid missing dependencies.
+
+#### Directory structure
+
+```
+.claude/
+├── settings.json              # Permission and hook configuration (write your own)
+├── agents/                    # Reviewer agent definitions (.md files)
+│   ├── generic-reviewer.md
+│   ├── correctness-reviewer.md
+│   ├── risk-reviewer.md
+│   └── architect-reviewer.md
+├── scripts/
+│   └── generic/               # ~37 reusable shell scripts invoked by skills
+│       ├── session-setup.sh
+│       ├── create-pr.sh
+│       ├── ci-wait.sh
+│       └── ...
+└── skills/
+    ├── shared/                # Shared .md files referenced by multiple skills
+    │   ├── voting-protocol.md
+    │   ├── reviewer-templates.md
+    │   └── external-reviewers.md
+    ├── design/                # Each skill directory contains SKILL.md
+    │   ├── SKILL.md           #   and may include scripts/, agents/,
+    │   └── diagram.svg        #   references/, assets/, diagrams
+    ├── implement/
+    │   ├── SKILL.md
+    │   ├── scripts/
+    │   └── diagram.svg
+    └── ...
+```
+
+#### What to copy
+
+When copying a skill, you must also copy its shared dependencies:
+
+1. **The skill directory** — e.g., `.claude/skills/design/` (the entire directory including any nested `scripts/`, `agents/`, etc.)
+2. **`.claude/skills/shared/`** — shared markdown files referenced by all review-related skills. **Always copy this.**
+3. **`.claude/scripts/generic/`** — shell scripts that skills invoke for git operations, CI, Slack, etc. **Always copy this.**
+4. **`.claude/agents/`** — reviewer agent definitions used by `/design`, `/review`, and `/loop-review`. Copy if using any review-related skill.
+
+#### Transitive skill dependencies
+
+Skills invoke other skills. If you copy `/shazam`, you also need `/implement`, `/design`, `/review`, and `/relevant-checks`. The dependency chain:
+
+- `/shazam` → `/implement` → `/design`, `/review`, `/relevant-checks`
+- `/loop-review` → `/shazam` (full chain above)
+- `/implement` → `/design`, `/review`, `/relevant-checks`
+
+#### Note on `/relevant-checks`
+
+The `/relevant-checks` skill is **repo-specific** — its `SKILL.md` contains build and lint commands tailored to a specific repository. When copying it, treat it as a **template that must be rewritten** for your repo's build system. It will not work as-is.
+
 ## Features
 
 - **Multi-agent design planning** — 5 agents independently propose architectural approaches before a full implementation plan is written, preventing anchoring bias
