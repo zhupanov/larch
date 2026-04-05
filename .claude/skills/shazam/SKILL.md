@@ -73,6 +73,7 @@ This file will be passed to `/implement` via `--session-env` in Step 1.
 Invoke the `/implement` skill with `--session-env $SHAZAM_TMPDIR/session-env.sh` prepended to the feature description. **If `quick_mode=true`, also prepend `--quick`** so `/implement` runs in quick mode. **If `auto_mode=true`, also prepend `--auto`** so `/implement` and `/design` suppress interactive questions. This will:
 - Create a branch and design the plan (via `/design` in normal mode, or inline in `--quick` mode)
 - Implement the feature, validate, commit
+- **Rebase onto latest main** at multiple checkpoints (before implementation, after each commit, before version bump) to minimize merge conflicts when this step enters the CI+rebase+merge loop
 - Code review (full `/review` in normal mode, or simplified 1-round review in `--quick` mode), validate, commit
 - Version bump, create PR
 - Monitor CI and fix failures (does not merge)
