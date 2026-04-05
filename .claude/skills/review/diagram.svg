@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 820" width="440" height="820">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/>
+    </marker>
+    <style>
+      text { font-family: Arial, sans-serif; font-size: 13px; fill: white; text-anchor: middle; dominant-baseline: central; }
+      .label { fill: #555; font-size: 11px; }
+      line, polyline { stroke: #333; stroke-width: 1.5; marker-end: url(#arrow); fill: none; }
+    </style>
+  </defs>
+
+  <!-- Title -->
+  <text x="220" y="20" fill="#333" font-size="16" font-weight="bold">/review</text>
+
+  <!-- Step 0: Session Setup -->
+  <rect x="130" y="40" width="180" height="40" rx="4" fill="#6C757D"/>
+  <text x="220" y="60">Session Setup</text>
+  <line x1="220" y1="80" x2="220" y2="110"/>
+
+  <!-- Step 1: Gather Context -->
+  <rect x="130" y="110" width="180" height="40" rx="4" fill="#4A90D9"/>
+  <text x="220" y="130">Gather Context</text>
+  <line x1="220" y1="150" x2="220" y2="180"/>
+
+  <!-- Step 2: Launch Reviewers (parallel) -->
+  <rect x="70" y="180" width="300" height="40" rx="4" fill="#17A2B8" stroke="#17A2B8" stroke-width="3"/>
+  <text x="220" y="200">Reviewers (4 Claude + external)</text>
+  <line x1="220" y1="220" x2="220" y2="250"/>
+
+  <!-- Step 3a: Collect & Deduplicate -->
+  <rect x="110" y="250" width="220" height="40" rx="4" fill="#4A90D9"/>
+  <text x="220" y="270">Collect &amp; Deduplicate</text>
+  <line x1="220" y1="290" x2="220" y2="320"/>
+
+  <!-- Step 3: 3-Agent Voting (round 1) -->
+  <rect x="95" y="320" width="250" height="40" rx="4" fill="#E8833A" stroke="#E8833A" stroke-width="3"/>
+  <text x="220" y="340">3-Agent Voting (round 1)</text>
+  <line x1="220" y1="360" x2="220" y2="390"/>
+
+  <!-- Decision: Findings? -->
+  <polygon points="220,390 310,430 220,470 130,430" fill="#F0AD4E"/>
+  <text x="220" y="428" font-size="12">Accepted</text>
+  <text x="220" y="442" font-size="12">findings?</text>
+
+  <!-- No arrow -->
+  <text x="325" y="425" class="label">no</text>
+  <polyline points="310,430 370,430 370,640 310,640" stroke="#333" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Yes arrow -->
+  <text x="205" y="485" class="label">yes</text>
+  <line x1="220" y1="470" x2="220" y2="500"/>
+
+  <!-- Step 3e: Implement Fixes -->
+  <rect x="130" y="500" width="180" height="40" rx="4" fill="#4A90D9"/>
+  <text x="220" y="520">Implement Fixes</text>
+  <line x1="220" y1="540" x2="220" y2="570"/>
+
+  <!-- Decision: More rounds? (max 5) -->
+  <polygon points="220,570 310,610 220,650 130,610" fill="#F0AD4E"/>
+  <text x="220" y="605" font-size="12">Re-review?</text>
+  <text x="220" y="619" font-size="12">(max 5)</text>
+
+  <!-- Yes - loop back to Gather Context -->
+  <text x="100" y="605" class="label">yes</text>
+  <polyline points="130,610 60,610 60,130 130,130" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- No arrow -->
+  <text x="205" y="665" class="label">no</text>
+  <line x1="220" y1="650" x2="220" y2="680"/>
+
+  <!-- Step 4: Final Summary -->
+  <rect x="130" y="680" width="180" height="40" rx="4" fill="#4A90D9"/>
+  <text x="220" y="700">Final Summary</text>
+  <line x1="220" y1="720" x2="220" y2="750"/>
+
+  <!-- Step 5: Cleanup -->
+  <rect x="130" y="750" width="180" height="40" rx="4" fill="#6C757D"/>
+  <text x="220" y="770">Cleanup</text>
+</svg>

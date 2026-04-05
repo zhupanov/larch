@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 880" width="420" height="880">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/>
+    </marker>
+    <style>
+      text { font-family: Arial, sans-serif; font-size: 13px; fill: white; text-anchor: middle; dominant-baseline: central; }
+      .label { fill: #555; font-size: 11px; }
+      line, polyline { stroke: #333; stroke-width: 1.5; marker-end: url(#arrow); fill: none; }
+    </style>
+  </defs>
+
+  <!-- Title -->
+  <text x="210" y="20" fill="#333" font-size="16" font-weight="bold">/design</text>
+
+  <!-- Step 0: Session Setup -->
+  <rect x="120" y="40" width="180" height="40" rx="4" fill="#6C757D"/>
+  <text x="210" y="60">Session Setup</text>
+  <line x1="210" y1="80" x2="210" y2="100"/>
+
+  <!-- Step 1: Create Branch -->
+  <rect x="120" y="100" width="180" height="40" rx="4" fill="#4A90D9"/>
+  <text x="210" y="120">Create Branch</text>
+  <line x1="210" y1="140" x2="210" y2="160"/>
+
+  <!-- Step 2a: Collaborative Sketches (parallel) -->
+  <rect x="95" y="160" width="230" height="40" rx="4" fill="#17A2B8" stroke="#17A2B8" stroke-width="3"/>
+  <text x="210" y="180">5 Collaborative Sketches</text>
+  <line x1="210" y1="200" x2="210" y2="230"/>
+
+  <!-- Step 2a.4: Synthesis -->
+  <rect x="120" y="230" width="180" height="40" rx="4" fill="#4A90D9"/>
+  <text x="210" y="250">Approach Synthesis</text>
+  <line x1="210" y1="270" x2="210" y2="300"/>
+
+  <!-- Step 2b: Design Plan -->
+  <rect x="120" y="300" width="180" height="40" rx="4" fill="#4A90D9"/>
+  <text x="210" y="320">Design Plan</text>
+  <line x1="210" y1="340" x2="210" y2="370"/>
+
+  <!-- Step 3: Plan Review (parallel) -->
+  <rect x="70" y="370" width="280" height="40" rx="4" fill="#17A2B8" stroke="#17A2B8" stroke-width="3"/>
+  <text x="210" y="390">Plan Review (4 Claude + external)</text>
+  <line x1="210" y1="410" x2="210" y2="440"/>
+
+  <!-- No-issues path: skip voting, go directly to Architecture Diagram -->
+  <text x="40" y="425" class="label">no issues</text>
+  <polyline points="70,395 30,395 30,690 100,690" fill="none" stroke="#333" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+
+  <!-- Step 3: 3-Agent Voting -->
+  <rect x="95" y="440" width="230" height="40" rx="4" fill="#E8833A" stroke="#E8833A" stroke-width="3"/>
+  <text x="210" y="460">3-Agent Voting Panel</text>
+  <line x1="210" y1="480" x2="210" y2="510"/>
+
+  <!-- Decision: Revisions needed? -->
+  <polygon points="210,510 300,550 210,590 120,550" fill="#F0AD4E"/>
+  <text x="210" y="548" font-size="12">Revisions</text>
+  <text x="210" y="562" font-size="12">needed?</text>
+
+  <!-- Yes arrow - revise plan -->
+  <text x="315" y="545" class="label">yes</text>
+  <polyline points="300,550 350,550 350,620 300,620" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Revise Plan -->
+  <rect x="120" y="600" width="180" height="40" rx="4" fill="#4A90D9"/>
+  <text x="210" y="620">Revise Plan</text>
+  <line x1="210" y1="640" x2="210" y2="670"/>
+
+  <!-- No arrow -->
+  <text x="100" y="570" class="label">no</text>
+  <polyline points="120,550 70,550 70,690 120,690" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Step 3b: Architecture Diagram -->
+  <rect x="100" y="670" width="220" height="40" rx="4" fill="#28A745"/>
+  <text x="210" y="690">Architecture Diagram</text>
+  <line x1="210" y1="710" x2="210" y2="740"/>
+
+  <!-- Step 4: Rejected Findings Report -->
+  <rect x="120" y="740" width="180" height="40" rx="4" fill="#4A90D9"/>
+  <text x="210" y="760">Rejected Findings</text>
+  <line x1="210" y1="780" x2="210" y2="810"/>
+
+  <!-- Step 5: Cleanup -->
+  <rect x="120" y="810" width="180" height="40" rx="4" fill="#6C757D"/>
+  <text x="210" y="830">Cleanup</text>
+</svg>
