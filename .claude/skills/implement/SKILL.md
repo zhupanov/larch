@@ -31,6 +31,7 @@ Suggested emoji palette (use consistently):
 |------|-------|-------------|
 | 0 | 🔧 | Session setup |
 | 1 | 📐 | Ensure design plan |
+| 🔃 | 🔃 | Rebase onto latest main |
 | 2 | 🛠️ | Implementation |
 | 3 | 🧹 | Lint (first pass) |
 | 4 | 💾 | First commit |
@@ -129,6 +130,25 @@ Proceed to Step 2.
 - If `IS_USER_BRANCH=true` but **no** implementation plan is visible in the conversation context: Invoke the `/design` skill with `--session-env $IMPL_TMPDIR/session-env.sh` prepended to the feature description to create a plan on the current branch. **If `auto_mode=true`, also prepend `--auto`** so `/design` suppresses interactive questions. After `/design` completes, proceed to Step 2.
 - If on `main` or empty (detached HEAD) or any non-user branch: No design plan exists yet. Invoke the `/design` skill with `--session-env $IMPL_TMPDIR/session-env.sh` prepended to the feature description to create a branch and design the plan. **If `auto_mode=true`, also prepend `--auto`** so `/design` suppresses interactive questions. After `/design` completes, proceed to Step 2.
 
+### Rebase onto latest main (before implementation)
+
+Print: `🔃 Rebasing onto latest main before starting implementation...`
+
+First, check if the branch has already been pushed to origin (e.g., re-running `/implement` on an existing PR branch):
+```bash
+git ls-remote --heads origin "$(git branch --show-current)" 2>/dev/null
+```
+If the output is non-empty (branch exists on origin), print: `⏩ Rebase skipped — branch already pushed to origin.` and skip this rebase.
+
+Otherwise, run:
+```bash
+$PWD/.claude/scripts/generic/rebase-push.sh --no-push
+```
+
+If the script exits non-zero, print: `**⚠ Rebase onto main failed (likely conflict). Bailing to cleanup.**` and skip to Step 13.
+
+If successful, print: `✅ Rebased onto latest main.`
+
 ## Step 2 — Implement the Feature
 
 **Opportunistic questions** (`auto_mode=false` only): Before starting edits, if the implementation plan leaves genuinely ambiguous choices (e.g., naming conventions, test strategy, which of two valid approaches to use), batch them into a single `AskUserQuestion` call with 1-4 questions. Only ask when the ambiguity cannot be resolved from the plan, codebase, or CLAUDE.md. When `auto_mode=true`, proceed with best judgment — do not ask. Material answers that change scope or approach should be noted for the "Implementation Deviations" section.
@@ -152,6 +172,25 @@ $PWD/.claude/scripts/generic/git-commit.sh -m "<descriptive commit message>" <sp
 ```
 
 The commit message should describe WHAT was implemented and WHY, not HOW.
+
+### Rebase onto latest main (after implementation commit)
+
+Print: `🔃 Rebasing onto latest main after implementation commit...`
+
+First, check if the branch has already been pushed to origin:
+```bash
+git ls-remote --heads origin "$(git branch --show-current)" 2>/dev/null
+```
+If the output is non-empty, print: `⏩ Rebase skipped — branch already pushed to origin.` and skip this rebase.
+
+Otherwise, run:
+```bash
+$PWD/.claude/scripts/generic/rebase-push.sh --no-push
+```
+
+If the script exits non-zero, print: `**⚠ Rebase onto main failed (likely conflict). Bailing to cleanup.**` and skip to Step 13.
+
+If successful, print: `✅ Rebased onto latest main.`
 
 ## Step 5 — Code Review
 
@@ -211,6 +250,27 @@ $PWD/.claude/scripts/generic/git-commit.sh -m "Address code review feedback" <sp
 
 If no files changed (review found no issues), skip this commit.
 
+### Rebase onto latest main (after review fixes commit)
+
+**Conditional**: Only run this rebase if `FILES_CHANGED=true` from Step 6's `check-review-changes.sh` output (meaning Step 7 created a commit). If Steps 6–7 were skipped (no review changes), skip this rebase — the pre-Step-8 rebase provides the safety net.
+
+Print: `🔃 Rebasing onto latest main after review fixes commit...`
+
+First, check if the branch has already been pushed to origin:
+```bash
+git ls-remote --heads origin "$(git branch --show-current)" 2>/dev/null
+```
+If the output is non-empty, print: `⏩ Rebase skipped — branch already pushed to origin.` and skip this rebase.
+
+Otherwise, run:
+```bash
+$PWD/.claude/scripts/generic/rebase-push.sh --no-push
+```
+
+If the script exits non-zero, print: `**⚠ Rebase onto main failed (likely conflict). Bailing to cleanup.**` and skip to Step 13.
+
+If successful, print: `✅ Rebased onto latest main.`
+
 ## Step 7a — Code Flow Diagram
 
 Print: `🗺️ Step 7a — Generating code flow diagram...`
@@ -236,6 +296,27 @@ Print the diagram under a `## Code Flow Diagram` header with a mermaid code fenc
 **If diagram generation succeeds**, print: `✅ Step 7a — Code flow diagram generated.`
 
 **If diagram generation fails** (e.g., the implementation is too abstract to diagram meaningfully), print: `**⚠ Step 7a — Code flow diagram generation failed. Proceeding without diagram.**` Log this warning to `$IMPL_TMPDIR/execution-issues.md` under the `Warnings` category.
+
+### Rebase onto latest main (before version bump)
+
+This rebase **always runs** as a final safety net before the version bump and PR creation, even if a previous rebase just ran. It ensures the branch is as fresh as possible before the version bump becomes the last commit.
+
+Print: `🔃 Rebasing onto latest main before version bump...`
+
+First, check if the branch has already been pushed to origin:
+```bash
+git ls-remote --heads origin "$(git branch --show-current)" 2>/dev/null
+```
+If the output is non-empty, print: `⏩ Rebase skipped — branch already pushed to origin.` and skip this rebase.
+
+Otherwise, run:
+```bash
+$PWD/.claude/scripts/generic/rebase-push.sh --no-push
+```
+
+If the script exits non-zero, print: `**⚠ Rebase onto main failed (likely conflict). Bailing to cleanup.**` and skip to Step 13.
+
+If successful, print: `✅ Rebased onto latest main.`
 
 ## Step 8 — Version Bump
 
