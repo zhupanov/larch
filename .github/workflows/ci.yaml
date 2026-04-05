@@ -10,19 +10,13 @@ permissions:
   contents: read
 
 jobs:
-  shellcheck:
+  lint:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - name: shellcheck all .sh files
         run: find . -name '*.sh' | grep -v '.git' | grep -v '.venv' | xargs -n1 -t shellcheck
-
-  markdownlint:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
       - name: Install markdownlint-cli
         run: npm install -g markdownlint-cli
       - name: Lint all .md files
