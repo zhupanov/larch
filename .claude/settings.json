@@ -154,6 +154,7 @@
       "Bash(pip3:*)",
       "Bash(pip:*)",
       "Bash(pkill:*)",
+      "Bash(pre-commit:*)",
       "Bash(printf:*)",
       "Bash(ps:*)",
       "Bash(python3:*)",
