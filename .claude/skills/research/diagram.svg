@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 580" width="440" height="580">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/>
+    </marker>
+    <style>
+      text { font-family: Arial, sans-serif; font-size: 13px; fill: white; text-anchor: middle; dominant-baseline: central; }
+      .label { fill: #555; font-size: 11px; }
+      line, polyline { stroke: #333; stroke-width: 1.5; marker-end: url(#arrow); fill: none; }
+    </style>
+  </defs>
+
+  <!-- Title -->
+  <text x="220" y="20" fill="#333" font-size="16" font-weight="bold">/research</text>
+
+  <!-- Step 0: Session Setup -->
+  <rect x="130" y="40" width="180" height="40" rx="4" fill="#6C757D"/>
+  <text x="220" y="60">Session Setup</text>
+  <line x1="220" y1="80" x2="220" y2="110"/>
+
+  <!-- Step 1: Research Agents (parallel) -->
+  <rect x="85" y="110" width="270" height="40" rx="4" fill="#17A2B8" stroke="#17A2B8" stroke-width="3"/>
+  <text x="220" y="130">5 Research Agents (parallel)</text>
+  <line x1="220" y1="150" x2="220" y2="180"/>
+
+  <!-- Wait & Validate -->
+  <rect x="130" y="180" width="180" height="40" rx="4" fill="#4A90D9"/>
+  <text x="220" y="200">Wait &amp; Validate</text>
+  <line x1="220" y1="220" x2="220" y2="250"/>
+
+  <!-- Synthesis -->
+  <rect x="130" y="250" width="180" height="40" rx="4" fill="#4A90D9"/>
+  <text x="220" y="270">Research Synthesis</text>
+  <line x1="220" y1="290" x2="220" y2="320"/>
+
+  <!-- Step 2: Validation Review (parallel) -->
+  <rect x="65" y="320" width="310" height="40" rx="4" fill="#17A2B8" stroke="#17A2B8" stroke-width="3"/>
+  <text x="220" y="340">Validation (4 Claude + external)</text>
+  <line x1="220" y1="360" x2="220" y2="390"/>
+
+  <!-- Negotiate & Finalize -->
+  <rect x="130" y="390" width="180" height="40" rx="4" fill="#4A90D9"/>
+  <text x="220" y="410">Negotiate &amp; Finalize</text>
+  <line x1="220" y1="430" x2="220" y2="460"/>
+
+  <!-- Step 3: Final Report -->
+  <rect x="130" y="460" width="180" height="40" rx="4" fill="#4A90D9"/>
+  <text x="220" y="480">Final Report</text>
+  <line x1="220" y1="500" x2="220" y2="530"/>
+
+  <!-- Step 4: Cleanup -->
+  <rect x="130" y="530" width="180" height="40" rx="4" fill="#6C757D"/>
+  <text x="220" y="550">Cleanup</text>
+</svg>

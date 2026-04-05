@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 820" width="460" height="820">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/>
+    </marker>
+    <style>
+      text { font-family: Arial, sans-serif; font-size: 13px; fill: white; text-anchor: middle; dominant-baseline: central; }
+      .label { fill: #555; font-size: 11px; }
+      line, polyline { stroke: #333; stroke-width: 1.5; marker-end: url(#arrow); fill: none; }
+    </style>
+  </defs>
+
+  <!-- Title -->
+  <text x="230" y="20" fill="#333" font-size="16" font-weight="bold">/shazam</text>
+
+  <!-- Step 0: Session Setup -->
+  <rect x="140" y="40" width="180" height="40" rx="4" fill="#6C757D"/>
+  <text x="230" y="60">Session Setup</text>
+  <line x1="230" y1="80" x2="230" y2="110"/>
+
+  <!-- Step 1: /implement (with optional --quick) -->
+  <rect x="95" y="110" width="270" height="40" rx="4" fill="#7B68EE"/>
+  <text x="230" y="125">Design + Implement + PR</text>
+  <text x="230" y="140">+ Slack (/implement)</text>
+  <text x="390" y="130" fill="#E8833A" font-size="10" text-anchor="start">--quick?</text>
+  <line x1="230" y1="150" x2="230" y2="180"/>
+
+  <!-- Decision: no-merge flag? -->
+  <polygon points="230,180 320,215 230,250 140,215" fill="#F0AD4E"/>
+  <text x="230" y="213" font-size="12">--no-merge</text>
+  <text x="230" y="227" font-size="12">flag?</text>
+
+  <!-- Yes arrow - skip to report -->
+  <text x="335" y="210" class="label">yes</text>
+  <polyline points="320,215 400,215 400,650 320,650" stroke="#333" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- No arrow -->
+  <text x="215" y="265" class="label">no</text>
+  <line x1="230" y1="250" x2="230" y2="280"/>
+
+  <!-- Step 2: CI + Rebase + Merge Loop -->
+  <rect x="100" y="280" width="260" height="40" rx="4" fill="#4A90D9"/>
+  <text x="230" y="300">CI + Rebase + Merge Loop</text>
+  <line x1="230" y1="320" x2="230" y2="350"/>
+
+  <!-- CI Loop arrow -->
+  <polyline points="100,300 60,300 60,280 100,280" fill="none" marker-end="url(#arrow)"/>
+  <text x="30" y="290" class="label">retry</text>
+
+  <!-- Decision: CI passed & merged? -->
+  <polygon points="230,350 320,385 230,420 140,385" fill="#F0AD4E"/>
+  <text x="230" y="383" font-size="12">Merged?</text>
+
+  <!-- Bail arrow -->
+  <text x="335" y="380" class="label">bail</text>
+  <polyline points="320,385 380,385 380,650 320,650" stroke="#D9534F" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Yes arrow -->
+  <text x="215" y="435" class="label">yes</text>
+  <line x1="230" y1="420" x2="230" y2="450"/>
+
+  <!-- Step 3: :merged: Emoji -->
+  <rect x="120" y="450" width="220" height="40" rx="4" fill="#4A90D9"/>
+  <text x="230" y="470">Add :merged: Emoji</text>
+  <line x1="230" y1="490" x2="230" y2="520"/>
+
+  <!-- Step 4: Local Cleanup -->
+  <rect x="140" y="520" width="180" height="40" rx="4" fill="#6C757D"/>
+  <text x="230" y="540">Local Cleanup</text>
+  <line x1="230" y1="560" x2="230" y2="590"/>
+
+  <!-- Step 5: Verify Main -->
+  <rect x="140" y="590" width="180" height="40" rx="4" fill="#4A90D9"/>
+  <text x="230" y="610">Verify Main</text>
+  <line x1="230" y1="630" x2="230" y2="650"/>
+
+  <!-- Step 6: Final Report -->
+  <rect x="140" y="650" width="180" height="40" rx="4" fill="#4A90D9"/>
+  <text x="230" y="670">Final Report</text>
+  <line x1="230" y1="690" x2="230" y2="720"/>
+
+  <!-- Step 7: Final Cleanup -->
+  <rect x="140" y="720" width="180" height="40" rx="4" fill="#6C757D"/>
+  <text x="230" y="740">Final Cleanup</text>
+</svg>
