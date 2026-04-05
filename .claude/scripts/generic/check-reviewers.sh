@@ -19,11 +19,11 @@ set -uo pipefail
 CODEX_AVAILABLE="false"
 CURSOR_AVAILABLE="false"
 
-if which codex >/dev/null 2>&1; then
+if command -v codex >/dev/null 2>&1; then
     CODEX_AVAILABLE="true"
 fi
 
-if which cursor >/dev/null 2>&1; then
+if command -v cursor >/dev/null 2>&1; then
     CURSOR_AVAILABLE="true"
 fi
 

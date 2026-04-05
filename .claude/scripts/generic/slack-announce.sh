@@ -123,14 +123,8 @@ if [[ -n "$BULLET_LINES" ]]; then
     MESSAGE="${MESSAGE}"$'\n'"${BULLET_LINES}"
 fi
 
-# --- Escape for JSON string embedding ---
-# post-slack-message.sh embeds text via string interpolation into JSON, so we
-# must escape: backslashes first, then double quotes, then newlines.
-MESSAGE="${MESSAGE//\\/\\\\}"
-MESSAGE="${MESSAGE//\"/\\\"}"
-MESSAGE="${MESSAGE//$'\n'/\\n}"
-
 # --- Post to Slack ---
+# post-slack-message.sh uses jq --arg for JSON construction, so pass raw text.
 set +e
 SLACK_TS=$(bash "$SCRIPT_DIR/post-slack-message.sh" \
     --channel-id "$CHANNEL_ID" \

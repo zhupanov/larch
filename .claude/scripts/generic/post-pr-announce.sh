@@ -81,7 +81,7 @@ SLACK_CHANNEL_ID=$(echo "$CHANNEL_OUTPUT" | grep '^SLACK_CHANNEL_ID=' | cut -d= 
 if [[ -z "$SLACK_CHANNEL_ID" ]]; then
     echo "WARNING: repo-config.json missing or slackChannelId not set. Slack announcement skipped." >&2
     "$SCRIPT_DIR/cleanup-tmpdir.sh" --dir "$POST_PR_TMPDIR" 2>/dev/null || true
-    exit 3
+    exit 0
 fi
 
 # --- Post to Slack ---
