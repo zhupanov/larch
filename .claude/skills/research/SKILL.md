@@ -242,9 +242,7 @@ Use `timeout: 960000` on the Bash tool call. **Do NOT** set `run_in_background: 
 
 ### Codex and Cursor Negotiation (in parallel)
 
-If **both** Codex and Cursor produced findings, run both negotiations **in parallel** (they are independent). Use the **Negotiation Protocol** in `.claude/skills/shared/external-reviewers.md`, using `$RESEARCH_TMPDIR` as the tmpdir for both. Merge accepted/rejected outcomes after both complete.
-
-If only **one** produced findings, negotiate with that one reviewer only.
+If any external reviewers produced findings, negotiate with each independently. With 2 Codex instances (Codex-General and Codex-Deep-Analysis), negotiate with each separately using distinct prompt/output file paths (e.g., `codex-general-negotiation-prompt.txt` / `codex-general-negotiation-output.txt` and `codex-deep-negotiation-prompt.txt` / `codex-deep-negotiation-output.txt`). Run all negotiations **in parallel** when multiple external reviewers produced findings. Use the **Negotiation Protocol** in `.claude/skills/shared/external-reviewers.md`, using `$RESEARCH_TMPDIR` as the tmpdir. Merge accepted/rejected outcomes after all complete.
 
 ### Finalize Validation
 

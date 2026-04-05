@@ -46,7 +46,7 @@ FINDING_2: <reviewer attribution> — <finding description>
 Out-of-scope observations are included on the same ballot with an `[OUT_OF_SCOPE]` prefix:
 
 ```text
-OOS_1: [OUT_OF_SCOPE] Generic — <description of pre-existing issue>
+OOS_1: [OUT_OF_SCOPE] General — <description of pre-existing issue>
 ```
 
 ## Voter Output Format

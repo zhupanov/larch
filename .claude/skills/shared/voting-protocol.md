@@ -20,7 +20,7 @@ FINDING_2: <reviewer attribution> — <finding description>
 ...
 ```
 
-Include the reviewer attribution (e.g., "General", "Deep-Analysis", "Codex") so voters have context, but instruct voters to evaluate each finding on its merits regardless of who proposed it.
+Include the reviewer attribution (e.g., "General", "Deep-Analysis", "Codex-General", "Codex-Deep-Analysis", "Cursor") so voters have context, but instruct voters to evaluate each finding on its merits regardless of who proposed it.
 
 ## Voter Output Format
 
@@ -49,7 +49,7 @@ When voting is skipped due to insufficient voters, print: `**⚠ Voting skipped 
 ## Voter Panel Composition
 
 **For plan review** (`/design` Step 3):
-- **Voter 1**: Claude Deep Analysis reviewer subagent — launched as a fresh Agent tool invocation with a focused voting prompt (separate from the 4 reviewer subagents)
+- **Voter 1**: Claude Deep Analysis reviewer subagent — launched as a fresh Agent tool invocation with a focused voting prompt (separate from the reviewer subagents)
 - **Voter 2**: Codex — via `run-external-reviewer.sh`
 - **Voter 3**: Cursor — via `run-external-reviewer.sh`
 
@@ -143,10 +143,11 @@ After voting, print a scoreboard to the session:
 
 | Reviewer | Findings | Accepted | Neutral (1 YES) | Exonerated (0 YES, 1+ EXON.) | Rejected (0 YES, 0 EXON.) | Score |
 |----------|----------|----------|-----------------|-------------------------------|---------------------------|-------|
-| General       | 3        | 2        | 1               | 0                             | 0                         | +2    |
-| Deep-Analysis | 2        | 1        | 0               | 1                             | 0                         | +1    |
-| Codex         | 1        | 0        | 0               | 0                             | 1                         | -1    |
-| ...      |          |          |                 |                               |                           |       |
+| General              | 3        | 2        | 1               | 0                             | 0                         | +2    |
+| Deep-Analysis        | 2        | 1        | 0               | 1                             | 0                         | +1    |
+| Codex-General        | 1        | 0        | 0               | 0                             | 1                         | -1    |
+| Codex-Deep-Analysis  | 1        | 1        | 0               | 0                             | 0                         | +1    |
+| Cursor               | 2        | 1        | 1               | 0                             | 0                         | +1    |
 
 Note: In future iterations, token allocation will be weighted proportionally
 to reviewer scores — higher-scoring reviewers will receive more tokens.
