@@ -20,7 +20,7 @@ External reviewers are launched via the `run-external-reviewer.sh` wrapper scrip
 - **Output capture** — Captures stdout to a specified output file
 - **Elapsed time tracking** — Reports how long the review took
 
-Reviewers are always launched with `run_in_background: true` so they run concurrently with other work.
+During review and voting phases, reviewers are launched with `run_in_background: true` so they run concurrently with other work. (Negotiation rounds in `/research` and `/loop-review` run synchronously.)
 
 ## Launch Order
 

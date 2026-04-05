@@ -25,7 +25,7 @@ The number of YES votes required depends on how many voters are available:
 
 ## Voter Panel Composition
 
-The panel always consists of 3 voters, but the **Claude voter role differs by skill**:
+When all tools are available, the panel has 3 voters. The **Claude voter role differs by skill**:
 
 | Skill | Voter 1 (Claude) | Voter 2 | Voter 3 |
 |---|---|---|---|

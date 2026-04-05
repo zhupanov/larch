@@ -80,8 +80,8 @@ flowchart TD
 Not every task requires the full `/shazam` pipeline. Skills can be used independently:
 
 - **`/design <feature>`** — Plan a feature without implementing it. Creates a branch, runs collaborative sketches, writes and reviews the plan.
-- **`/implement <feature>`** — Implement and create a PR without merging. If a design plan exists on the current branch, it skips `/design`.
-- **`/review`** — Review the current branch's changes without any other workflow steps.
+- **`/implement <feature>`** — Implement and create a PR without merging. If a reviewed design plan is visible in the current session context, it skips `/design`.
+- **`/review`** — Review the current branch's changes. Launches reviewers, runs voting on findings, implements accepted fixes, and re-runs validation checks in a recursive loop.
 - **`/research <topic>`** — Read-only investigation. Does not create branches, modify files, or make commits. Uses a restricted tool set (no Edit, Write, or Skill tools).
 
 ## Flags
