@@ -245,7 +245,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$PWD/.claude/scripts/generic/block-devtools-edit.sh"
+            "command": "$PWD/.claude/scripts/generic/block-submodule-edit.sh"
           }
         ]
       },
@@ -254,7 +254,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$PWD/.claude/scripts/generic/block-devtools-edit.sh"
+            "command": "$PWD/.claude/scripts/generic/block-submodule-edit.sh"
           }
         ]
       }
