@@ -48,10 +48,10 @@ A Slack Bot User OAuth Token (starts with `xoxb-`) used to authenticate Slack AP
 **When set:**
 - `/implement` and `/shazam` post PR announcements to Slack after creating a PR
 - `/shazam` adds a `:merged:` emoji reaction to the Slack announcement after the PR is merged
-- The token is validated during session setup and its availability is propagated to child skills
+- The token's presence is checked during session setup and its availability is propagated to child skills
 
 **When not set:**
-- Slack announcement steps are skipped with a warning (e.g., `⚠ CLAUDIN_SLACK_BOT_TOKEN is not set. Slack announcement will be skipped.`)
+- Slack announcement steps are skipped with a warning (e.g., `⚠ CLAUDIN_SLACK_BOT_TOKEN is not set. Slack announcement (Step 11) will be skipped.`)
 - The `:merged:` emoji step in `/shazam` is skipped
 - All other workflow steps (design, implementation, code review, CI monitoring, merge) proceed normally
 
@@ -65,7 +65,8 @@ The Slack channel ID (e.g., `C0123456789`) where PR announcements and emoji reac
 
 **When not set:**
 - Slack announcements are skipped even if `CLAUDIN_SLACK_BOT_TOKEN` is set (the bot token alone is not sufficient — a target channel is required)
-- A warning is printed: `WARNING: CLAUDIN_SLACK_CHANNEL_ID is not set. Slack announcement skipped.`
+- The `:merged:` emoji step in `/shazam` is also skipped
+- Warnings are printed by the respective scripts (e.g., `WARNING: CLAUDIN_SLACK_CHANNEL_ID is not set.`)
 
 ## Detailed Documentation
 
