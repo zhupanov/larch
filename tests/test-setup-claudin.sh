@@ -97,8 +97,8 @@ echo "--- relevant-checks conflict test ---"
 mkdir -p ".claude/skills/relevant-checks"
 echo "# Client-specific checks" > ".claude/skills/relevant-checks/SKILL.md"
 # Re-run — should succeed without error despite the pre-existing directory
-./claudin/setup-claudin.sh > /dev/null 2>&1
-rc=$?
+rc=0
+./claudin/setup-claudin.sh > /dev/null 2>&1 || rc=$?
 if [[ $rc -eq 0 ]]; then
     echo "  PASS: setup-claudin.sh succeeds with pre-existing relevant-checks"
 else
