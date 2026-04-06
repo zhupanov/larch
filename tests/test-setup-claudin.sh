@@ -32,6 +32,13 @@ git commit --allow-empty -m "init" -q
 # (not a real submodule, but setup-claudin.sh only needs the directory structure)
 cp -R "$CLAUDIN_DIR" "$TEST_REPO_DIR/claudin"
 
+# Create settings.local.json fixture in the source so the settings*.json skip
+# is exercised during Phase 1. In CI this file is gitignored and absent from
+# the cp -R copy, so we create it explicitly to test the glob skip.
+if [[ ! -f "$TEST_REPO_DIR/claudin/.claude/settings.local.json" ]]; then
+    echo '{}' > "$TEST_REPO_DIR/claudin/.claude/settings.local.json"
+fi
+
 # Run setup-claudin.sh from the repo root
 echo ""
 echo "=== Running setup-claudin.sh ==="
@@ -112,13 +119,7 @@ echo "--- settings*.json ---"
 check_not_exists ".claude/settings.json" "settings.json should not be symlinked"
 
 # settings.local.json should NOT be symlinked (covered by settings*.json glob skip)
-# Verify the fixture exists in the source so the test is meaningful
-if [[ -f "$TEST_REPO_DIR/claudin/.claude/settings.local.json" ]]; then
-    echo "  (settings.local.json exists in source — testing skip)"
-else
-    echo "  (settings.local.json not in source — creating fixture)"
-    echo '{}' > "$TEST_REPO_DIR/claudin/.claude/settings.local.json"
-fi
+# Fixture was created before the first run (see above), so this assertion is meaningful.
 check_not_exists ".claude/settings.local.json" "settings.local.json should not be symlinked"
 
 # --- Re-run test (idempotency) ---

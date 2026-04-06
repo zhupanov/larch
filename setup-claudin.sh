@@ -146,7 +146,13 @@ while IFS= read -r -d '' entry; do
 
     # Skip settings*.json — client must maintain their own
     if [[ "$local_path" == settings*.json ]]; then
-        echo "  skipped: .claude/$local_path (maintain your own)"
+        # Remove any existing symlink from a prior version that linked settings files
+        if [[ -L ".claude/$local_path" ]]; then
+            rm ".claude/$local_path"
+            echo "  removed stale symlink: .claude/$local_path (maintain your own)"
+        else
+            echo "  skipped: .claude/$local_path (maintain your own)"
+        fi
         continue
     fi
 
