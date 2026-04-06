@@ -29,4 +29,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run integration tests
-        run: bash tests/test-update-claudin.sh
+        run: bash tests/test-setup-claudin.sh

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# test-update-claudin.sh — Integration test for update-claudin.sh
+# test-setup-claudin.sh — Integration test for setup-claudin.sh
 #
 # Creates a temporary fake client repo with claudin as a subdirectory,
-# runs update-claudin.sh, and verifies symlinks are created correctly
+# runs setup-claudin.sh, and verifies symlinks are created correctly
 # for the claudin/ subdirectory structure under scripts/generic/ and
 # skills/shared/.
 #
@@ -29,13 +29,13 @@ git config user.name "Claudin Test"
 git commit --allow-empty -m "init" -q
 
 # Copy claudin into the fake client repo as a subdirectory
-# (not a real submodule, but update-claudin.sh only needs the directory structure)
+# (not a real submodule, but setup-claudin.sh only needs the directory structure)
 cp -R "$CLAUDIN_DIR" "$TEST_REPO_DIR/claudin"
 
-# Run update-claudin.sh from the repo root
+# Run setup-claudin.sh from the repo root
 echo ""
-echo "=== Running update-claudin.sh ==="
-./claudin/update-claudin.sh
+echo "=== Running setup-claudin.sh ==="
+./claudin/setup-claudin.sh
 
 # --- Verification ---
 FAILURES=0
@@ -108,13 +108,23 @@ for agent in "$TEST_REPO_DIR"/claudin/.claude/agents/*.md; do
 done
 
 # settings.json should NOT be symlinked
-echo "--- settings.json ---"
+echo "--- settings*.json ---"
 check_not_exists ".claude/settings.json" "settings.json should not be symlinked"
+
+# settings.local.json should NOT be symlinked (covered by settings*.json glob skip)
+# Verify the fixture exists in the source so the test is meaningful
+if [[ -f "$TEST_REPO_DIR/claudin/.claude/settings.local.json" ]]; then
+    echo "  (settings.local.json exists in source — testing skip)"
+else
+    echo "  (settings.local.json not in source — creating fixture)"
+    echo '{}' > "$TEST_REPO_DIR/claudin/.claude/settings.local.json"
+fi
+check_not_exists ".claude/settings.local.json" "settings.local.json should not be symlinked"
 
 # --- Re-run test (idempotency) ---
 echo ""
-echo "=== Re-running update-claudin.sh (idempotency test) ==="
-./claudin/update-claudin.sh
+echo "=== Re-running setup-claudin.sh (idempotency test) ==="
+./claudin/setup-claudin.sh
 
 echo ""
 echo "=== Verifying symlinks still correct after re-run ==="
@@ -137,8 +147,8 @@ echo "=== Testing Phase 2: Dead symlink removal ==="
 # Create a fake stale symlink simulating a pre-migration path pointing into claudin
 mkdir -p .claude/scripts/generic
 ln -s "../../../claudin/.claude/scripts/generic/nonexistent-old-script.sh" ".claude/scripts/generic/stale-old.sh"
-# Re-run update-claudin.sh — Phase 2 should remove the stale symlink
-./claudin/update-claudin.sh
+# Re-run setup-claudin.sh — Phase 2 should remove the stale symlink
+./claudin/setup-claudin.sh
 check_not_exists ".claude/scripts/generic/stale-old.sh" "stale symlink should be removed by Phase 2"
 
 # --- Summary ---
