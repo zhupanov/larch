@@ -16,19 +16,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 CLAUDIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 
 # Create a temporary directory for the fake client repo
-TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$TMPDIR"' EXIT
+TEST_REPO_DIR="$(mktemp -d)"
+trap 'rm -rf "$TEST_REPO_DIR"' EXIT
 
-echo "=== Setting up fake client repo in $TMPDIR ==="
+echo "=== Setting up fake client repo in $TEST_REPO_DIR ==="
 
 # Initialize a git repo
-cd "$TMPDIR"
+cd "$TEST_REPO_DIR"
 git init -q
+git config user.email "test@claudin.test"
+git config user.name "Claudin Test"
 git commit --allow-empty -m "init" -q
 
 # Copy claudin into the fake client repo as a subdirectory
 # (not a real submodule, but update-claudin.sh only needs the directory structure)
-cp -R "$CLAUDIN_DIR" "$TMPDIR/claudin"
+cp -R "$CLAUDIN_DIR" "$TEST_REPO_DIR/claudin"
 
 # Run update-claudin.sh from the repo root
 echo ""
@@ -70,7 +72,7 @@ echo "=== Verifying symlinks ==="
 
 # Skill directories should be directory-level symlinks
 echo "--- Skill directories (directory-level symlinks) ---"
-for skill_dir in "$TMPDIR"/claudin/.claude/skills/*/; do
+for skill_dir in "$TEST_REPO_DIR"/claudin/.claude/skills/*/; do
     skill_name="$(basename "$skill_dir")"
     [[ "$skill_name" == "shared" ]] && continue
     if [[ -f "$skill_dir/SKILL.md" ]]; then
@@ -81,7 +83,7 @@ done
 # Scripts under scripts/generic/claudin/ should be file-level symlinks
 echo "--- Scripts (file-level symlinks under scripts/generic/claudin/) ---"
 script_count=0
-for script in "$TMPDIR"/claudin/.claude/scripts/generic/claudin/*.sh; do
+for script in "$TEST_REPO_DIR"/claudin/.claude/scripts/generic/claudin/*.sh; do
     script_name="$(basename "$script")"
     check_symlink ".claude/scripts/generic/claudin/$script_name" "script: $script_name"
     script_count=$((script_count + 1))
@@ -91,7 +93,7 @@ echo "  (checked $script_count scripts)"
 # Shared .md files under skills/shared/claudin/ should be file-level symlinks
 echo "--- Shared .md files (file-level symlinks under skills/shared/claudin/) ---"
 md_count=0
-for md_file in "$TMPDIR"/claudin/.claude/skills/shared/claudin/*.md; do
+for md_file in "$TEST_REPO_DIR"/claudin/.claude/skills/shared/claudin/*.md; do
     md_name="$(basename "$md_file")"
     check_symlink ".claude/skills/shared/claudin/$md_name" "shared md: $md_name"
     md_count=$((md_count + 1))
@@ -100,7 +102,7 @@ echo "  (checked $md_count shared .md files)"
 
 # Agent files should be file-level symlinks
 echo "--- Agent files ---"
-for agent in "$TMPDIR"/claudin/.claude/agents/*.md; do
+for agent in "$TEST_REPO_DIR"/claudin/.claude/agents/*.md; do
     agent_name="$(basename "$agent")"
     check_symlink ".claude/agents/$agent_name" "agent: $agent_name"
 done
@@ -117,7 +119,7 @@ echo "=== Re-running update-claudin.sh (idempotency test) ==="
 echo ""
 echo "=== Verifying symlinks still correct after re-run ==="
 rerun_ok=true
-for script in "$TMPDIR"/claudin/.claude/scripts/generic/claudin/*.sh; do
+for script in "$TEST_REPO_DIR"/claudin/.claude/scripts/generic/claudin/*.sh; do
     script_name="$(basename "$script")"
     if [[ ! -L ".claude/scripts/generic/claudin/$script_name" ]] || [[ ! -e ".claude/scripts/generic/claudin/$script_name" ]]; then
         echo "  FAIL: script $script_name broken after re-run"
@@ -128,6 +130,16 @@ done
 if $rerun_ok; then
     echo "  PASS: All symlinks correct after re-run"
 fi
+
+# --- Phase 2: Dead symlink removal ---
+echo ""
+echo "=== Testing Phase 2: Dead symlink removal ==="
+# Create a fake stale symlink simulating a pre-migration path pointing into claudin
+mkdir -p .claude/scripts/generic
+ln -s "../../../claudin/.claude/scripts/generic/nonexistent-old-script.sh" ".claude/scripts/generic/stale-old.sh"
+# Re-run update-claudin.sh — Phase 2 should remove the stale symlink
+./claudin/update-claudin.sh
+check_not_exists ".claude/scripts/generic/stale-old.sh" "stale symlink should be removed by Phase 2"
 
 # --- Summary ---
 echo ""
