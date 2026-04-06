@@ -42,7 +42,7 @@ git commit -m "Bump claudin submodule"
 
 **Important notes**:
 
-- **`settings.json` is not symlinked.** Your repo must maintain its own `.claude/settings.json` with the permission entries needed by claudin scripts. The recommended approach is to copy the `permissions.allow` array from claudin's `settings.json` as a baseline. At minimum, include bash permissions for `$PWD/.claude/scripts/generic/*`, `$PWD/.claude/skills/*/scripts/*` (for skill-specific scripts), and the `block-submodule-edit.sh` hook.
+- **`settings.json` is not symlinked.** Your repo must maintain its own `.claude/settings.json` with the permission entries needed by claudin scripts. The recommended approach is to copy the `permissions.allow` array from claudin's `settings.json` as a baseline. At minimum, include bash permissions for `$PWD/.claude/scripts/generic/claudin/*`, `$PWD/.claude/skills/*/scripts/*` (for skill-specific scripts), and the `block-submodule-edit.sh` hook.
 - **Edits to `claudin/` are blocked.** The `block-submodule-edit.sh` hook prevents Claude Code from editing files inside git submodules. This is intentional — changes to claudin should be made via PRs to the claudin repo, then pulled in by updating the submodule.
 - **Conflicts**: If a non-symlink file or directory already exists at a path the script needs to symlink, it exits with an error. Resolve the conflict manually (rename or remove the existing file) and re-run.
 
@@ -59,16 +59,18 @@ Copy the skills you need along with their shared dependencies into your repo's `
 │   ├── general-reviewer.md
 │   └── deep-analysis-reviewer.md
 ├── scripts/
-│   └── generic/               # ~37 reusable shell scripts invoked by skills
-│       ├── session-setup.sh
-│       ├── create-pr.sh
-│       ├── ci-wait.sh
-│       └── ...
+│   └── generic/
+│       └── claudin/           # ~37 reusable shell scripts invoked by skills
+│           ├── session-setup.sh
+│           ├── create-pr.sh
+│           ├── ci-wait.sh
+│           └── ...
 └── skills/
-    ├── shared/                # Shared .md files referenced by multiple skills
-    │   ├── voting-protocol.md
-    │   ├── reviewer-templates.md
-    │   └── external-reviewers.md
+    ├── shared/
+    │   └── claudin/           # Shared .md files referenced by multiple skills
+    │       ├── voting-protocol.md
+    │       ├── reviewer-templates.md
+    │       └── external-reviewers.md
     ├── design/                # Each skill directory contains SKILL.md
     │   ├── SKILL.md           #   and may include scripts/, agents/,
     │   └── diagram.svg        #   references/, assets/, diagrams
@@ -84,8 +86,8 @@ Copy the skills you need along with their shared dependencies into your repo's `
 When copying a skill, you must also copy its shared dependencies:
 
 1. **The skill directory** — e.g., `.claude/skills/design/` (the entire directory including any nested `scripts/`, `agents/`, etc.)
-2. **`.claude/skills/shared/`** — shared markdown files referenced by all review-related skills. **Always copy this.**
-3. **`.claude/scripts/generic/`** — shell scripts that skills invoke for git operations, CI, Slack, etc. **Always copy this.**
+2. **`.claude/skills/shared/claudin/`** — shared markdown files referenced by all review-related skills. **Always copy this.**
+3. **`.claude/scripts/generic/claudin/`** — shell scripts that skills invoke for git operations, CI, Slack, etc. **Always copy this.**
 4. **`.claude/agents/`** — reviewer agent definitions used by `/design`, `/review`, and `/loop-review`. Copy if using any review-related skill.
 
 #### Transitive skill dependencies

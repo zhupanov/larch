@@ -66,8 +66,8 @@ CLAUDIN_REL="${CLAUDIN_DIR#"$REPO_ROOT"/}"
 # and a target path relative to repo root (e.g., claudin/.claude/skills/design),
 # compute the relative path from the symlink's parent to the target.
 compute_relpath() {
-    local link_path="$1"  # e.g., .claude/scripts/generic/foo.sh
-    local target_path="$2"  # e.g., claudin/.claude/scripts/generic/foo.sh
+    local link_path="$1"  # e.g., .claude/scripts/generic/claudin/foo.sh
+    local target_path="$2"  # e.g., claudin/.claude/scripts/generic/claudin/foo.sh
 
     local parent_dir
     parent_dir="$(dirname "$link_path")"
@@ -238,5 +238,5 @@ echo "Done. Dead symlinks removed: $dead_count"
 echo ""
 echo "NOTE: .claude/settings.json was not synced. Ensure your settings.json"
 echo "includes the necessary permissions for claudin scripts. At minimum:"
-echo "  - Bash permission for \$PWD/.claude/scripts/generic/*"
+echo "  - Bash permission for \$PWD/.claude/scripts/generic/claudin/*"
 echo "  - The block-submodule-edit.sh hook (if using submodule flow)"
