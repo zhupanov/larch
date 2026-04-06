@@ -22,3 +22,11 @@ jobs:
         run: pip install pre-commit==4.2.0
       - name: Run all linters
         run: make lint
+
+  integration-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run integration tests
+        run: bash tests/test-update-claudin.sh

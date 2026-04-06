@@ -1,7 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash($PWD/.claude/scripts/generic/*)",
+      "Bash($PWD/.claude/scripts/generic/claudin/*)",
       "Bash($PWD/.claude/scripts/repo/*)",
       "Bash($PWD/.claude/skills/*)",
       "Bash($PWD/.claude/skills/admin-add-user/scripts/*)",
@@ -244,7 +244,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$PWD/.claude/scripts/generic/block-submodule-edit.sh"
+            "command": "$PWD/.claude/scripts/generic/claudin/block-submodule-edit.sh"
           }
         ]
       },
@@ -253,7 +253,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$PWD/.claude/scripts/generic/block-submodule-edit.sh"
+            "command": "$PWD/.claude/scripts/generic/claudin/block-submodule-edit.sh"
           }
         ]
       }
@@ -264,7 +264,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$PWD/.claude/scripts/generic/auto-goimports.sh"
+            "command": "$PWD/.claude/scripts/generic/claudin/auto-goimports.sh"
           }
         ]
       },
@@ -273,7 +273,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$PWD/.claude/scripts/generic/auto-goimports.sh"
+            "command": "$PWD/.claude/scripts/generic/claudin/auto-goimports.sh"
           }
         ]
       }

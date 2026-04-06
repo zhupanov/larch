@@ -43,7 +43,7 @@ Suggested emoji palette (use consistently):
 Run the shared session setup script. If `SESSION_ENV_PATH` is non-empty (passed via `--session-env`), include `--caller-env` to reuse already-discovered values:
 
 ```bash
-$PWD/.claude/scripts/generic/session-setup.sh --prefix claude-shazam [--caller-env "$SESSION_ENV_PATH"]
+$PWD/.claude/scripts/generic/claudin/session-setup.sh --prefix claude-shazam [--caller-env "$SESSION_ENV_PATH"]
 ```
 
 Only include `--caller-env "$SESSION_ENV_PATH"` if `SESSION_ENV_PATH` is non-empty.
@@ -60,7 +60,7 @@ Parse the output for `SESSION_TMPDIR`, `SLACK_OK`, `SLACK_MISSING`, `REPO`, `REP
 Write the discovered values to `$SHAZAM_TMPDIR/session-env.sh` so they can be forwarded to `/implement`:
 
 ```bash
-$PWD/.claude/scripts/generic/write-session-env.sh --output "$SHAZAM_TMPDIR/session-env.sh" \
+$PWD/.claude/scripts/generic/claudin/write-session-env.sh --output "$SHAZAM_TMPDIR/session-env.sh" \
   --slack-ok <value> --slack-missing <value> --repo <value> --repo-unavailable <value>
 ```
 
@@ -116,7 +116,7 @@ Track these counters (all start at 0):
 **Wait for CI** using the `ci-wait.sh` script, which polls `ci-status.sh` + `ci-decide.sh` internally and prints compact dot-based progress to stderr:
 
 ```bash
-$PWD/.claude/scripts/generic/ci-wait.sh --pr <PR-NUMBER> --repo $REPO \
+$PWD/.claude/scripts/generic/claudin/ci-wait.sh --pr <PR-NUMBER> --repo $REPO \
   --rebase-count "$rebase_count" --fix-attempts "$fix_attempts" --iteration "$iteration"
 ```
 
@@ -142,7 +142,7 @@ After handling any non-merge/non-bail action (rebase, evaluate_failure, etc.), *
 
 4. **When rebase is needed** (ACTION=rebase or rebase_then_evaluate), use the `rebase-push.sh` script:
    ```bash
-   $PWD/.claude/scripts/generic/rebase-push.sh
+   $PWD/.claude/scripts/generic/claudin/rebase-push.sh
    ```
    Handle exit codes:
    - **Exit 0**: Rebase and push succeeded.
@@ -154,7 +154,7 @@ After handling any non-merge/non-bail action (rebase, evaluate_failure, etc.), *
 
 When `rebase-push.sh` exits with code 1, the rebase is paused with conflicts. This procedure resolves them intelligently, with user escalation when uncertain and a full reviewer panel to validate the resolution.
 
-**Bail invariant**: Any bail from any phase below must call `$PWD/.claude/scripts/generic/git-rebase-abort.sh` before proceeding to Step 2d, since the rebase is in progress throughout all phases.
+**Bail invariant**: Any bail from any phase below must call `$PWD/.claude/scripts/generic/claudin/git-rebase-abort.sh` before proceeding to Step 2d, since the rebase is in progress throughout all phases.
 
 #### Phase 1 — Conflict Classification and Resolution
 
@@ -189,7 +189,7 @@ For each file in `CONFLICT_FILES`:
 
 **3a. Create temp directory**: Create `$SHAZAM_TMPDIR/conflict-review/` for reviewer artifacts. If it already exists (from a prior conflict resolution in this rebase loop), remove it and recreate.
 
-**3b. Check external reviewer availability**: Run `$PWD/.claude/scripts/generic/check-reviewers.sh` to set `codex_available` and `cursor_available` flags. Follow the Binary Check procedure in `.claude/skills/shared/external-reviewers.md`.
+**3b. Check external reviewer availability**: Run `$PWD/.claude/scripts/generic/claudin/check-reviewers.sh` to set `codex_available` and `cursor_available` flags. Follow the Binary Check procedure in `.claude/skills/shared/claudin/external-reviewers.md`.
 
 **3c. Prepare review context**: For each non-trivial conflicted file, prepare a per-file conflict context block:
 ```
@@ -209,16 +209,16 @@ For each file in `CONFLICT_FILES`:
 
 Also capture `git diff --cached` as supplementary context showing the full staged state.
 
-**3d. Launch reviewers**: Launch 2 Claude subagent reviewers + Codex + Cursor (if available) using the reviewer archetypes from `.claude/skills/shared/reviewer-templates.md` with:
+**3d. Launch reviewers**: Launch 2 Claude subagent reviewers + Codex + Cursor (if available) using the reviewer archetypes from `.claude/skills/shared/claudin/reviewer-templates.md` with:
 - `{REVIEW_TARGET}` = `"merge conflict resolution"`
 - `{CONTEXT_BLOCK}` = the per-file conflict context blocks from 3c + supplementary `git diff --cached`
 - `{OUTPUT_INSTRUCTION}` = `"File path and line number(s)"` + `"What the issue is with the resolution"` + `"Suggested correction"`
 
-Follow `.claude/skills/shared/external-reviewers.md` for launch order (Cursor first, Codex, then Claude subagents), background execution, sentinel polling via `wait-for-reviewers.sh`, and output validation. Use `$SHAZAM_TMPDIR/conflict-review/` as the tmpdir for all reviewer output files, sentinel files, and ballot files.
+Follow `.claude/skills/shared/claudin/external-reviewers.md` for launch order (Cursor first, Codex, then Claude subagents), background execution, sentinel polling via `wait-for-reviewers.sh`, and output validation. Use `$SHAZAM_TMPDIR/conflict-review/` as the tmpdir for all reviewer output files, sentinel files, and ballot files.
 
 **3d-ii. Collect and deduplicate**: After all reviewers complete, collect their findings. Parse Claude subagent dual-list outputs (in-scope findings + OOS observations). Read and validate external reviewer outputs per `external-reviewers.md`. Merge all findings, deduplicate (same file + same issue = one finding), assign stable sequential IDs (`FINDING_1`, `FINDING_2`, etc.), and write the ballot to `$SHAZAM_TMPDIR/conflict-review/ballot.txt` following the ballot format in `voting-protocol.md`.
 
-**3e. Voting**: Run the voting protocol from `.claude/skills/shared/voting-protocol.md` with code review voter composition:
+**3e. Voting**: Run the voting protocol from `.claude/skills/shared/claudin/voting-protocol.md` with code review voter composition:
 - **Voter 1**: Claude General Reviewer subagent (fresh Agent invocation)
 - **Voter 2**: Codex (if available) — via `run-external-reviewer.sh`
 - **Voter 3**: Cursor (if available) — via `run-external-reviewer.sh`
@@ -235,18 +235,18 @@ If the reviewer panel finds no issues or all findings are addressed: proceed to 
 
 #### Phase 4 — Continue Rebase
 
-Run `$PWD/.claude/scripts/generic/rebase-push.sh --continue` and handle exit codes:
+Run `$PWD/.claude/scripts/generic/claudin/rebase-push.sh --continue` and handle exit codes:
 - **Exit 0**: Rebase and push succeeded. Increment `rebase_count` and `iteration`, reset `transient_retries`. Restart the CI wait loop.
 - **Exit 1**: A later commit in the rebase conflicted. Loop back to **Phase 1** for the new conflict (the Conflict Resolution Procedure starts again for the new set of `CONFLICT_FILES`).
 - **Exit 2**: Push `--force-with-lease` failed. Retry `rebase-push.sh --continue` once. If it fails twice, **bail out** (Step 2d — call `git rebase --abort` first if the rebase is still in progress).
-- **Exit 3**: Check the `REBASE_ERROR` output. If it indicates an empty or already-applied commit (e.g., "nothing to commit", "No changes"), run `git rebase --skip` (if `git rebase --skip` itself exits non-zero, run `$PWD/.claude/scripts/generic/git-rebase-abort.sh` and **bail out** — Step 2d) and then `$PWD/.claude/scripts/generic/rebase-push.sh --continue` again (handle the same exit codes). Otherwise, **bail out** (Step 2d).
+- **Exit 3**: Check the `REBASE_ERROR` output. If it indicates an empty or already-applied commit (e.g., "nothing to commit", "No changes"), run `git rebase --skip` (if `git rebase --skip` itself exits non-zero, run `$PWD/.claude/scripts/generic/claudin/git-rebase-abort.sh` and **bail out** — Step 2d) and then `$PWD/.claude/scripts/generic/claudin/rebase-push.sh --continue` again (handle the same exit codes). Otherwise, **bail out** (Step 2d).
 
 ### 2b — Merge
 
 When CI passes and the branch is up-to-date with main, use the `merge-pr.sh` script:
 
 ```bash
-$PWD/.claude/scripts/generic/merge-pr.sh --pr <PR-NUMBER> --repo $REPO
+$PWD/.claude/scripts/generic/claudin/merge-pr.sh --pr <PR-NUMBER> --repo $REPO
 ```
 
 Parse the output for `MERGE_RESULT` and `ERROR`. Handle each result:
@@ -264,18 +264,18 @@ Save the expected commit title for verification in Step 5: `<PR_TITLE> (#<PR_NUM
 
 ### 2c — Evaluate CI Failure
 
-Use `FAILED_RUN_ID` from the `ci-status.sh` output. If `FAILED_RUN_ID` is empty, use `$PWD/.claude/scripts/generic/gh-pr-checks.sh --pr <PR-NUMBER> --repo $REPO` to identify the failed check and its run URL manually.
+Use `FAILED_RUN_ID` from the `ci-status.sh` output. If `FAILED_RUN_ID` is empty, use `$PWD/.claude/scripts/generic/claudin/gh-pr-checks.sh --pr <PR-NUMBER> --repo $REPO` to identify the failed check and its run URL manually.
 
 1. **Transient/infrastructure failure** (GitHub API timeout, runner provisioning failure, flaky network, `RUNNER_TEMP` errors, Docker pull rate limit, "The hosted runner lost communication", etc.):
    ```bash
-   $PWD/.claude/scripts/generic/sleep-seconds.sh 60
-   $PWD/.claude/scripts/generic/ci-rerun-failed.sh --run-id <FAILED_RUN_ID> --repo $REPO
+   $PWD/.claude/scripts/generic/claudin/sleep-seconds.sh 60
+   $PWD/.claude/scripts/generic/claudin/ci-rerun-failed.sh --run-id <FAILED_RUN_ID> --repo $REPO
    ```
    Parse the output for `RERUN_SUBMITTED` and `ERROR`. If `RERUN_SUBMITTED=false`, print the `ERROR` and treat as a real CI failure (fall through to diagnosis). Allow up to **2 consecutive transient retries** before treating as a real failure. The counter resets after a successful rebase, code fix, or a CI run that fails for a different (non-transient) reason. Go back to **2a**.
 
 2. **Real CI failure** — Diagnose and fix:
    ```bash
-   $PWD/.claude/scripts/generic/gh-run-logs.sh --run-id <FAILED_RUN_ID> --repo $REPO
+   $PWD/.claude/scripts/generic/claudin/gh-run-logs.sh --run-id <FAILED_RUN_ID> --repo $REPO
    ```
    Analyze the logs. Fix the issue, run `/relevant-checks`, commit, push. Go back to **2a**.
 
@@ -287,7 +287,7 @@ Use `FAILED_RUN_ID` from the `ci-status.sh` output. If `FAILED_RUN_ID` is empty,
 - The fix would require **reverting the core feature** to pass CI.
 
 When bailing out:
-1. If a rebase is in progress (exit 1 from `rebase-push.sh`), run `$PWD/.claude/scripts/generic/git-rebase-abort.sh` first.
+1. If a rebase is in progress (exit 1 from `rebase-push.sh`), run `$PWD/.claude/scripts/generic/claudin/git-rebase-abort.sh` first.
 2. Clearly explain what failed, what you attempted, and suggest manual steps.
 
 **Do NOT skip Steps 4, 6, and 7** when bailing — still clean up and print the review report. **Skip Steps 3 and 5** since the PR was not merged.
@@ -305,7 +305,7 @@ When bailing out:
 Add the :merged: emoji using the shared script:
 
 ```bash
-$PWD/.claude/scripts/generic/post-merged-emoji.sh --slack-ts "$SLACK_TS"
+$PWD/.claude/scripts/generic/claudin/post-merged-emoji.sh --slack-ts "$SLACK_TS"
 ```
 
 **If the script exits non-zero**, print `**⚠ Failed to add :merged: emoji to Slack post. Continuing.**` and proceed to Step 4. **Do not abort.**
@@ -319,7 +319,7 @@ $PWD/.claude/scripts/generic/post-merged-emoji.sh --slack-ts "$SLACK_TS"
 Switch back to main, pull the merged changes, and delete the development branch:
 
 ```bash
-$PWD/.claude/scripts/generic/local-cleanup.sh --branch <branch-name>
+$PWD/.claude/scripts/generic/claudin/local-cleanup.sh --branch <branch-name>
 ```
 
 Parse the output for `CLEANUP_SUCCESS`, `CURRENT_BRANCH`, and `BRANCH_DELETED`. If `CLEANUP_SUCCESS=true`, print: `🧹 Step 4 — Switched to main, deleted local branch <branch-name>`. If `CLEANUP_SUCCESS=false`, print: `**⚠ Step 4 — Cleanup partially failed. Current branch: <CURRENT_BRANCH>, branch deleted: <BRANCH_DELETED>.**`
@@ -339,7 +339,7 @@ Print: `⚠️ Step 4 — Skipped cleanup (PR not merged). You are still on bran
 Confirm the last commit on main is the expected squash-merged commit using the `verify-main.sh` script:
 
 ```bash
-$PWD/.claude/scripts/generic/verify-main.sh --expected-title "<PR_TITLE> (#<PR_NUMBER>)"
+$PWD/.claude/scripts/generic/claudin/verify-main.sh --expected-title "<PR_TITLE> (#<PR_NUMBER>)"
 ```
 
 Parse the output for `VERIFIED`, `COMMIT_HASH`, and `COMMIT_MESSAGE`. Print the result:
@@ -362,7 +362,7 @@ If both phases reported all suggestions implemented, print: `📊 Step 6 — All
 Remove the session temp directory and all files within it:
 
 ```bash
-$PWD/.claude/scripts/generic/cleanup-tmpdir.sh --dir "$SHAZAM_TMPDIR"
+$PWD/.claude/scripts/generic/claudin/cleanup-tmpdir.sh --dir "$SHAZAM_TMPDIR"
 ```
 
 **Repeat any external reviewer warnings** from earlier in the workflow (from `/design` or `/review` phases) so they are visible at the end. **If `quick_mode=true`**, there are no external reviewer warnings to repeat (no external reviewers were used). For example:
