@@ -13,7 +13,7 @@ Both flows require environment variables for Slack integration (see [Environment
 
 ### Flow A — Git Submodule
 
-Add claudin as a submodule and use `update-claudin.sh` to create symlinks from your `.claude/` directory into the submodule:
+Add claudin as a submodule and use `setup-claudin.sh` to create symlinks from your `.claude/` directory into the submodule:
 
 ```bash
 # 1. Add the submodule
@@ -21,7 +21,7 @@ git submodule add <claudin-repo-url> claudin
 git commit -m "Add claudin submodule"
 
 # 2. Create symlinks from .claude/ into claudin/.claude/
-./claudin/update-claudin.sh
+./claudin/setup-claudin.sh
 
 # 3. Commit the symlinks and any new directories
 git add .claude
@@ -33,16 +33,16 @@ git commit -m "Set up claudin symlinks"
 ```bash
 git submodule update --remote claudin
 git add claudin
-./claudin/update-claudin.sh
+./claudin/setup-claudin.sh
 git add .claude
 git commit -m "Bump claudin submodule"
 ```
 
-**How it works**: `update-claudin.sh` creates symlinks from your `.claude/` directory tree into `claudin/.claude/`. Skill directories (those containing `SKILL.md`) get directory-level symlinks, while individual files (scripts, agents, shared docs) get file-level symlinks. Your repo can have its own additional skills, scripts, and agents alongside the symlinked ones.
+**How it works**: `setup-claudin.sh` creates symlinks from your `.claude/` directory tree into `claudin/.claude/`. Skill directories (those containing `SKILL.md`) get directory-level symlinks, while individual files (scripts, agents, shared docs) get file-level symlinks. Your repo can have its own additional skills, scripts, and agents alongside the symlinked ones.
 
 **Important notes**:
 
-- **`settings.json` is not symlinked.** Your repo must maintain its own `.claude/settings.json` with the permission entries needed by claudin scripts. The recommended approach is to copy the `permissions.allow` array from claudin's `settings.json` as a baseline. At minimum, include bash permissions for `$PWD/.claude/scripts/generic/claudin/*`, `$PWD/.claude/skills/*/scripts/*` (for skill-specific scripts), and the `block-submodule-edit.sh` hook.
+- **`settings*.json` files are not symlinked.** Your repo must maintain its own `.claude/settings.json` (and any `settings.local.json`) with the permission entries needed by claudin scripts. The recommended approach is to copy the `permissions.allow` array from claudin's `settings.json` as a baseline. At minimum, include bash permissions for `$PWD/.claude/scripts/generic/claudin/*`, `$PWD/.claude/skills/*/scripts/*` (for skill-specific scripts), and the `block-submodule-edit.sh` hook.
 - **Edits to `claudin/` are blocked.** The `block-submodule-edit.sh` hook prevents Claude Code from editing files inside git submodules. This is intentional — changes to claudin should be made via PRs to the claudin repo, then pulled in by updating the submodule.
 - **Conflicts**: If a non-symlink file or directory already exists at a path the script needs to symlink, it exits with an error. Resolve the conflict manually (rename or remove the existing file) and re-run.
 

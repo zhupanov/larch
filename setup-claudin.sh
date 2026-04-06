@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# update-claudin.sh — Sync symlinks from a client repo's .claude/ into claudin/.claude/ (the submodule).
+# setup-claudin.sh — Sync symlinks from a client repo's .claude/ into claudin/.claude/ (the submodule).
 #
 # Intended to be run from the root of a client repo that has claudin as a git submodule.
 # The script derives the submodule path from its own location, so it works regardless of
@@ -8,7 +8,7 @@
 # Symlink strategy (hybrid):
 #   - Skill directories (contain SKILL.md) → directory-level symlinks
 #   - Everything else (scripts, agents, shared docs) → file-level symlinks
-#   - settings.json → always skipped (client must maintain their own)
+#   - settings*.json → always skipped (client must maintain their own)
 #
 # Conflict handling:
 #   - If a non-symlink file or directory exists at a target path → exit 1 with error
@@ -20,7 +20,7 @@
 #     submodule but whose target no longer exists.
 #
 # Usage:
-#   ./claudin/update-claudin.sh
+#   ./claudin/setup-claudin.sh
 #
 # Exit codes:
 #   0 — success
@@ -144,9 +144,15 @@ while IFS= read -r -d '' entry; do
     # entry is relative to CLAUDIN_DIR/.claude, e.g., "skills/design" or "agents/generic-reviewer.md"
     local_path="${entry#"$CLAUDIN_DIR/.claude/"}"
 
-    # Skip settings.json — client must maintain their own
-    if [[ "$local_path" == "settings.json" ]]; then
-        echo "  skipped: .claude/settings.json (maintain your own)"
+    # Skip settings*.json — client must maintain their own
+    if [[ "$local_path" == settings*.json ]]; then
+        # Remove any existing symlink from a prior version that linked settings files
+        if [[ -L ".claude/$local_path" ]]; then
+            rm ".claude/$local_path"
+            echo "  removed stale symlink: .claude/$local_path (maintain your own)"
+        else
+            echo "  skipped: .claude/$local_path (maintain your own)"
+        fi
         continue
     fi
 
@@ -236,7 +242,7 @@ done < <(find .claude -type l -print0 2>/dev/null || true)
 echo ""
 echo "Done. Dead symlinks removed: $dead_count"
 echo ""
-echo "NOTE: .claude/settings.json was not synced. Ensure your settings.json"
+echo "NOTE: .claude/settings*.json files were not synced. Ensure your settings.json"
 echo "includes the necessary permissions for claudin scripts. At minimum:"
 echo "  - Bash permission for \$PWD/.claude/scripts/generic/claudin/*"
 echo "  - The block-submodule-edit.sh hook (if using submodule flow)"
