@@ -85,12 +85,12 @@ Print `🔬 Step 1 — Running collaborative research phase.` and proceed to 1.2
 **Cursor research** (if `cursor_available`):
 
 ```bash
-$PWD/.claude/scripts/generic/claudin/run-external-reviewer.sh --tool cursor --output "$RESEARCH_TMPDIR/cursor-research-output.txt" --timeout 600 --capture-stdout -- \
+$PWD/.claude/scripts/generic/claudin/run-external-reviewer.sh --tool cursor --output "$RESEARCH_TMPDIR/cursor-research-output.txt" --timeout 900 --capture-stdout -- \
   cursor agent -p --force --trust --model gpt-5.4-medium --workspace "$PWD" \
     "You are researching a codebase to answer this question: <RESEARCH_QUESTION>. Explore the codebase to understand the relevant architecture and code. Write 2-3 paragraphs covering: (1) Your key findings and observations relevant to the research question, (2) Which files/modules/areas are most relevant and why, (3) Any risks, constraints, or feasibility concerns you identify. Do NOT modify files."
 ```
 
-Use `run_in_background: true` and `timeout: 660000` on the Bash tool call.
+Use `run_in_background: true` and `timeout: 960000` on the Bash tool call.
 
 **Cursor replacement** (if `cursor_available` is false): Launch a Claude subagent (Alternative Perspectives) via the Agent tool instead:
 
@@ -99,13 +99,13 @@ Prompt: `"You are an Alternative Perspectives researcher. Investigate this resea
 **Codex research** (if `codex_available`):
 
 ```bash
-$PWD/.claude/scripts/generic/claudin/run-external-reviewer.sh --tool codex --output "$RESEARCH_TMPDIR/codex-research-output.txt" --timeout 600 -- \
+$PWD/.claude/scripts/generic/claudin/run-external-reviewer.sh --tool codex --output "$RESEARCH_TMPDIR/codex-research-output.txt" --timeout 900 -- \
   codex exec --full-auto -C "$PWD" \
     --output-last-message "$RESEARCH_TMPDIR/codex-research-output.txt" \
     "You are researching a codebase to answer this question: <RESEARCH_QUESTION>. Explore the codebase to understand the relevant architecture and code. Write 2-3 paragraphs covering: (1) Your key findings and observations relevant to the research question, (2) Which files/modules/areas are most relevant and why, (3) Any risks, constraints, or feasibility concerns you identify. Do NOT modify files."
 ```
 
-Use `run_in_background: true` and `timeout: 660000` on the Bash tool call.
+Use `run_in_background: true` and `timeout: 960000` on the Bash tool call.
 
 **Codex replacement** (if `codex_available` is false): Launch a Claude subagent (Edge-cases/Gaps) via the Agent tool instead:
 
@@ -126,10 +126,10 @@ Prompt: `"You are a Risk/Feasibility researcher. Investigate this research quest
 Wait for external research sentinels using `wait-for-reviewers.sh`. Only include paths for external reviewers that were actually launched (not Claude replacements — those return via Agent tool):
 
 ```bash
-$PWD/.claude/scripts/generic/claudin/wait-for-reviewers.sh --timeout 660 "$RESEARCH_TMPDIR/cursor-research-output.txt.done" "$RESEARCH_TMPDIR/codex-research-output.txt.done"
+$PWD/.claude/scripts/generic/claudin/wait-for-reviewers.sh --timeout 960 "$RESEARCH_TMPDIR/cursor-research-output.txt.done" "$RESEARCH_TMPDIR/codex-research-output.txt.done"
 ```
 
-Use `timeout: 660000` on the Bash tool call. **Do NOT** set `run_in_background: true` — this call must block. Only include sentinel paths for external reviewers that were actually launched.
+Use `timeout: 960000` on the Bash tool call. **Do NOT** set `run_in_background: true` — this call must block. Only include sentinel paths for external reviewers that were actually launched.
 
 **Validate research outputs**: For research outputs, the validation criteria differ from the standard review validation in `.claude/skills/shared/claudin/external-reviewers.md`: instead of checking for numbered findings or `NO_ISSUES_FOUND`, check that the output is non-empty and contains at least one paragraph of substantive prose. Use `$RESEARCH_TMPDIR/cursor-research-output.txt` and `$RESEARCH_TMPDIR/codex-research-output.txt` as the output files. If an output is empty despite exit code 0, retry once with a `-retry` suffix per the shared procedure in `external-reviewers.md`.
 
