@@ -289,7 +289,7 @@ Print the diagram under a `## Code Flow Diagram` header with a mermaid code fenc
 
 ### Rebase onto latest main (before version bump)
 
-This rebase **always runs** as a final safety net before the version bump and PR creation, even if a previous rebase just ran. It ensures the branch is as fresh as possible before the version bump becomes the last commit.
+This rebase runs as a final safety net before the version bump and PR creation, even if a previous rebase just ran. It ensures the branch is as fresh as possible before the version bump becomes the last commit. Exception: if the branch is already on origin (e.g., re-run of `/implement` on an existing PR branch), the `--skip-if-pushed` flag causes this rebase to be skipped — freshness of already-pushed branches is `/shazam`'s responsibility during its CI+rebase+merge loop.
 
 Print: `🔃 Rebasing onto latest main before version bump...`
 

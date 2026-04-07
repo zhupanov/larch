@@ -82,10 +82,15 @@ fi
 # --- Early exit: skip if branch already on origin (--skip-if-pushed only) ---
 if [[ "$SKIP_IF_PUSHED" == "true" ]]; then
     CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
+    # If detached HEAD (empty branch name), fall through to the normal rebase
+    # path, where the detached-HEAD guard below will error cleanly.
     if [[ -n "$CURRENT_BRANCH" ]]; then
+        # Use the full "refs/heads/<branch>" form to force an exact-match
+        # lookup — ls-remote's pattern arg otherwise uses fnmatch/glob
+        # semantics, which would misbehave for branches containing [, ?, *.
         # If ls-remote fails (network/auth), we fall through to the normal
         # rebase path; the subsequent fetch will surface the real error.
-        if REMOTE_REFS=$(git ls-remote --heads origin "$CURRENT_BRANCH" 2>/dev/null) && [[ -n "$REMOTE_REFS" ]]; then
+        if REMOTE_REFS=$(git ls-remote --heads origin "refs/heads/$CURRENT_BRANCH" 2>/dev/null) && [[ -n "$REMOTE_REFS" ]]; then
             echo "SKIPPED_ALREADY_PUSHED=true"
             exit 0
         fi
