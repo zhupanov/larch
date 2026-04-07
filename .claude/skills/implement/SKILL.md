@@ -136,20 +136,16 @@ Proceed to Step 2.
 
 Print: `🔃 Rebasing onto latest main before starting implementation...`
 
-First, check if the branch has already been pushed to origin (e.g., re-running `/implement` on an existing PR branch):
+Run:
 ```bash
-git ls-remote --heads origin "$(git branch --show-current)" 2>/dev/null
-```
-If the output is non-empty (branch exists on origin), print: `⏩ Rebase skipped — branch already pushed to origin.` and skip this rebase.
-
-Otherwise, run:
-```bash
-$PWD/.claude/scripts/generic/larch/rebase-push.sh --no-push
+$PWD/.claude/scripts/generic/larch/rebase-push.sh --no-push --skip-if-pushed
 ```
 
 If the script exits non-zero, print: `**⚠ Rebase onto main failed. Bailing to cleanup.**` and skip to Step 13.
 
-If successful, print: `✅ Rebased onto latest main.`
+If successful:
+- If the stdout contains `SKIPPED_ALREADY_PUSHED=true`, print: `⏩ Rebase skipped — branch already pushed to origin.`
+- Otherwise, print: `✅ Rebased onto latest main.`
 
 ## Step 2 — Implement the Feature
 
@@ -179,20 +175,16 @@ The commit message should describe WHAT was implemented and WHY, not HOW.
 
 Print: `🔃 Rebasing onto latest main after implementation commit...`
 
-First, check if the branch has already been pushed to origin:
+Run:
 ```bash
-git ls-remote --heads origin "$(git branch --show-current)" 2>/dev/null
-```
-If the output is non-empty, print: `⏩ Rebase skipped — branch already pushed to origin.` and skip this rebase.
-
-Otherwise, run:
-```bash
-$PWD/.claude/scripts/generic/larch/rebase-push.sh --no-push
+$PWD/.claude/scripts/generic/larch/rebase-push.sh --no-push --skip-if-pushed
 ```
 
 If the script exits non-zero, print: `**⚠ Rebase onto main failed. Bailing to cleanup.**` and skip to Step 13.
 
-If successful, print: `✅ Rebased onto latest main.`
+If successful:
+- If the stdout contains `SKIPPED_ALREADY_PUSHED=true`, print: `⏩ Rebase skipped — branch already pushed to origin.`
+- Otherwise, print: `✅ Rebased onto latest main.`
 
 ## Step 5 — Code Review
 
@@ -258,20 +250,16 @@ If no files changed (review found no issues), skip this commit.
 
 Print: `🔃 Rebasing onto latest main after review fixes commit...`
 
-First, check if the branch has already been pushed to origin:
+Run:
 ```bash
-git ls-remote --heads origin "$(git branch --show-current)" 2>/dev/null
-```
-If the output is non-empty, print: `⏩ Rebase skipped — branch already pushed to origin.` and skip this rebase.
-
-Otherwise, run:
-```bash
-$PWD/.claude/scripts/generic/larch/rebase-push.sh --no-push
+$PWD/.claude/scripts/generic/larch/rebase-push.sh --no-push --skip-if-pushed
 ```
 
 If the script exits non-zero, print: `**⚠ Rebase onto main failed. Bailing to cleanup.**` and skip to Step 13.
 
-If successful, print: `✅ Rebased onto latest main.`
+If successful:
+- If the stdout contains `SKIPPED_ALREADY_PUSHED=true`, print: `⏩ Rebase skipped — branch already pushed to origin.`
+- Otherwise, print: `✅ Rebased onto latest main.`
 
 ## Step 7a — Code Flow Diagram
 
@@ -305,20 +293,16 @@ This rebase **always runs** as a final safety net before the version bump and PR
 
 Print: `🔃 Rebasing onto latest main before version bump...`
 
-First, check if the branch has already been pushed to origin:
+Run:
 ```bash
-git ls-remote --heads origin "$(git branch --show-current)" 2>/dev/null
-```
-If the output is non-empty, print: `⏩ Rebase skipped — branch already pushed to origin.` and skip this rebase.
-
-Otherwise, run:
-```bash
-$PWD/.claude/scripts/generic/larch/rebase-push.sh --no-push
+$PWD/.claude/scripts/generic/larch/rebase-push.sh --no-push --skip-if-pushed
 ```
 
 If the script exits non-zero, print: `**⚠ Rebase onto main failed. Bailing to cleanup.**` and skip to Step 13.
 
-If successful, print: `✅ Rebased onto latest main.`
+If successful:
+- If the stdout contains `SKIPPED_ALREADY_PUSHED=true`, print: `⏩ Rebase skipped — branch already pushed to origin.`
+- Otherwise, print: `✅ Rebased onto latest main.`
 
 ## Step 8 — Version Bump
 

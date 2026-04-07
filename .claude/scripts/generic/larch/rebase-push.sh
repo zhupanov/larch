@@ -5,29 +5,44 @@
 # conflicts and push failures via exit codes.
 #
 # Usage:
-#   rebase-push.sh [--continue] [--no-push]
+#   rebase-push.sh [--continue] [--no-push [--skip-if-pushed]]
 #
 # Flags:
-#   --continue — Continue an in-progress rebase instead of starting a new one.
-#                Skips fetch and runs `git rebase --continue` instead of
-#                `git rebase origin/main`. Caller must resolve conflicts and
-#                stage files before invoking with --continue.
-#   --no-push  — Skip the push step after a successful rebase. Used by
-#                /implement for local-only freshness rebases where the branch
-#                has not yet been pushed. In this mode, conflicts are aborted
-#                immediately (exit 1) instead of left in progress.
+#   --continue       — Continue an in-progress rebase instead of starting a new
+#                      one. Skips fetch and runs `git rebase --continue` instead
+#                      of `git rebase origin/main`. Caller must resolve conflicts
+#                      and stage files before invoking with --continue.
+#   --no-push        — Skip the push step after a successful rebase. Used by
+#                      /implement for local-only freshness rebases where the
+#                      branch has not yet been pushed. In this mode, conflicts
+#                      are aborted immediately (exit 1) instead of left in
+#                      progress.
+#   --skip-if-pushed — Only valid with --no-push. Before fetching, check whether
+#                      the current branch already exists on origin. If it does,
+#                      print `SKIPPED_ALREADY_PUSHED=true` to stdout and exit 0
+#                      without fetching or rebasing. This lets /implement collapse
+#                      its per-checkpoint "is branch pushed? if so skip, else
+#                      rebase" dance into a single script invocation. If the
+#                      ls-remote check fails (network/auth), the script falls
+#                      through to the normal rebase path so the subsequent fetch
+#                      surfaces the real error.
 #
 # Exit codes:
-#   0 — rebase (and push, unless --no-push) succeeded
+#   0 — rebase (and push, unless --no-push) succeeded, OR skipped because
+#       --skip-if-pushed detected the branch already on origin
 #   1 — rebase failed with conflicts
 #       Default mode: rebase left in progress (CONFLICT_FILES= on stdout)
 #       --no-push mode: rebase aborted, branch restored to pre-rebase state
 #   2 — push --force-with-lease failed (PUSH_ERROR= on stderr, caller should retry after fetch)
 #       Not possible in --no-push mode.
-#   3 — rebase failed for non-conflict reasons (REBASE_ERROR= on stderr)
+#   3 — rebase failed for non-conflict reasons (REBASE_ERROR= on stderr), OR
+#       invalid flag combination (e.g., --skip-if-pushed without --no-push)
 #       In normal mode: rebase is aborted.
 #       In --continue mode: rebase is left in progress (caller can inspect/retry).
 #       In --no-push mode: rebase is aborted.
+#
+# Stdout on exit 0 when --skip-if-pushed skipped the rebase:
+#   SKIPPED_ALREADY_PUSHED=true
 #
 # Stdout on exit 1 (default mode only):
 #   CONFLICT_FILES=<comma-separated list of conflicted files>
@@ -44,10 +59,12 @@ set -uo pipefail
 # --- Parse flags ---
 CONTINUE_MODE=false
 NO_PUSH=false
+SKIP_IF_PUSHED=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --continue) CONTINUE_MODE=true; shift ;;
         --no-push) NO_PUSH=true; shift ;;
+        --skip-if-pushed) SKIP_IF_PUSHED=true; shift ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
 done
@@ -55,6 +72,24 @@ done
 if [[ "$CONTINUE_MODE" == "true" && "$NO_PUSH" == "true" ]]; then
     echo "REBASE_ERROR=--continue and --no-push cannot be used together" >&2
     exit 3
+fi
+
+if [[ "$SKIP_IF_PUSHED" == "true" && "$NO_PUSH" != "true" ]]; then
+    echo "REBASE_ERROR=--skip-if-pushed is only valid with --no-push" >&2
+    exit 3
+fi
+
+# --- Early exit: skip if branch already on origin (--skip-if-pushed only) ---
+if [[ "$SKIP_IF_PUSHED" == "true" ]]; then
+    CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
+    if [[ -n "$CURRENT_BRANCH" ]]; then
+        # If ls-remote fails (network/auth), we fall through to the normal
+        # rebase path; the subsequent fetch will surface the real error.
+        if REMOTE_REFS=$(git ls-remote --heads origin "$CURRENT_BRANCH" 2>/dev/null) && [[ -n "$REMOTE_REFS" ]]; then
+            echo "SKIPPED_ALREADY_PUSHED=true"
+            exit 0
+        fi
+    fi
 fi
 
 if [[ "$CONTINUE_MODE" == "true" ]]; then
