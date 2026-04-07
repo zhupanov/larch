@@ -174,9 +174,21 @@ echo "=== Testing Phase 2: Dead symlink removal ==="
 # Create a fake stale symlink simulating a pre-migration path pointing into larch
 mkdir -p .claude/scripts/generic
 ln -s "../../../larch/.claude/scripts/generic/nonexistent-old-script.sh" ".claude/scripts/generic/stale-old.sh"
-# Re-run setup-larch.sh — Phase 2 should remove the stale symlink
+
+# --- Phase 2 migration scenario: stale claudin-namespace symlinks ---
+# Simulate a client repo that was upgraded with PR #1 (which populated both
+# claudin/ and larch/ subtrees) and is now being upgraded past PR #2b (which
+# deleted the claudin/ subtree). The client carries over orphan claudin
+# symlinks whose targets no longer exist. Phase 2 must remove them.
+mkdir -p .claude/scripts/generic/claudin .claude/skills/shared/claudin
+ln -s "../../../../larch/.claude/scripts/generic/claudin/nonexistent-post-migration.sh" ".claude/scripts/generic/claudin/stale-migration.sh"
+ln -s "../../../../larch/.claude/skills/shared/claudin/nonexistent-post-migration.md" ".claude/skills/shared/claudin/stale-migration.md"
+
+# Re-run setup-larch.sh — Phase 2 should remove all stale symlinks
 ./larch/setup-larch.sh
 check_not_exists ".claude/scripts/generic/stale-old.sh" "stale symlink should be removed by Phase 2"
+check_not_exists ".claude/scripts/generic/claudin/stale-migration.sh" "stale claudin-namespace script symlink should be removed by Phase 2"
+check_not_exists ".claude/skills/shared/claudin/stale-migration.md" "stale claudin-namespace shared-doc symlink should be removed by Phase 2"
 
 # --- Summary ---
 echo ""

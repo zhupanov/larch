@@ -1,10 +1,10 @@
-# Claudin
+# Larch
 
-Claudin is a Claude Code workflow automation framework that orchestrates multi-agent design, code review, and implementation through collaborative AI-driven processes.
+Larch is a Claude Code workflow automation framework that orchestrates multi-agent design, code review, and implementation through collaborative AI-driven processes.
 
 ## Getting Started
 
-There are two ways to integrate claudin into your repository:
+There are two ways to integrate larch into your repository:
 
 - **Flow A (Git Submodule)** — recommended for teams that want automatic upstream updates
 - **Flow B (Copy Skills)** — for teams that want to vendor a subset of skills and own them
@@ -13,38 +13,38 @@ Both flows require environment variables for Slack integration (see [Environment
 
 ### Flow A — Git Submodule
 
-Add claudin as a submodule and use `setup-claudin.sh` to create symlinks from your `.claude/` directory into the submodule:
+Add larch as a submodule and use `setup-larch.sh` to create symlinks from your `.claude/` directory into the submodule:
 
 ```bash
 # 1. Add the submodule
-git submodule add <claudin-repo-url> claudin
-git commit -m "Add claudin submodule"
+git submodule add <larch-repo-url> larch
+git commit -m "Add larch submodule"
 
-# 2. Create symlinks from .claude/ into claudin/.claude/
-./claudin/setup-claudin.sh
+# 2. Create symlinks from .claude/ into larch/.claude/
+./larch/setup-larch.sh
 
 # 3. Commit the symlinks and any new directories
 git add .claude
-git commit -m "Set up claudin symlinks"
+git commit -m "Set up larch symlinks"
 ```
 
-**Updating to the latest version**: Every time you bump the claudin submodule to a newer version, re-run the update script to sync symlinks (create new ones, remove stale ones):
+**Updating to the latest version**: Every time you bump the larch submodule to a newer version, re-run the update script to sync symlinks (create new ones, remove stale ones):
 
 ```bash
-git submodule update --remote claudin
-git add claudin
-./claudin/setup-claudin.sh
+git submodule update --remote larch
+git add larch
+./larch/setup-larch.sh
 git add .claude
-git commit -m "Bump claudin submodule"
+git commit -m "Bump larch submodule"
 ```
 
-**How it works**: `setup-claudin.sh` creates symlinks from your `.claude/` directory tree into `claudin/.claude/`. Skill directories (those containing `SKILL.md`) get directory-level symlinks, while individual files (scripts, agents, shared docs) get file-level symlinks. Your repo can have its own additional skills, scripts, and agents alongside the symlinked ones.
+**How it works**: `setup-larch.sh` creates symlinks from your `.claude/` directory tree into `larch/.claude/`. Skill directories (those containing `SKILL.md`) get directory-level symlinks, while individual files (scripts, agents, shared docs) get file-level symlinks. Your repo can have its own additional skills, scripts, and agents alongside the symlinked ones.
 
 **Important notes**:
 
-- **`settings*.json` files are not symlinked.** Your repo must maintain its own `.claude/settings.json` (and any `settings.local.json`) with the permission entries needed by claudin scripts. The recommended approach is to copy the `permissions.allow` array from claudin's `settings.json` as a baseline. At minimum, include bash permissions for `$PWD/.claude/scripts/generic/claudin/*`, `$PWD/.claude/skills/*/scripts/*` (for skill-specific scripts), and the `block-submodule-edit.sh` hook.
-- **`/relevant-checks` is not symlinked.** This skill is repo-specific — each repository defines its own validation checks (linters, test commands, etc.). Claudin ships a `/relevant-checks` as a reference implementation, but `setup-claudin.sh` will never overwrite or symlink it. Create your own `.claude/skills/relevant-checks/` with checks appropriate for your repo.
-- **Edits to `claudin/` are blocked.** The `block-submodule-edit.sh` hook prevents Claude Code from editing files inside git submodules. This is intentional — changes to claudin should be made via PRs to the claudin repo, then pulled in by updating the submodule.
+- **`settings*.json` files are not symlinked.** Your repo must maintain its own `.claude/settings.json` (and any `settings.local.json`) with the permission entries needed by larch scripts. The recommended approach is to copy the `permissions.allow` array from larch's `settings.json` as a baseline. At minimum, include bash permissions for `$PWD/.claude/scripts/generic/larch/*`, `$PWD/.claude/skills/*/scripts/*` (for skill-specific scripts), and the `block-submodule-edit.sh` hook.
+- **`/relevant-checks` is not symlinked.** This skill is repo-specific — each repository defines its own validation checks (linters, test commands, etc.). Larch ships a `/relevant-checks` as a reference implementation, but `setup-larch.sh` will never overwrite or symlink it. Create your own `.claude/skills/relevant-checks/` with checks appropriate for your repo.
+- **Edits to `larch/` are blocked.** The `block-submodule-edit.sh` hook prevents Claude Code from editing files inside git submodules. This is intentional — changes to larch should be made via PRs to the larch repo, then pulled in by updating the submodule.
 - **Conflicts**: If a non-symlink file or directory already exists at a path the script needs to symlink, it exits with an error. Resolve the conflict manually (rename or remove the existing file) and re-run.
 
 ### Flow B — Copy Selected Skills
@@ -61,14 +61,14 @@ Copy the skills you need along with their shared dependencies into your repo's `
 │   └── deep-analysis-reviewer.md
 ├── scripts/
 │   └── generic/
-│       └── claudin/           # ~37 reusable shell scripts invoked by skills
+│       └── larch/             # ~37 reusable shell scripts invoked by skills
 │           ├── session-setup.sh
 │           ├── create-pr.sh
 │           ├── ci-wait.sh
 │           └── ...
 └── skills/
     ├── shared/
-    │   └── claudin/           # Shared .md files referenced by multiple skills
+    │   └── larch/             # Shared .md files referenced by multiple skills
     │       ├── voting-protocol.md
     │       ├── reviewer-templates.md
     │       └── external-reviewers.md
@@ -87,8 +87,8 @@ Copy the skills you need along with their shared dependencies into your repo's `
 When copying a skill, you must also copy its shared dependencies:
 
 1. **The skill directory** — e.g., `.claude/skills/design/` (the entire directory including any nested `scripts/`, `agents/`, etc.)
-2. **`.claude/skills/shared/claudin/`** — shared markdown files referenced by all review-related skills. **Always copy this.**
-3. **`.claude/scripts/generic/claudin/`** — shell scripts that skills invoke for git operations, CI, Slack, etc. **Always copy this.**
+2. **`.claude/skills/shared/larch/`** — shared markdown files referenced by all review-related skills. **Always copy this.**
+3. **`.claude/scripts/generic/larch/`** — shell scripts that skills invoke for git operations, CI, Slack, etc. **Always copy this.**
 4. **`.claude/agents/`** — reviewer agent definitions used by `/design`, `/review`, and `/loop-review`. Copy if using any review-related skill.
 
 #### Transitive skill dependencies
@@ -138,7 +138,7 @@ Internal agent definitions used by skills like `/design`, `/review`, and `/loop-
 
 ## Linting
 
-Claudin uses [pre-commit](https://pre-commit.com/) as the single source of truth for linter configuration. All linter definitions, versions, and file filters live in `.pre-commit-config.yaml`.
+Larch uses [pre-commit](https://pre-commit.com/) as the single source of truth for linter configuration. All linter definitions, versions, and file filters live in `.pre-commit-config.yaml`.
 
 ### Linters
 
@@ -172,11 +172,11 @@ There are three ways to run linters, all backed by the same `.pre-commit-config.
 
 ## Environment Variables
 
-Claudin uses three environment variables for Slack integration. All are optional — when not set, Slack-related features are skipped with warnings and all other workflow steps continue normally.
+Larch uses three environment variables for Slack integration. All are optional — when not set, Slack-related features are skipped with warnings and all other workflow steps continue normally.
 
-> **Note:** Both `CLAUDIN_SLACK_BOT_TOKEN` and `CLAUDIN_SLACK_CHANNEL_ID` must be set for Slack features to function. If either is missing, all Slack operations (PR announcements, `:merged:` emoji) are skipped with a warning at session setup time identifying which variable(s) are absent.
+> **Note:** Both `LARCH_SLACK_BOT_TOKEN` and `LARCH_SLACK_CHANNEL_ID` must be set for Slack features to function. If either is missing, all Slack operations (PR announcements, `:merged:` emoji) are skipped with a warning at session setup time identifying which variable(s) are absent.
 
-### `CLAUDIN_SLACK_BOT_TOKEN`
+### `LARCH_SLACK_BOT_TOKEN`
 
 A Slack Bot User OAuth Token (starts with `xoxb-`) used to authenticate Slack API calls.
 
@@ -186,11 +186,11 @@ A Slack Bot User OAuth Token (starts with `xoxb-`) used to authenticate Slack AP
 - The token's presence is checked during session setup and its availability is propagated to child skills
 
 **When not set:**
-- All Slack operations are skipped with a warning at session setup (e.g., `⚠ Slack is not fully configured (CLAUDIN_SLACK_BOT_TOKEN not set). Slack announcement (Step 11) will be skipped.`)
+- All Slack operations are skipped with a warning at session setup (e.g., `⚠ Slack is not fully configured (LARCH_SLACK_BOT_TOKEN not set). Slack announcement (Step 11) will be skipped.`)
 - The `:merged:` emoji step in `/shazam` is skipped
 - All other workflow steps (design, implementation, code review, CI monitoring, merge) proceed normally
 
-### `CLAUDIN_SLACK_CHANNEL_ID`
+### `LARCH_SLACK_CHANNEL_ID`
 
 The Slack channel ID (e.g., `C0123456789`) where PR announcements and emoji reactions are posted.
 
@@ -199,11 +199,11 @@ The Slack channel ID (e.g., `C0123456789`) where PR announcements and emoji reac
 - The `:merged:` emoji reaction targets announcements in this channel
 
 **When not set:**
-- All Slack operations are skipped with a warning at session setup (e.g., `⚠ Slack is not fully configured (CLAUDIN_SLACK_CHANNEL_ID not set).`)
+- All Slack operations are skipped with a warning at session setup (e.g., `⚠ Slack is not fully configured (LARCH_SLACK_CHANNEL_ID not set).`)
 - The `:merged:` emoji step in `/shazam` is also skipped
 - All other workflow steps proceed normally
 
-### `CLAUDIN_SLACK_USER_ID`
+### `LARCH_SLACK_USER_ID`
 
 A Slack user ID (e.g., `U0123456789`) used to @-mention the PR author in Slack announcements.
 

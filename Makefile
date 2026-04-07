@@ -1,4 +1,4 @@
-# Claudin Makefile
+# Larch Makefile
 # Thin wrapper around pre-commit. Linter definitions live in .pre-commit-config.yaml.
 
 .PHONY: lint shellcheck markdownlint jsonlint actionlint ruff setup

@@ -51,34 +51,51 @@ During the PR #1 window the new larch scripts are dead code (not invoked by any 
 
 Once PR #2 cuts over (SKILL.md files, agents, settings.json hooks, and docs are all re-pointed to the larch paths, and the claudin originals are deleted), operators running these scripts **must** set the `LARCH_*` environment variables in their shell/CI environment. If an operator's existing environment has `CLAUDIN_SLACK_BOT_TOKEN` set but not `LARCH_SLACK_BOT_TOKEN`, the new larch scripts will treat the Slack token as missing and skip Slack posting with a warning. Document this clearly in the PR #2 release notes.
 
-## PR #2 — Cutover and cleanup (follow-up, not done in this PR)
+## PR #2a — Cutover only (this PR)
 
-Goal: Switch all internal references from `claudin` paths to `larch` paths, then delete the claudin-named originals. After this PR, `grep -ri claudin .` (excluding `.git/` and this migration doc) should return zero matches.
+Goal: Switch all internal references from `claudin` paths to `larch` paths, but leave the claudin-named originals on disk. The final `grep -ri claudin .` zero-match verification is deferred to PR #2b.
 
-- [TODO] Update content of `README.md` (replace `claudin` with `larch`, case-preserving)
-- [TODO] Update content of `.claude/agents/general-reviewer.md`
-- [TODO] Update content of `.claude/agents/deep-analysis-reviewer.md`
-- [TODO] Update content of `.claude/skills/design/SKILL.md`
-- [TODO] Update content of `.claude/skills/implement/SKILL.md`
-- [TODO] Update content of `.claude/skills/research/SKILL.md`
-- [TODO] Update content of `.claude/skills/review/SKILL.md`
-- [TODO] Update content of `.claude/skills/loop-review/SKILL.md`
-- [TODO] Update content of `.claude/skills/shazam/SKILL.md`
-- [TODO] Update content of `docs/review-agents.md`
-- [TODO] Update content of `.pre-commit-config.yaml` (header comment mentions "Claudin")
-- [TODO] Update content of `Makefile` (header comment mentions "Claudin")
+- [DONE] Update content of `README.md` (replace `claudin` with `larch`, case-preserving)
+- [DONE] Update content of `.claude/agents/general-reviewer.md`
+- [DONE] Update content of `.claude/agents/deep-analysis-reviewer.md`
+- [DONE] Update content of `.claude/skills/design/SKILL.md`
+- [DONE] Update content of `.claude/skills/implement/SKILL.md`
+- [DONE] Update content of `.claude/skills/research/SKILL.md`
+- [DONE] Update content of `.claude/skills/review/SKILL.md`
+- [DONE] Update content of `.claude/skills/loop-review/SKILL.md`
+- [DONE] Update content of `.claude/skills/shazam/SKILL.md`
+- [DONE] Update content of `docs/review-agents.md`
+- [DONE] Update content of `docs/agents.md` (not in the original PR #2 list — contains "Claudin" references that would fail final grep verification)
+- [DONE] Update content of `docs/external-reviewers.md` (not in the original PR #2 list)
+- [DONE] Update content of `docs/workflow-lifecycle.md` (not in the original PR #2 list)
+- [DONE] Update content of `.pre-commit-config.yaml` (header comment mentions "Claudin")
+- [DONE] Update content of `Makefile` (header comment mentions "Claudin")
+- [DONE] Re-point the four hook entries in `.claude/settings.json` from `.claude/scripts/generic/claudin/block-submodule-edit.sh` and `.claude/scripts/generic/claudin/auto-goimports.sh` to the `.claude/scripts/generic/larch/` equivalents
+- [DONE] Remove the `Run claudin integration test` step from `.github/workflows/ci.yaml` (keeping only the larch integration test step, with the `if: always()` guard removed since there is no longer a predecessor step it needs to run after)
+- [DONE] Extend `tests/test-setup-larch.sh` to simulate a PR #1-upgraded client repo with stale `.claude/scripts/generic/claudin/*` and `.claude/skills/shared/claudin/*` symlinks and assert they are removed after rerunning `setup-larch.sh` (validates the Phase 2 dead-symlink cleanup that PR #2b's deletion will trigger in real client repos)
+- [DONE] Document the `CLAUDIN_* → LARCH_*` env var rename and the downstream client settings.json migration requirement in this PR's release notes
+
+## PR #2b — Cleanup (follow-up, not done in this PR)
+
+Goal: Remove the claudin-named originals. After this PR, `grep -ri claudin .` (excluding `.git/` and this migration doc) must return zero matches.
+
 - [TODO] Remove `Bash($PWD/.claude/scripts/generic/claudin/*)` permission entry from `.claude/settings.json`
-- [TODO] Remove `Bash(CLAUDIN_SLACK_USER_ID=:*)` from `.claude/settings.json` (if it proves vestigial — verify first that no script uses the inline env-var-prefix form)
-- [TODO] Re-point the four hook entries in `.claude/settings.json` from `.claude/scripts/generic/claudin/block-submodule-edit.sh` and `.claude/scripts/generic/claudin/auto-goimports.sh` to the `.claude/scripts/generic/larch/` equivalents (lines ~235, 244, 255, 264 in the current file)
-- [TODO] Remove the `Run claudin integration test` step from `.github/workflows/ci.yaml` (keeping only the larch integration test step, with the `if: always()` guard removed since there is no longer a predecessor step it needs to run after)
+- [TODO] Remove `Bash(CLAUDIN_SLACK_USER_ID=:*)` from `.claude/settings.json` (verified vestigial in PR #2a — only used as bare assignment inside `slack-announce.sh`, never as inline env-var-prefix form)
 - [TODO] Delete `.claude/scripts/generic/claudin/` (directory and all 38 scripts)
 - [TODO] Delete `.claude/skills/shared/claudin/` (directory and all 3 docs)
 - [TODO] Delete `setup-claudin.sh`
 - [TODO] Delete `tests/test-setup-claudin.sh`
 - [TODO] Run `grep -ri claudin .` (excluding `.git/` and this migration doc) and verify zero matches
-- [TODO] Document the `CLAUDIN_* → LARCH_*` env var rename in the PR #2 release notes so operators update their shell/CI environment variables
-- [TODO] Mark this section DONE and merge PR #2
+- [TODO] Mark this section DONE and merge PR #2b
 
-## Why two PRs?
+## Why three PRs (PR #1, PR #2a, PR #2b)?
 
-The in-flight `/shazam` and `/implement` skill sessions running at the moment this migration is executed are currently invoking scripts under `.claude/scripts/generic/claudin/`. A single-PR rename would require modifying those scripts (or the SKILL.md files that reference them) mid-flight, risking breakage of the very skill session doing the migration. Splitting the work across two PRs guarantees that every file needed by the in-flight session remains byte-identical throughout PR #1; only after PR #1 has safely merged is it safe to mutate the originals in PR #2.
+The in-flight `/shazam` and `/implement` skill sessions running at the moment this migration is executed are currently invoking scripts under `.claude/scripts/generic/claudin/`. A single-PR rename would require modifying those scripts (or the SKILL.md files that reference them) mid-flight, risking breakage of the very skill session doing the migration. PR #1 solved half the problem by creating byte-identical `larch`-named copies without touching the originals.
+
+Initially PR #2 was planned as a single cutover+deletion PR, but during plan review (by the 5-reviewer voting panel) a critical hazard was surfaced: **the running /shazam session has SKILL.md files already loaded in its context window with claudin-path references for ALL later steps** (version bump, CI monitor, Slack, cleanup, merge loop). Rewriting the SKILL.md files on disk in the same session does NOT retarget the already-running agent — it continues to invoke claudin paths from its in-memory instructions. Deleting the claudin script tree in the same live session that depends on those scripts would cause every subsequent `.claude/scripts/generic/claudin/*` invocation to fail with ENOENT after the deletion commit lands.
+
+PR #2 was therefore split into two:
+
+- **PR #2a** (this PR) — Cutover only: rewrite all references to point at larch paths, but leave the claudin script tree intact on disk. The running /shazam session's in-memory SKILL.md still references claudin paths, but those claudin scripts still exist, so everything works. The final `grep -ri claudin` zero-match verification is deferred.
+
+- **PR #2b** (follow-up, separate session) — Cleanup: delete the claudin script tree, remove the claudin Bash permission entries from settings.json, and verify the final grep. PR #2b must be run in a **fresh /shazam or /implement session** — one that loads the rewritten (larch-referencing) SKILL.md files from the outset, so all its tool invocations use larch paths and the claudin scripts can be safely deleted.
