@@ -84,43 +84,56 @@ Delete the now-unused `/implement` skill and its helper script. Update all docs 
 
 **Phase 2 task list:**
 
-- [ ] Delete `.claude/skills/implement/SKILL.md`.
-- [ ] Delete `.claude/skills/implement/diagram.svg`.
-- [ ] Move `.claude/skills/implement/scripts/check-review-changes.sh` to `.claude/skills/implement-and-merge/scripts/check-review-changes.sh` (or inline it into `/implement-and-merge` if it is small enough; decide during Phase 2).
-- [ ] Update the Phase-1-inlined `SKILL.md` to point at the new script location.
-- [ ] Delete the entire `.claude/skills/implement/` directory.
-- [ ] Update `.claude/settings.json` to drop the `Bash($PWD/.claude/skills/implement/scripts/*)` permission (or update the path to point at the new location).
-- [ ] Update `README.md`:
+- [x] Delete `.claude/skills/implement/SKILL.md`.
+- [x] Delete `.claude/skills/implement/diagram.svg`.
+- [x] Move `.claude/skills/implement/scripts/check-review-changes.sh` to `.claude/skills/implement-and-merge/scripts/check-review-changes.sh` (kept as a script — not inlined; see Phase 2 progress and findings below).
+- [x] Update the Phase-1-inlined `SKILL.md` to point at the new script location.
+- [x] Delete the entire `.claude/skills/implement/` directory.
+- [x] Update `.claude/settings.json` to drop the `Bash($PWD/.claude/skills/implement/scripts/*)` permission (repathed to point at the new location; also dropped `Skill(implement)` and `Bash(IMPL_TMPDIR=:*)`).
+- [x] Update `README.md`:
   - Remove `/implement` from the dependency chain (lines ~96–100).
   - Remove `/implement` from the skills table.
-  - Update "Invoked automatically by `/implement` and `/review`" → "Invoked automatically by `/implement-and-merge` and `/review`" (or wait until Phase 3 when `/implement-and-merge` is renamed).
-  - Update the Slack-integration bullet that mentions `/implement` posting PR announcements.
-- [ ] Update `docs/workflow-lifecycle.md`:
+  - Defer the rename of bare `/implement` references in `README.md` lines 128, 158, 184 to Phase 3 (per user clarification — see Phase 2 progress and findings).
+  - Defer the Slack-integration bullet rename to Phase 3.
+- [x] Update `docs/workflow-lifecycle.md`:
   - Remove the `/implement-and-merge → /implement` arrow from the diagram.
   - Update the prose explanation of the chain.
   - Update the flag table to remove `/implement` as a row.
-  - Update the "Skills can be used independently" section to remove the `/implement` standalone usage example (or replace it with `/implement-and-merge --no-merge`).
-- [ ] Update `docs/agents.md` to remove the `/implement` example.
-- [ ] Update `docs/review-agents.md` to remove the `/implement (quick mode)` row from the table.
-- [ ] Update `.claude/skills/design/SKILL.md` to remove "(e.g., `/implement`)" examples and the "Run /implement to proceed" final printout.
-- [ ] Update `.claude/skills/loop-review/SKILL.md` to remove `/implement` from the autonomous-skill chain enumeration in Step 0.
-- [ ] Update `.claude/scripts/generic/larch/session-setup.sh` header comment to drop `/implement` from the list of callers.
-- [ ] Update `.claude/scripts/generic/larch/rebase-push.sh` header comments to drop `/implement` references (or rephrase them to point at `/implement-and-merge`).
-- [ ] Update `.claude/scripts/generic/larch/post-pr-announce.sh` header comment.
-- [ ] Update `.claude/skills/shared/larch/voting-protocol.md` to point at `/implement-and-merge` Step 9a instead of `/implement` Step 9a.
-- [ ] Update `tests/test-setup-larch.sh` if it specifically asserts the existence of the `/implement` skill directory.
-- [ ] Update `.claude/skills/implement-and-merge/diagram.svg` if it depicts the now-merged subgraph (remove the "via `/implement`" caption).
-- [ ] Update `.claude/skills/loop-review/diagram.svg` similarly.
-- [ ] Update the Phase-1-inlined `SKILL.md` to remove the now-stale comment that says "this script lives under `/implement/` for now".
-- [ ] Remove the "compatibility" `--no-merge` strip-and-print branch from anywhere it still lives.
-- [ ] Mark Phase 2 tasks complete in this doc as part of the Phase 2 PR.
+  - Remove the `/implement` standalone usage example (the `/implement-and-merge --no-merge` replacement is deferred to Phase 3 per OOS_2).
+- [x] Update `docs/agents.md` to remove the `/implement` example.
+- [x] Update `docs/review-agents.md` to remove the `/implement (quick mode)` row from the table (renamed to `/implement-and-merge (quick mode)`).
+- [x] Update `.claude/skills/design/SKILL.md` to remove "(e.g., `/implement`)" examples and the "Run /implement to proceed" final printout.
+- [x] Update `.claude/skills/loop-review/SKILL.md` to remove `/implement` from the autonomous-skill chain enumeration in Step 0 (and from the trailing `--auto` instruction in the same sentence).
+- [x] Update `.claude/scripts/generic/larch/session-setup.sh` header comment to drop `/implement` from the list of callers.
+- [x] Update `.claude/scripts/generic/larch/rebase-push.sh` header comments to drop `/implement` references (rephrased to point at `/implement-and-merge`).
+- [x] Update `.claude/scripts/generic/larch/post-pr-announce.sh` header comment.
+- [x] Update `.claude/skills/shared/larch/voting-protocol.md` to point at `/implement-and-merge` Step 9a instead of `/implement` Step 9a.
+- [x] Update `tests/test-setup-larch.sh` — **verified no edit needed** (see Phase 2 progress and findings).
+- [x] Update `.claude/skills/implement-and-merge/diagram.svg` (dropped the `(/implement)` parenthetical from the caption).
+- [x] Update `.claude/skills/loop-review/diagram.svg` — **verified no edit needed** (see Phase 2 progress and findings).
+- [x] Update the Phase-1-inlined `SKILL.md` to remove the now-stale comment that says "this script lives under `/implement/` for now".
+- [x] Remove the "compatibility" `--no-merge` strip-and-print branch (it lived only in `.claude/skills/implement/SKILL.md` line 19, which was deleted as part of this phase).
+- [x] Mark Phase 2 tasks complete in this doc as part of the Phase 2 PR.
 
 **Phase 2 acceptance criteria:**
 
 - `.claude/skills/implement/` directory does not exist.
-- No file in the repo (other than this plan doc and possibly `git log` history) references `/implement` as a callable skill name distinct from `/implement-and-merge`.
-- `grep -rn "/implement\b" .claude docs README.md` returns either zero matches or only matches inside `/implement-and-merge` references.
+- No file in the repo references `/implement` as a callable skill name distinct from `/implement-and-merge`, **with the explicit exception of the deferred bare references enumerated in the Phase 2 progress and findings section below**. Those references were left intentionally untouched per the user's deferral instruction; they will be rewritten correctly in Phase 3 when `/implement-and-merge` is renamed back to `/implement`.
+- `grep -rn "/implement\b" .claude docs README.md` is **not** expected to return zero matches — see the deferred references list below.
 - Phase 2 PR is created via `/implement-and-merge` and merges green.
+
+**Phase 2 progress and findings:**
+
+This Phase 2 PR was implemented via `/implement-and-merge` itself (dogfooding). Notable progress and findings:
+
+- **Helper script kept as a script (not inlined).** Per user clarification, `check-review-changes.sh` was moved as a standalone script to `.claude/skills/implement-and-merge/scripts/check-review-changes.sh` rather than inlined into `SKILL.md`. The script preserves shellcheck coverage, independent testability, and the project's `<skill>/scripts/<helper>.sh` layering convention.
+- **Bare `/implement` references intentionally left in place** (per user clarification deferring rename work to Phase 3): `README.md` line 128 (`Invoked automatically by /implement and /review`), `README.md` line 158 (`Invoked automatically by /implement and /review`), `README.md` line 184 (`/implement and /implement-and-merge post PR announcements`). These references describe the implementation workflow by name and will be rewritten correctly when Phase 3 renames `/implement-and-merge` back to `/implement`. They are factually inconsistent during the Phase 2 → Phase 3 window — this is an accepted tradeoff per the user's explicit deferral instruction.
+- **`tests/test-setup-larch.sh` — verified no edit needed.** The skill-symlink loop on line 82 is data-driven (`for skill_dir in "$TEST_REPO_DIR"/larch/.claude/skills/*/`), and the only literal `implement` strings in the file are `implement-and-merge` (the rename test from `shazam`, lines 190–193, 201) which has nothing to do with the deleted `/implement` skill. Stale `.claude/skills/implement` symlinks in client repos are handled by the existing `setup-larch.sh` dead-symlink removal logic (the same mechanism that handles the `shazam` rename case).
+- **`.claude/skills/loop-review/diagram.svg` — verified no edit needed.** The diagram's only `/implement` references are to `/implement-and-merge` (lines 68, 81). Line 55's `implement` text is a verb label on a decision-flow arrow ("implement" vs. "defer"), not a skill name.
+- **Group D step-pointer repointings.** Two cross-references named a step inside the now-deleted skill: `voting-protocol.md` line 196 ("`/implement` Step 9a") and `design/SKILL.md` line 405 ("Run /implement to proceed"). Both were repointed to `/implement-and-merge` because the cited steps now live in the surviving skill — these are step contracts, not name-rename targets, so they could not be deferred to Phase 3.
+- **`Bash(IMPL_TMPDIR=:*)` env-var permission deleted.** Verified via grep that `IMPL_TMPDIR` was referenced only inside the now-deleted `/implement/SKILL.md`. The new tmpdir variable name `IMPLEMENT_AND_MERGE_TMPDIR` already had its own permission entry.
+- **Plan review findings**: The plan was reviewed by 5 reviewers (2 Claude subagents + 2 Codex + Cursor). 4 findings were accepted by the voting panel and incorporated into the plan before implementation: (1) `README.md` line 96 prose dependency reference (3 YES), (2) `loop-review/SKILL.md` line 12 sentence-tail `/implement` reference (3 YES), (3) Internal inconsistency in the plan's CONSOLIDATING_IMPLEMENT.md update about a "surviving" workflow-lifecycle.md prose reference that Group E was actually deleting (3 YES), (4) Validation strategy too narrow — expanded grep targets to catch `Skill(implement)`, `.claude/skills/implement/`, and the old Bash permission string (2 YES). 4 findings were exonerated, including the user-deferral conflict (see above).
+- **Out-of-scope observation worth recording**: The `Bash($PWD/.claude/skills/*)` catch-all permission entry on line 5 of `settings.json` has a non-recursive wildcard that does not cover script paths in subdirectories; this is why per-skill `scripts/*` entries are required. Any future skill that adds a `scripts/` subdirectory will silently fail at runtime if its specific permission entry is not manually added. This is a latent footgun for future skill authors but is out of scope for Phase 2.
 
 ### Phase 3 — Rename `/implement-and-merge` to `/implement` (final PR)
 

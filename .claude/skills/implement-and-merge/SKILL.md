@@ -245,10 +245,8 @@ After the code review completes (whether `/review` in normal mode or the simplif
 **Conditional**: Check if the code review step (Step 5) actually modified any files (applies in both normal and quick mode):
 
 ```bash
-$PWD/.claude/skills/implement/scripts/check-review-changes.sh
+$PWD/.claude/skills/implement-and-merge/scripts/check-review-changes.sh
 ```
-
-(Note: this helper script currently lives under `.claude/skills/implement/scripts/` and will be moved to `.claude/skills/implement-and-merge/scripts/` in Phase 2 of the consolidation work. See `CONSOLIDATING_IMPLEMENT.md` for context.)
 
 Parse the output for `FILES_CHANGED`. If `FILES_CHANGED=false`, print: `⏩ Step 6 — Skipping second validation — review made no changes.` and skip Steps 6 and 7 (but NOT Step 7a — the Code Flow Diagram step runs unconditionally).
 

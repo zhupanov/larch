@@ -75,10 +75,6 @@ Copy the skills you need along with their shared dependencies into your repo's `
     ├── design/                # Each skill directory contains SKILL.md
     │   ├── SKILL.md           #   and may include scripts/, agents/,
     │   └── diagram.svg        #   references/, assets/, diagrams
-    ├── implement/
-    │   ├── SKILL.md
-    │   ├── scripts/
-    │   └── diagram.svg
     └── ...
 ```
 
@@ -93,11 +89,10 @@ When copying a skill, you must also copy its shared dependencies:
 
 #### Transitive skill dependencies
 
-Skills invoke other skills. If you copy `/implement-and-merge`, you also need `/implement`, `/design`, `/review`, and `/relevant-checks`. The dependency chain:
+Skills invoke other skills. If you copy `/implement-and-merge`, you also need `/design`, `/review`, and `/relevant-checks`. The dependency chain:
 
-- `/implement-and-merge` → `/implement` → `/design`, `/review`, `/relevant-checks`
+- `/implement-and-merge` → `/design`, `/review`, `/relevant-checks`
 - `/loop-review` → `/implement-and-merge` (full chain above)
-- `/implement` → `/design`, `/review`, `/relevant-checks`
 
 #### Note on `/relevant-checks`
 
@@ -119,7 +114,6 @@ Slash commands available in Claude Code sessions. They automate multi-step workf
 | Command | Arguments | Description |
 |---|---|---|
 | [`/design`](.claude/skills/design/SKILL.md) | `[--auto] <feature description>` | Design an implementation plan with collaborative multi-reviewer review. 5 agents (3 Claude + Cursor + Codex) independently propose architectural approaches, then 5 reviewers (2 Claude + 2 Codex + Cursor) validate the plan. `--auto` suppresses all interactive question checkpoints. [(Diagram).](.claude/skills/design/diagram.svg) |
-| [`/implement`](.claude/skills/implement/SKILL.md) | `[--quick] [--auto] <feature description>` | Implement a feature from design through PR creation, CI monitoring, and Slack announcement, with code review and version bump. `--quick` skips `/design` and uses simplified code review (2 Claude subagents, 1 round). `--auto` suppresses all interactive question checkpoints. Does not merge — use `/implement-and-merge` for the full end-to-end workflow including merge. [(Diagram).](.claude/skills/implement/diagram.svg) |
 | [`/research`](.claude/skills/research/SKILL.md) | `<research question or topic>` | Collaborative read-only research using 5 research agents (3 Claude + Cursor + Codex) then 5 validation reviewers (2 Claude + 2 Codex + Cursor). Produces a structured report with findings, risk assessment, difficulty estimates, and feasibility verdict. Does not modify the repo. [(Diagram).](.claude/skills/research/diagram.svg) |
 | [`/review`](.claude/skills/review/SKILL.md) | *(none)* | Code review current branch changes with specialized subagents (2 Claude + 2 Codex + Cursor, if available), implementing accepted suggestions in a recursive loop (up to 5 rounds). Reviews the diff between main and HEAD. [(Diagram).](.claude/skills/review/diagram.svg) |
 | [`/implement-and-merge`](.claude/skills/implement-and-merge/SKILL.md) | `[--quick] [--auto] [--no-merge] <feature description>` | Full end-to-end feature workflow — design, implement, PR, Slack announce, CI+rebase+merge, and cleanup. `--quick` skips `/design` and uses simplified code review (2 Claude subagents, 1 round). `--auto` suppresses all interactive question checkpoints. `--no-merge` skips CI monitoring, merge, :merged: emoji, and local branch cleanup (final report and temp cleanup still run). [(Diagram).](.claude/skills/implement-and-merge/diagram.svg) |

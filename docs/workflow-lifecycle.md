@@ -8,22 +8,19 @@ Skills are not invoked in a flat sequence. They form a hierarchical call graph w
 
 ```mermaid
 graph TD
-    IMPL_MERGE["/implement-and-merge"] -->|invokes| IMPLEMENT["/implement"]
-    IMPLEMENT -->|invokes| DESIGN["/design"]
-    IMPLEMENT -->|invokes| REVIEW["/review"]
-    IMPLEMENT -->|invokes| CHECKS["/relevant-checks"]
+    IMPL_MERGE["/implement-and-merge"] -->|invokes| DESIGN["/design"]
+    IMPL_MERGE -->|invokes| REVIEW["/review"]
+    IMPL_MERGE -->|invokes| CHECKS["/relevant-checks"]
     LOOP["/loop-review"] -->|invokes| IMPL_MERGE
 
     style IMPL_MERGE fill:#2d5a27,color:#fff
     style LOOP fill:#2d5a27,color:#fff
-    style IMPLEMENT fill:#1a4a6e,color:#fff
     style DESIGN fill:#4a3a6e,color:#fff
     style REVIEW fill:#4a3a6e,color:#fff
     style CHECKS fill:#555,color:#fff
 ```
 
-- **`/implement-and-merge`** is the top-level orchestrator. It invokes `/implement` for the full workflow (design, code, review, PR, CI, Slack), then handles CI monitoring, rebasing, merging, and cleanup.
-- **`/implement`** invokes `/design` for planning, `/review` for code review, and `/relevant-checks` for validation. It creates the PR and monitors CI, but does not merge.
+- **`/implement-and-merge`** is the top-level orchestrator. It runs the full design → code → review → PR → CI → merge → cleanup workflow.
 - **`/loop-review`** partitions the codebase into slices, reviews each, and invokes `/implement-and-merge` to implement accepted improvements — accumulating up to 3 slices per `/implement-and-merge` invocation before flushing.
 
 ## End-to-End Flow
@@ -46,7 +43,7 @@ flowchart TD
 
     DESIGN_PHASE --> IMPL_PHASE
 
-    subgraph IMPL_PHASE["Implementation Phase (/implement)"]
+    subgraph IMPL_PHASE["Implementation Phase"]
         CODE[Implement feature] --> VALIDATE1[Validation checks]
         VALIDATE1 --> COMMIT1[First commit]
         COMMIT1 --> CODE_REVIEW[Code review: 5 reviewers]
@@ -80,7 +77,6 @@ flowchart TD
 Not every task requires the full `/implement-and-merge` pipeline. Skills can be used independently:
 
 - **`/design <feature>`** — Plan a feature without implementing it. Creates a branch, runs collaborative sketches, writes and reviews the plan.
-- **`/implement <feature>`** — Implement and create a PR without merging. If a reviewed design plan is visible in the current session context, it skips `/design`.
 - **`/review`** — Review the current branch's changes. Launches reviewers, runs voting on findings, implements accepted fixes, and re-runs validation checks in a recursive loop.
 - **`/research <topic>`** — Read-only investigation. Does not create branches, modify files, or make commits. Uses a restricted tool set (no Edit, Write, or Skill tools).
 
@@ -90,8 +86,8 @@ Flags modify behavior across the skill hierarchy:
 
 | Flag | Available on | Effect |
 |---|---|---|
-| `--quick` | `/implement-and-merge`, `/implement` | Skips `/design` (produces inline plan instead). Simplifies code review to 1 round with 2 Claude subagents only (no external reviewers, no voting panel). |
-| `--auto` | `/implement-and-merge`, `/implement`, `/design` | Suppresses all interactive question checkpoints. Skills run fully autonomously without user interaction. |
+| `--quick` | `/implement-and-merge` | Skips `/design` (produces inline plan instead). Simplifies code review to 1 round with 2 Claude subagents only (no external reviewers, no voting panel). |
+| `--auto` | `/implement-and-merge`, `/design` | Suppresses all interactive question checkpoints. Skills run fully autonomously without user interaction. |
 | `--no-merge` | `/implement-and-merge` | Creates PR but skips CI monitoring, merge, :merged: emoji, and local branch cleanup. |
 
 ## Conditional Steps
