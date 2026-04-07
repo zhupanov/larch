@@ -63,7 +63,7 @@
   <line x1="230" y1="481" x2="230" y2="501"/>
 
   <!-- Decision: Flush batch? -->
-  <polygon points="230,501 310,531 230,561 150,531" fill="#F0AD4E"/>
+  <polygon points="230,501 340,531 230,561 120,531" fill="#F0AD4E"/>
   <text x="230" y="529" font-size="12">Flush via</text>
   <text x="230" y="543" font-size="10">/implement-and-merge?</text>
 
@@ -71,8 +71,8 @@
   <text x="215" y="550" class="label">yes</text>
 
   <!-- Next slice arrow -->
-  <text x="325" y="526" class="label">next slice</text>
-  <polyline points="310,531 380,531 380,288 370,288" fill="none" marker-end="url(#arrow)"/>
+  <text x="355" y="526" class="label">next slice</text>
+  <polyline points="340,531 380,531 380,288 370,288" fill="none" marker-end="url(#arrow)"/>
 
   <line x1="230" y1="561" x2="230" y2="600"/>
 
