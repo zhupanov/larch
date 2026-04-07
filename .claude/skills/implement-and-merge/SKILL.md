@@ -56,8 +56,10 @@ Suggested emoji palette (use consistently):
 Run the shared session setup script. If `SESSION_ENV_PATH` is non-empty (passed via `--session-env`), include `--caller-env` to reuse already-discovered values:
 
 ```bash
-$PWD/.claude/scripts/generic/larch/session-setup.sh --prefix claude-implement-and-merge [--caller-env "$SESSION_ENV_PATH"]
+$PWD/.claude/scripts/generic/larch/session-setup.sh --prefix claude-implement-and-merge --skip-branch-check [--caller-env "$SESSION_ENV_PATH"]
 ```
+
+`--skip-branch-check` is required so that the inlined Step 1 user-branch decision logic (`IS_USER_BRANCH=true` paths) is reachable. Without it, `preflight.sh` would refuse to run unless the user is on a clean `main` branch, making Step 1's branch-resume paths dead code.
 
 Only include `--caller-env "$SESSION_ENV_PATH"` if `SESSION_ENV_PATH` is non-empty.
 
@@ -135,6 +137,16 @@ Proceed to Step 2.
 - If `IS_USER_BRANCH=true` **AND** a reviewed implementation plan is visible in the conversation context above: The plan was created by a prior `/design` invocation in this session. Proceed to Step 2.
 - If `IS_USER_BRANCH=true` but **no** implementation plan is visible in the conversation context: Invoke the `/design` skill with `--session-env $IMPLEMENT_AND_MERGE_TMPDIR/session-env.sh` prepended to the feature description to create a plan on the current branch. **If `auto_mode=true`, also prepend `--auto`** so `/design` suppresses interactive questions. After `/design` completes, proceed to Step 2.
 - If on `main` or empty (detached HEAD) or any non-user branch: No design plan exists yet. Invoke the `/design` skill with `--session-env $IMPLEMENT_AND_MERGE_TMPDIR/session-env.sh` prepended to the feature description to create a branch and design the plan. **If `auto_mode=true`, also prepend `--auto`** so `/design` suppresses interactive questions. After `/design` completes, proceed to Step 2.
+
+### Capture branch name (`BRANCH_NAME`)
+
+After Step 1's branch resolution (whether quick mode or normal mode, whether a new branch was created or an existing one was reused), capture the resolved branch name into a `BRANCH_NAME` variable:
+
+```bash
+git symbolic-ref --short HEAD
+```
+
+Save the output as `BRANCH_NAME`. This variable is referenced later by Step 14 (`local-cleanup.sh --branch $BRANCH_NAME`) and by Steps 4, 14, and 18 status messages that mention the development branch. **It is the responsibility of Step 1 to ensure `BRANCH_NAME` accurately reflects the branch where implementation will happen** — re-run `git symbolic-ref --short HEAD` after `/design` returns (in normal mode) since `/design` may have switched branches.
 
 ### Rebase onto latest main (before implementation)
 
@@ -765,23 +777,25 @@ $PWD/.claude/scripts/generic/larch/post-merged-emoji.sh --slack-ts "$SLACK_TS"
 
 ## Step 14 — Local Cleanup
 
-**If `no_merge=true`**: Print `⏩ Step 14 — Skipped (--no-merge). You are still on branch <branch-name>.` and skip to Step 16.
+**If `no_merge=true`**: Print `⏩ Step 14 — Skipped (--no-merge). You are still on branch $BRANCH_NAME.` and skip to Step 16.
 
 **If the PR was successfully merged (Step 12b or force-merged externally)**:
 
 Switch back to main, pull the merged changes, and delete the development branch:
 
 ```bash
-$PWD/.claude/scripts/generic/larch/local-cleanup.sh --branch <branch-name>
+$PWD/.claude/scripts/generic/larch/local-cleanup.sh --branch "$BRANCH_NAME"
 ```
 
-Parse the output for `CLEANUP_SUCCESS`, `CURRENT_BRANCH`, and `BRANCH_DELETED`. If `CLEANUP_SUCCESS=true`, print: `🧹 Step 14 — Switched to main, deleted local branch <branch-name>`. If `CLEANUP_SUCCESS=false`, print: `**⚠ Step 14 — Cleanup partially failed. Current branch: <CURRENT_BRANCH>, branch deleted: <BRANCH_DELETED>.**`
+Parse the output for `CLEANUP_SUCCESS`, `CURRENT_BRANCH`, and `BRANCH_DELETED`. If `CLEANUP_SUCCESS=true`, print: `🧹 Step 14 — Switched to main, deleted local branch $BRANCH_NAME`. If `CLEANUP_SUCCESS=false`, print: `**⚠ Step 14 — Cleanup partially failed. Current branch: <CURRENT_BRANCH>, branch deleted: <BRANCH_DELETED>.**`
 
 **If Step 12 bailed out (PR was NOT merged)**:
 
 Do NOT switch branches or delete the local branch. The user will need the branch to continue manually.
 
-Print: `⚠️ Step 14 — Skipped cleanup (PR not merged). You are still on branch <branch-name>.`
+Print: `⚠️ Step 14 — Skipped cleanup (PR not merged). You are still on branch $BRANCH_NAME.`
+
+`$BRANCH_NAME` is the variable captured at the end of Step 1 (after branch resolution by `/design` or quick-mode branch creation).
 
 ## Step 15 — Verify Main
 
