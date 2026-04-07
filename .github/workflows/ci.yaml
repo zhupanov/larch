@@ -28,8 +28,5 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Run claudin integration test
-        run: bash tests/test-setup-claudin.sh
       - name: Run larch integration test
-        if: always()
         run: bash tests/test-setup-larch.sh

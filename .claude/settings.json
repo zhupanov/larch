@@ -233,7 +233,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$PWD/.claude/scripts/generic/claudin/block-submodule-edit.sh"
+            "command": "$PWD/.claude/scripts/generic/larch/block-submodule-edit.sh"
           }
         ]
       },
@@ -242,7 +242,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$PWD/.claude/scripts/generic/claudin/block-submodule-edit.sh"
+            "command": "$PWD/.claude/scripts/generic/larch/block-submodule-edit.sh"
           }
         ]
       }
@@ -253,7 +253,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$PWD/.claude/scripts/generic/claudin/auto-goimports.sh"
+            "command": "$PWD/.claude/scripts/generic/larch/auto-goimports.sh"
           }
         ]
       },
@@ -262,7 +262,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$PWD/.claude/scripts/generic/claudin/auto-goimports.sh"
+            "command": "$PWD/.claude/scripts/generic/larch/auto-goimports.sh"
           }
         ]
       }

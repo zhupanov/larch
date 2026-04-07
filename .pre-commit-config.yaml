@@ -1,4 +1,4 @@
-# Claudin pre-commit configuration
+# Larch pre-commit configuration
 # Single source of truth for linter definitions.
 # CI uses: make lint (repo-wide via pre-commit run --all-files)
 # /relevant-checks uses: pre-commit run --files <changed-files> (scoped)

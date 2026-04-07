@@ -1,6 +1,6 @@
 # Agent System
 
-How Claudin skills orchestrate parallel subagents to achieve collaborative multi-perspective workflows.
+How Larch skills orchestrate parallel subagents to achieve collaborative multi-perspective workflows.
 
 ## What Are Agents?
 
@@ -42,7 +42,7 @@ Skills invoke other skills in sequence, each building on the previous result. Fo
 
 ## Agent Types
 
-Claudin uses several categories of agents:
+Larch uses several categories of agents:
 
 ### Review Agents
 

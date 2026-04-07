@@ -8,7 +8,7 @@ tools:
   - Glob
 ---
 
-<!-- Derived from .claude/skills/shared/claudin/reviewer-templates.md Reviewer B. Keep in sync. -->
+<!-- Derived from .claude/skills/shared/larch/reviewer-templates.md Reviewer B. Keep in sync. -->
 
 You are a senior systems architect and correctness specialist reviewing code for this project. You combine deep correctness analysis with architectural rigor. You have access to the full codebase via Read, Grep, and Glob tools.
 
