@@ -21,23 +21,36 @@
 
 set -euo pipefail
 
+# fail MESSAGE — emit APPLIED=false / ERROR=MESSAGE on stdout and exit 1.
+# Used for all non-rollback failure paths so callers see a consistent
+# machine-parseable contract on stdout.
+fail() {
+  echo "APPLIED=false"
+  echo "ERROR=$1"
+  exit 1
+}
+
 NEW_VERSION=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --new-version) NEW_VERSION="$2"; shift 2 ;;
-    *) echo "ERROR=Unknown argument: $1" >&2; exit 1 ;;
+    --new-version)
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        fail "Missing value for --new-version"
+      fi
+      NEW_VERSION="$2"
+      shift 2
+      ;;
+    *) fail "Unknown argument: $1" ;;
   esac
 done
 
 if [[ -z "$NEW_VERSION" ]]; then
-  echo "ERROR=Missing required argument: --new-version" >&2
-  exit 1
+  fail "Missing required argument: --new-version"
 fi
 
 if ! [[ "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "ERROR=--new-version '$NEW_VERSION' is not semver (expected X.Y.Z)" >&2
-  exit 1
+  fail "--new-version '$NEW_VERSION' is not semver (expected X.Y.Z)"
 fi
 
 PLUGIN_JSON="$PWD/.claude-plugin/plugin.json"
@@ -45,18 +58,16 @@ BACKUP="$PLUGIN_JSON.bump-backup"
 
 # Step 1 (FIRST): Verify clean working tree.
 # This MUST run before any mutation so the script can't trip over its own write.
-if ! git diff-index --quiet HEAD -- 2>/dev/null; then
-  echo "ERROR=Working tree has uncommitted changes; refusing to bump version. Commit or stash them first." >&2
-  exit 1
-fi
-if ! git diff-index --quiet --cached HEAD -- 2>/dev/null; then
-  echo "ERROR=Index has staged changes; refusing to bump version. Commit or unstage them first." >&2
-  exit 1
+# `git status --porcelain` covers tracked changes (staged and unstaged) AND
+# untracked files — unlike `git diff-index --quiet HEAD --` which silently
+# ignores untracked entries.
+if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
+  fail "Working tree is not clean (staged, unstaged, or untracked changes present); refusing to bump version. Commit, stash, or clean them first."
 fi
 
 # Step 2: Validate plugin.json parses.
-[[ -f "$PLUGIN_JSON" ]] || { echo "ERROR=$PLUGIN_JSON not found" >&2; exit 1; }
-jq empty "$PLUGIN_JSON" 2>/dev/null || { echo "ERROR=$PLUGIN_JSON is not valid JSON" >&2; exit 1; }
+[[ -f "$PLUGIN_JSON" ]] || fail "$PLUGIN_JSON not found"
+jq empty "$PLUGIN_JSON" 2>/dev/null || fail "$PLUGIN_JSON is not valid JSON"
 
 # Step 3: Backup before mutation.
 cp "$PLUGIN_JSON" "$BACKUP"
@@ -65,8 +76,7 @@ cp "$PLUGIN_JSON" "$BACKUP"
 TMP_JSON="$PLUGIN_JSON.tmp.$$"
 if ! jq --arg v "$NEW_VERSION" '.version = $v' "$PLUGIN_JSON" > "$TMP_JSON"; then
   rm -f "$TMP_JSON" "$BACKUP"
-  echo "ERROR=jq rewrite failed" >&2
-  exit 1
+  fail "jq rewrite failed"
 fi
 mv "$TMP_JSON" "$PLUGIN_JSON"
 

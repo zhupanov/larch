@@ -1,0 +1,1 @@
+../slack-announce.sh

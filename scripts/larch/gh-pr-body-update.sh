@@ -1,0 +1,1 @@
+../gh-pr-body-update.sh

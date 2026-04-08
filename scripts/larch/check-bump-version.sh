@@ -1,0 +1,1 @@
+../check-bump-version.sh

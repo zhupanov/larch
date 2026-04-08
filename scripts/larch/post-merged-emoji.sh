@@ -1,0 +1,1 @@
+../post-merged-emoji.sh

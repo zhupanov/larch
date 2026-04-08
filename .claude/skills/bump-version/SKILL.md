@@ -19,14 +19,12 @@ Any of the following in `skills/**` or `agents/**`:
 - A deleted `skills/*/SKILL.md` or `agents/*.md`
 - A renamed `skills/*/SKILL.md` (git status `R`)
 - A changed `name:` frontmatter field in an existing SKILL.md
-- A removed `` `--<flag>` `` bullet from a SKILL.md body
-- A removed `--<flag>` token from a SKILL.md `argument-hint:` frontmatter string
+- A `--<flag>` token removed from a SKILL.md's `argument-hint:` frontmatter field (token-set comparison; wording-only edits to the argument-hint that preserve all tokens do not count)
 
 ### MINOR — backward-compatible additions
 Any of the following in `skills/**` or `agents/**` (only if not MAJOR):
 - A newly added `skills/*/SKILL.md` or `agents/*.md`
-- A newly added `` `--<flag>` `` bullet in a SKILL.md body
-- A newly added `--<flag>` token in a SKILL.md `argument-hint:` frontmatter string
+- A `--<flag>` token added to a SKILL.md's `argument-hint:` frontmatter field
 
 ### PATCH — everything else
 Default for all other changes. Every PR must bump at least PATCH per policy.
@@ -46,9 +44,9 @@ If you escalate, append a paragraph to the reasoning log file explaining why.
    - Fetches `origin/main` (best-effort, non-fatal on failure)
    - Resolves `BASE` via `main` → `origin/main` fallback
    - Validates `.claude-plugin/plugin.json` via `jq`
-   - Detects an **already-bumped branch** (commit matching `^Bump version to [0-9]+\.[0-9]+\.[0-9]+$` ahead of BASE). If found, emits `BUMP_TYPE=NONE` and exits 0 (no-op).
-   - Computes `git diff -M --name-status $BASE HEAD -- skills agents` for file-level classification
-   - For each modified SKILL.md, runs `git diff $BASE HEAD -- <file>` for content-level heuristics
+   - Detects an **already-bumped branch** by checking whether HEAD itself is a commit with subject `^Bump version to [0-9]+\.[0-9]+\.[0-9]+$`. If HEAD is such a commit, emits `BUMP_TYPE=NONE` and exits 0 (no-op). If a bump exists earlier in the branch but additional commits have landed on top, a fresh bump is required.
+   - Computes `git diff -M --name-status $BASE HEAD -- skills agents` for file-level classification (added/deleted/renamed SKILL.md and agent files)
+   - For each modified SKILL.md, reads the old and new full file contents via `git show "$BASE:<path>"` and `git show "HEAD:<path>"`, extracts the first YAML frontmatter block between `---` markers, and compares the `name:` and `argument-hint:` fields. The `argument-hint:` comparison uses token sets: a `--<flag>` present in both old and new is treated as unchanged; only genuine additions or removals contribute to classification.
    - Writes evidence to `${IMPLEMENT_TMPDIR:-$PWD/.git}/bump-version-reasoning.md`
    - Emits `KEY=VALUE` lines on stdout: `CURRENT_VERSION`, `NEW_VERSION`, `BUMP_TYPE`, `REASONING_FILE`
 3. You (main agent) parse the output, read the reasoning log, review the diff, and apply the **escalation-only** caveat review. If you escalate, update `NEW_VERSION` accordingly and append reasoning to the log.

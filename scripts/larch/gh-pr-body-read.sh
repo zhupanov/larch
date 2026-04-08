@@ -1,0 +1,1 @@
+../gh-pr-body-read.sh

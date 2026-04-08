@@ -1,0 +1,1 @@
+../gh-run-logs.sh
