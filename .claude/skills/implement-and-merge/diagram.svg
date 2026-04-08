@@ -18,10 +18,10 @@
   <text x="230" y="60">Session Setup</text>
   <line x1="230" y1="80" x2="230" y2="110"/>
 
-  <!-- Step 1: /implement (with optional --quick) -->
+  <!-- Step 1: Design + Implement + PR + Slack (with optional --quick) -->
   <rect x="95" y="110" width="270" height="40" rx="4" fill="#7B68EE"/>
   <text x="230" y="125">Design + Implement + PR</text>
-  <text x="230" y="140">+ Slack (/implement)</text>
+  <text x="230" y="140">+ Slack</text>
   <text x="390" y="130" fill="#E8833A" font-size="10" text-anchor="start">--quick?</text>
   <line x1="230" y1="150" x2="230" y2="180"/>
 

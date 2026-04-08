@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# session-setup.sh — Shared session setup for /design, /implement, /implement-and-merge skills.
+# session-setup.sh — Shared session setup for /design and /implement-and-merge skills.
 #
 # Consolidates the common Step 0 operations: preflight, temp dir creation,
 # Slack configuration check, and repo name derivation.
