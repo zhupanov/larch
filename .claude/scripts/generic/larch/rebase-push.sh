@@ -29,8 +29,9 @@
 #
 # Exit codes:
 #   0 — rebase (and push, unless --no-push) succeeded, OR skipped because
-#       --skip-if-pushed detected the branch already on origin, OR skipped
-#       because HEAD already contains origin/main (nothing to rebase)
+#       --skip-if-pushed detected the branch already on origin, OR (in
+#       --no-push mode only) skipped because HEAD already contains
+#       origin/main (nothing to rebase)
 #   1 — rebase failed with conflicts
 #       Default mode: rebase left in progress (CONFLICT_FILES= on stdout)
 #       --no-push mode: rebase aborted, branch restored to pre-rebase state
@@ -45,8 +46,12 @@
 # Stdout on exit 0 when --skip-if-pushed skipped the rebase:
 #   SKIPPED_ALREADY_PUSHED=true
 #
-# Stdout on exit 0 when HEAD already contains origin/main (after fetch):
+# Stdout on exit 0 when --no-push and HEAD already contains origin/main:
 #   SKIPPED_ALREADY_FRESH=true
+#   Only emitted in --no-push mode. In default (push) mode the script
+#   always proceeds to the push step even if the rebase would be a no-op,
+#   because a feature branch may have local commits that still need to
+#   reach origin.
 #
 # Stdout on exit 1 (default mode only):
 #   CONFLICT_FILES=<comma-separated list of conflicted files>
@@ -135,10 +140,12 @@ else
     # If origin/main is an ancestor of HEAD, HEAD already has every commit
     # from main, so `git rebase origin/main` would be a no-op. Exit 0 with a
     # SKIPPED_ALREADY_FRESH=true marker so callers can log it distinctly.
-    # In default (push) mode, skipping the rebase also skips the force-push:
-    # since HEAD did not change, there is nothing new to push, and the caller
-    # will re-check status on the next loop iteration.
-    if git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
+    #
+    # This optimization is gated on --no-push mode. In default (push) mode we
+    # must still reach the push step: a feature branch may have local commits
+    # that have never been pushed, and HEAD containing origin/main says
+    # nothing about whether the remote tracking branch is up to date.
+    if [[ "$NO_PUSH" == "true" ]] && git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
         echo "SKIPPED_ALREADY_FRESH=true"
         exit 0
     fi
