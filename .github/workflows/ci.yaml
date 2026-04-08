@@ -52,6 +52,9 @@ jobs:
           [ -n "$mp_name" ] || fail ".claude-plugin/marketplace.json is missing required field: name"
           [ -n "$mp_owner" ] || fail ".claude-plugin/marketplace.json is missing required field: owner.name"
           [ "$mp_plugins_len" -gt 0 ] || fail ".claude-plugin/marketplace.json has empty plugins array"
+          # Every plugin entry must have a non-empty name and a non-null source
+          jq -e '.plugins | all(.name and .source)' .claude-plugin/marketplace.json > /dev/null \
+            || fail ".claude-plugin/marketplace.json has plugin entry missing required field: name or source"
 
           # hooks/hooks.json
           test -f hooks/hooks.json || fail "hooks/hooks.json is missing"
@@ -77,5 +80,20 @@ jobs:
 
           # block-submodule-edit.sh must exist and be executable
           test -x scripts/larch/block-submodule-edit.sh || fail "scripts/larch/block-submodule-edit.sh missing or not executable"
+
+          # .claude/ compatibility symlinks must all resolve
+          for link in \
+            .claude/skills/design \
+            .claude/skills/implement \
+            .claude/skills/review \
+            .claude/skills/research \
+            .claude/skills/loop-review \
+            .claude/skills/shared \
+            .claude/agents/deep-analysis-reviewer.md \
+            .claude/agents/general-reviewer.md \
+            .claude/scripts/generic/larch; do
+            test -L "$link" || fail "$link is not a symlink (should be)"
+            test -e "$link" || fail "$link is a broken symlink"
+          done
 
           echo "Plugin structure OK: $name v$version (${#agents[@]} agents, $skill_count skills)"

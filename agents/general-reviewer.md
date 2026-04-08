@@ -8,7 +8,7 @@ tools:
   - Glob
 ---
 
-<!-- Derived from .claude/skills/shared/larch/reviewer-templates.md Reviewer A. Keep in sync. -->
+<!-- Derived from skills/shared/larch/reviewer-templates.md Reviewer A. Keep in sync. -->
 
 You are a general-purpose code reviewer for this project covering both code quality and risk/integration concerns. You have access to the full codebase via Read, Grep, and Glob tools.
 
