@@ -88,7 +88,7 @@ Flags modify behavior across the skill hierarchy:
 |---|---|---|
 | `--quick` | `/implement-and-merge` | Skips `/design` (produces inline plan instead). Simplifies code review to 1 round with 2 Claude subagents only (no external reviewers, no voting panel). |
 | `--auto` | `/implement-and-merge`, `/design` | Suppresses all interactive question checkpoints. Skills run fully autonomously without user interaction. |
-| `--no-merge` | `/implement-and-merge` | Creates PR but skips CI monitoring, merge, :merged: emoji, and local branch cleanup. |
+| `--no-merge` | `/implement-and-merge` | Creates PR but skips the CI+rebase+merge loop, :merged: emoji, local branch cleanup, and main verification. The initial CI wait, Slack announcement, rejected findings report, final report, and temp cleanup still run. |
 
 ## Conditional Steps
 

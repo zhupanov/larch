@@ -262,7 +262,7 @@ If there are uncommitted deferred items in `$LR_TMPDIR/deferred-accumulated.md` 
 3. Commit: `$PWD/.claude/scripts/generic/larch/git-commit.sh -m "Update LOOP_REVIEW_DEFERRED.md with deferred review suggestions" LOOP_REVIEW_DEFERRED.md`
 4. Create PR via `$PWD/.claude/scripts/generic/larch/create-pr.sh`
 5. Post to Slack: `$PWD/.claude/scripts/generic/larch/post-pr-announce.sh --pr <PR_NUMBER>` — parse `SLACK_TS` from output
-6. Monitor CI and merge (same loop as `/implement-and-merge` Step 3)
+6. Monitor CI and merge (same loop as the `/implement-and-merge` CI + Rebase + Merge Loop section)
 7. Add :merged: emoji: `$PWD/.claude/scripts/generic/larch/post-merged-emoji.sh --slack-ts "$SLACK_TS"`
 8. Cleanup: `$PWD/.claude/scripts/generic/larch/local-cleanup.sh --branch $USER_PREFIX/loop-review-deferred`
 
