@@ -98,45 +98,55 @@ Write the full file list to `$LR_TMPDIR/slice-N-files.txt` (one path per line) f
 
 ### 3c — Launch up to 5 review subagents in parallel
 
-Launch ALL available reviewers in a **single message**. **Spawn order matters for parallelism** — launch the slowest reviewers first: Cursor (slowest), then 2 Codex (second slowest), then 2 Claude subagents (fastest). External reviewers are launched once per slice even when sub-slicing. Claude subagents use the current sub-slice's `{FILE_LIST}` if sub-slicing, or the full file list otherwise. Each must **only report findings — never edit files**.
+Launch **all 5 reviewers** in a **single message**. When external tools are unavailable, launch Claude replacement subagents instead so the total reviewer count always remains 5. **Spawn order matters for parallelism** — launch the slowest reviewers first: Cursor (slowest), then 2 Codex (second slowest), then 2 Claude subagents (fastest). External reviewers are launched once per slice even when sub-slicing. Claude subagents use the current sub-slice's `{FILE_LIST}` if sub-slicing, or the full file list otherwise. Each must **only report findings — never edit files**.
 
 **Cursor Reviewer (if `cursor_available`):**
 
 Run Cursor **first** in the parallel message (it takes the longest):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "$LR_TMPDIR/cursor-output-slice-N.txt" --timeout 900 --capture-stdout -- \
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "$LR_TMPDIR/cursor-output-slice-N.txt" --timeout 1800 --capture-stdout -- \
   cursor agent -p --force --trust --model gpt-5.4-medium --workspace "$PWD" \
     "Review EXISTING code (not a diff — do NOT run git diff) in this project. The file list is in $LR_TMPDIR/slice-N-files.txt — read it, then read and review each listed file. Also inspect corresponding tests and callers for context. Combine 4 review perspectives: (1) Quality: bugs, logic errors, dead code, duplication, missing error handling. (2) Correctness: off-by-one, nil handling, type mismatches, races, error paths. (3) Risk/Integration: broken contracts, thread safety, deployment risks, CI gaps. (4) Architecture: separation of concerns, contract boundaries, invariants, semantic boundaries. Return numbered findings with perspective, file:line, issue, and specific fix. If NO issues, output exactly NO_ISSUES_FOUND. Do NOT modify files."
 ```
 
-Use `run_in_background: true` and `timeout: 960000` on the Bash tool call.
+Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
+
+**Cursor replacement** (if `cursor_available` is false): Launch a Claude subagent (Risk/Integration) via the Agent tool instead:
+
+Prompt: `"Review EXISTING code for this project. Files: {FILE_LIST}. Read each file. Combine 4 review perspectives: (1) Quality: bugs, logic errors, dead code, duplication, missing error handling. (2) Correctness: off-by-one, nil handling, type mismatches, races, error paths. (3) Risk/Integration: broken contracts, thread safety, deployment risks, CI gaps. (4) Architecture: separation of concerns, contract boundaries, invariants, semantic boundaries. Return numbered findings: file:line, issue, specific fix. If none: 'No issues found.' Do NOT edit files."`
 
 **Codex-General Reviewer (if `codex_available`):**
 
 Run Codex-General **second** in the parallel message:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$LR_TMPDIR/codex-general-output-slice-N.txt" --timeout 900 -- \
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$LR_TMPDIR/codex-general-output-slice-N.txt" --timeout 1800 -- \
   codex exec --full-auto -C "$PWD" \
     --output-last-message "$LR_TMPDIR/codex-general-output-slice-N.txt" \
     "Review EXISTING code (not a diff — do NOT run git diff) in this project. The file list is in $LR_TMPDIR/slice-N-files.txt — read it, then read and review each listed file. Also inspect corresponding tests and callers for context. Focus on: quality, bugs, risk, integration, CI. Return numbered findings with file:line, issue, and specific fix. If NO issues, output exactly NO_ISSUES_FOUND. Do NOT modify files."
 ```
 
-Use `run_in_background: true` and `timeout: 960000` on the Bash tool call.
+Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
 **Codex-Deep-Analysis Reviewer (if `codex_available`):**
 
 Run Codex-Deep-Analysis **third** in the parallel message:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$LR_TMPDIR/codex-deep-output-slice-N.txt" --timeout 900 -- \
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$LR_TMPDIR/codex-deep-output-slice-N.txt" --timeout 1800 -- \
   codex exec --full-auto -C "$PWD" \
     --output-last-message "$LR_TMPDIR/codex-deep-output-slice-N.txt" \
     "Review EXISTING code (not a diff — do NOT run git diff) in this project. The file list is in $LR_TMPDIR/slice-N-files.txt — read it, then read and review each listed file. Also inspect corresponding tests and callers for context. Focus on: correctness, architecture, invariants, contracts. Return numbered findings with file:line, issue, and specific fix. If NO issues, output exactly NO_ISSUES_FOUND. Do NOT modify files."
 ```
 
-Use `run_in_background: true` and `timeout: 960000` on the Bash tool call.
+Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
+
+**Codex replacements** (if `codex_available` is false): Launch 2 Claude subagents instead:
+
+**Claude (Codex-General replacement)**: Prompt: `"Review EXISTING code for this project. Files: {FILE_LIST}. Read each file. Focus on: quality, bugs, risk, integration, CI. Return numbered findings: file:line, issue, specific fix. If none: 'No issues found.' Do NOT edit files."`
+
+**Claude (Codex-Deep-Analysis replacement)**: Prompt: `"Review EXISTING code for correctness and architecture. Files: {FILE_LIST}. Read each file. Focus on: correctness, architecture, invariants, contracts. Return numbered findings: file:line, issue, specific fix. If none: 'No issues found.' Do NOT edit files."`
 
 **Claude Subagents (2 reviewers, launched last — they finish fastest):**
 

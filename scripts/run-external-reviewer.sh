@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # run-external-reviewer.sh — Monitored wrapper for external code reviewers (Codex, Cursor).
 # Launches the reviewer in the background, polls every 60s with status messages,
-# kills after a configurable timeout (default 15 minutes).
+# kills after a configurable timeout (e.g., 30 minutes for reviews, 20 minutes for votes/sketches).
 #
 # Usage:
 #   run-external-reviewer.sh --tool NAME --output FILE --timeout SECS [--capture-stdout] -- CMD...
@@ -9,7 +9,7 @@
 # Options:
 #   --tool            Tool name (e.g., "codex", "cursor") — used only for log messages
 #   --output          Path where tool output is written
-#   --timeout         Timeout in seconds (e.g., 900 for 15 minutes)
+#   --timeout         Timeout in seconds (e.g., 1800 for 30 minutes)
 #   --capture-stdout  Redirect the tool's stdout/stderr to the output file.
 #                     Use for tools like Cursor that write results to stdout.
 #                     Omit for tools like Codex that use their own output flags.
@@ -17,7 +17,7 @@
 #
 # Examples:
 #   # Codex review (uses --output-last-message flag to write output)
-#   run-external-reviewer.sh --tool codex --output /tmp/review-abc/codex-output.txt --timeout 900 -- \
+#   run-external-reviewer.sh --tool codex --output /tmp/review-abc/codex-output.txt --timeout 1800 -- \
 #     codex exec --full-auto -C /path/to/repo --output-last-message /tmp/review-abc/codex-output.txt "Review prompt..."
 #
 #   # Cursor review (stdout captured to file via --capture-stdout)

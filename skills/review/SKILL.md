@@ -51,7 +51,7 @@ Parse the output for `DIFF_FILE`, `FILE_LIST_FILE`, and `COMMIT_LOG_FILE`. Read 
 
 ## Step 2 — Launch Review Subagents in Parallel
 
-Launch **all reviewers** in a **single message**: Cursor and two Codex instances via `Bash` tool (background), plus two Claude subagents via the `Agent` tool. **Spawn order matters for parallelism** — launch the slowest reviewers first: Cursor (slowest), then both Codex instances, then Claude subagents (fastest). Each reviewer receives the full diff text and file list, plus its specialized review instructions. Each must **only report findings** — never edit files.
+Launch **all 5 reviewers** in a **single message**: Cursor and two Codex instances via `Bash` tool (background), plus two Claude subagents via the `Agent` tool. When external tools are unavailable, launch Claude replacement subagents instead so the total reviewer count always remains 5. **Spawn order matters for parallelism** — launch the slowest reviewers first: Cursor (slowest), then both Codex instances, then Claude subagents (fastest). Each reviewer receives the full diff text and file list, plus its specialized review instructions. Each must **only report findings** — never edit files.
 
 ### Cursor Reviewer (if `cursor_available`)
 
@@ -60,12 +60,16 @@ Run Cursor **first** in the parallel message (it takes the longest). Cursor has 
 Invoke Cursor via the shared monitored wrapper script (with `--capture-stdout` since Cursor writes results to stdout):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "$REVIEW_TMPDIR/cursor-output.txt" --timeout 900 --capture-stdout -- \
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "$REVIEW_TMPDIR/cursor-output.txt" --timeout 1800 --capture-stdout -- \
   cursor agent -p --force --trust --model gpt-5.4-medium --workspace "$PWD" \
     "Review all code changes on the current branch vs main. Run git diff main...HEAD to see changes and git log main...HEAD --oneline for commits. For each changed file, read the full file for context. Combine 4 review perspectives: (1) General: bugs, logic, quality, tests, backward compat, style. (2) Correctness: logic errors, off-by-one, nil handling, type mismatches, races, error paths. (3) Risk/Integration: breaking changes, side effects, thread safety, deployment risks, regressions, CI. (4) Architecture: separation of concerns, contract boundaries, invariants, semantic boundaries. Return numbered findings with perspective, file:line, issue, and suggested fix. If NO issues, output exactly NO_ISSUES_FOUND. Do NOT modify files."
 ```
 
-Use `run_in_background: true` and `timeout: 960000` on the Bash tool call.
+Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
+
+**Cursor replacement** (if `cursor_available` is false): Launch a Claude subagent (Risk/Integration) via the Agent tool instead. This replacement ensures the total reviewer count remains 5 regardless of external tool availability.
+
+Prompt: `"You are a Risk/Integration reviewer examining code changes. <include {CONTEXT_BLOCK} and competition notice>. Combine 4 review perspectives: (1) General: bugs, logic, quality, tests, backward compat, style. (2) Correctness: logic errors, off-by-one, nil handling, type mismatches, races, error paths. (3) Risk/Integration: breaking changes, side effects, thread safety, deployment risks, regressions, CI. (4) Architecture: separation of concerns, contract boundaries, invariants, semantic boundaries. Return findings in two separate sections: In-Scope Findings (numbered, with file:line, issue, suggested fix) and Out-of-Scope Observations. If no in-scope issues, say 'No in-scope issues found.' Do NOT edit any files."`
 
 ### Codex Reviewers (if `codex_available`) — 2 instances
 
@@ -76,24 +80,30 @@ Invoke both Codex instances via the shared monitored wrapper script:
 **Codex-General** (general code quality and risk/integration):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$REVIEW_TMPDIR/codex-general-output.txt" --timeout 900 -- \
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$REVIEW_TMPDIR/codex-general-output.txt" --timeout 1800 -- \
   codex exec --full-auto -C "$PWD" \
     --output-last-message "$REVIEW_TMPDIR/codex-general-output.txt" \
     "Review all code changes on the current branch vs main. Run git diff main...HEAD to see changes and git log main...HEAD --oneline for commits. For each changed file, read the full file for context. Focus on general code quality and risk/integration: bugs, logic, quality, tests, backward compat, style, breaking changes, deployment risks, regressions, CI constraints. Return numbered findings with file:line, issue, and suggested fix. If NO issues, output exactly NO_ISSUES_FOUND. Do NOT modify files."
 ```
 
-Use `run_in_background: true` and `timeout: 960000` on the Bash tool call.
+Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
 **Codex-Deep-Analysis** (deep correctness and architecture):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$REVIEW_TMPDIR/codex-deep-output.txt" --timeout 900 -- \
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$REVIEW_TMPDIR/codex-deep-output.txt" --timeout 1800 -- \
   codex exec --full-auto -C "$PWD" \
     --output-last-message "$REVIEW_TMPDIR/codex-deep-output.txt" \
     "Review all code changes on the current branch vs main. Run git diff main...HEAD to see changes and git log main...HEAD --oneline for commits. For each changed file, read the full file for context. Focus on deep correctness and architecture: logic errors, off-by-one, nil handling, type mismatches, races, error paths, separation of concerns, contract boundaries, invariants, semantic boundaries. Return numbered findings with file:line, issue, and suggested fix. If NO issues, output exactly NO_ISSUES_FOUND. Do NOT modify files."
 ```
 
-Use `run_in_background: true` and `timeout: 960000` on the Bash tool call.
+Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
+
+**Codex replacements** (if `codex_available` is false): Launch 2 Claude subagents to replace the 2 Codex instances. These replacements ensure the total reviewer count remains 5 regardless of external tool availability.
+
+**Claude (Codex-General replacement)**: Launch via Agent tool with prompt: `"You are a code quality and risk/integration reviewer examining code changes. <same {CONTEXT_BLOCK} as Claude subagents>. Focus on general code quality and risk/integration: bugs, logic, quality, tests, backward compat, style, breaking changes, deployment risks, regressions, CI constraints. Return findings in two separate sections: In-Scope Findings (numbered, with file:line, issue, suggested fix) and Out-of-Scope Observations. If no in-scope issues, say 'No in-scope issues found.' Do NOT edit any files."`
+
+**Claude (Codex-Deep-Analysis replacement)**: Launch via Agent tool with prompt: `"You are a deep correctness and architecture reviewer examining code changes. <same {CONTEXT_BLOCK} as Claude subagents>. Focus on deep correctness and architecture: logic errors, off-by-one, nil handling, type mismatches, races, error paths, separation of concerns, contract boundaries, invariants, semantic boundaries. Return findings in two separate sections: In-Scope Findings (numbered, with file:line, issue, suggested fix) and Out-of-Scope Observations. If no in-scope issues, say 'No in-scope issues found.' Do NOT edit any files."`
 
 ### Claude Subagents (2 reviewers)
 
@@ -154,10 +164,8 @@ Merge findings from all reviewers into a single deduplicated list, grouped by fi
 **In round 1**: Submit both in-scope findings and out-of-scope observations to a 3-agent voting panel per the **Voting Protocol** in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/voting-protocol.md`. Include OOS items on the ballot with `[OUT_OF_SCOPE]` prefix per the protocol's OOS section. For code review:
 
 - **Voter 1**: Claude General reviewer subagent — fresh Agent tool invocation with the voting prompt. Instruct: `"You are a very scrupulous senior engineer code reviewer on a voting panel. You will vote YES, NO, or EXONERATE on proposed code changes. Be extremely rigorous — only vote YES for findings that identify genuine bugs, logic errors, security issues, or clearly important improvements. Vote EXONERATE if the concern is legitimate but not worth implementing in this PR. Vote NO for trivial style nits, subjective preferences, or speculative concerns."`
-- **Voter 2**: Codex — via `run-external-reviewer.sh` with the ballot. Instruct similarly as a "very scrupulous senior engineer code reviewer."
-- **Voter 3**: Cursor — via `run-external-reviewer.sh` with the ballot. Instruct similarly.
-
-If fewer than 2 voters are available (both Codex and Cursor unavailable), follow the Voting Protocol's fallback: skip voting, accept all findings, and print the insufficient-voters warning.
+- **Voter 2**: Codex — via `run-external-reviewer.sh` with the ballot. If `codex_available` is false, launch a Claude subagent voter instead per the Voting Protocol. Instruct similarly as a "very scrupulous senior engineer code reviewer."
+- **Voter 3**: Cursor — via `run-external-reviewer.sh` with the ballot. If `cursor_available` is false, launch a Claude subagent voter instead per the Voting Protocol. Instruct similarly.
 
 **Ballot file handling**: Use the Write tool (not `cat` with heredoc or Bash) to write the ballot to `$REVIEW_TMPDIR/ballot.txt`. For Codex and Cursor voter prompts, reference the ballot file path (e.g., "Read the ballot from $REVIEW_TMPDIR/ballot.txt") instead of inlining the ballot content. This avoids permission prompts from `cat > file << 'EOF'` or `BALLOT=$(cat file)` patterns.
 

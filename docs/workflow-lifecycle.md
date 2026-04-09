@@ -103,6 +103,7 @@ Certain steps in the workflow depend on configuration prerequisites and are skip
 - **Slack announcements** — Require Slack configuration. When unavailable, the announcement step is skipped with a warning but the workflow continues.
 - **CI monitoring** — Requires repository identification. When unavailable, CI monitoring is skipped.
 - **Version bump** — Requires a `/bump-version` skill defined in the repo. When absent, the version bump step is skipped with a warning.
+- **External reviewers (Cursor, Codex)** — When unavailable, Claude subagents replace them so the total reviewer/voter count remains constant. The quality of review is maintained through diverse Claude perspectives rather than degrading to fewer reviewers.
 
 ## Resolution Protocols
 

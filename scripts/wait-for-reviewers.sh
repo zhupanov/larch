@@ -10,9 +10,9 @@
 # Always exits 0 for normal operation (including timeouts) — callers inspect stdout
 # to determine which reviewers completed vs timed out. Exits 1 only for usage errors.
 #
-# The default timeout is 960 seconds (16 minutes), matching the run-external-reviewer.sh
-# default of 15 minutes + 1 minute grace period. Override with --timeout if a different
-# wrapper timeout was used.
+# The default timeout is 1860 seconds (31 minutes), matching the run-external-reviewer.sh
+# review timeout of 30 minutes + 1 minute grace period. Override with --timeout if a different
+# wrapper timeout was used (e.g., 1260 for the 20-minute vote/sketch timeout).
 
 # No -e: script always exits 0 for normal operation; subshell failures must not abort.
 set -uo pipefail
@@ -20,7 +20,7 @@ set -uo pipefail
 # --- Parse arguments ---
 usage() { echo "Usage: wait-for-reviewers.sh [--timeout SECONDS] <sentinel.done> [sentinel2.done ...]" >&2; }
 
-TIMEOUT=960
+TIMEOUT=1860
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --timeout) TIMEOUT="${2:?--timeout requires a value}"; shift 2 ;;
