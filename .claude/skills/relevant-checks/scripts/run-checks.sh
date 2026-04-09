@@ -59,9 +59,19 @@ while IFS= read -r f; do
     fi
 done <<< "$MODIFIED_FILES"
 
+# ---------------------------------------------------------------------------
+# If all changes are deletions (files[] empty but MODIFIED_FILES non-empty),
+# pre-commit has nothing to lint, but the plugin structure validator is
+# exactly what we want — deletions are the most likely cause of structural
+# regressions (deleted referenced scripts, removed SKILL.md, etc.). Run the
+# validator before exiting.
+# ---------------------------------------------------------------------------
 if [ ${#files[@]} -eq 0 ]; then
     echo "No existing modified files to check (all changes are deletions)."
-    exit 0
+    echo ""
+    echo "=== Running plugin structure validation ==="
+    bash "$REPO_ROOT/scripts/validate-plugin-structure.sh"
+    exit $?
 fi
 
 # ---------------------------------------------------------------------------
@@ -70,3 +80,19 @@ fi
 # ---------------------------------------------------------------------------
 echo "=== Running pre-commit on ${#files[@]} changed file(s) ==="
 pre-commit run --files "${files[@]}"
+PRE_COMMIT_EXIT=$?
+
+if [ "$PRE_COMMIT_EXIT" -ne 0 ]; then
+    exit "$PRE_COMMIT_EXIT"
+fi
+
+# ---------------------------------------------------------------------------
+# Pre-commit succeeded — run plugin structure validation on the full repo.
+# This catches structural regressions (frontmatter, references, dead scripts,
+# etc.) that pre-commit's file-type linters cannot detect. Mirrors the same
+# validator invoked by CI's plugin-structure job, so developers can catch
+# regressions locally before pushing.
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== Running plugin structure validation ==="
+bash "$REPO_ROOT/scripts/validate-plugin-structure.sh"
