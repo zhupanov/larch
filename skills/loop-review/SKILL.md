@@ -39,7 +39,7 @@ ${CLAUDE_PLUGIN_ROOT}/skills/loop-review/scripts/init-session-files.sh --dir "$L
 
 ### 0c — Quick External Reviewer Check
 
-Read and follow the **Binary Check** section in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/external-reviewers.md`.
+Read and follow the **Binary Check** section in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`.
 
 Set `codex_available` and `cursor_available` flags for the entire session. If either is unavailable, append the warning to `$LR_TMPDIR/warnings.md`.
 
@@ -158,7 +158,7 @@ Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
 **Monitoring External Reviewers:**
 
-If any external reviewer was launched, follow the **Monitoring External Reviewers** and **Validating External Reviewer Output** sections in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/external-reviewers.md`, using `$LR_TMPDIR/codex-general-output-slice-N.txt`, `$LR_TMPDIR/codex-deep-output-slice-N.txt`, and `$LR_TMPDIR/cursor-output-slice-N.txt` as the output files. Poll for sentinel files: `$LR_TMPDIR/cursor-output-slice-N.txt.done`, `$LR_TMPDIR/codex-general-output-slice-N.txt.done`, and `$LR_TMPDIR/codex-deep-output-slice-N.txt.done`. Only monitor reviewers that were actually launched.
+If any external reviewer was launched, follow the **Monitoring External Reviewers** and **Validating External Reviewer Output** sections in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`, using `$LR_TMPDIR/codex-general-output-slice-N.txt`, `$LR_TMPDIR/codex-deep-output-slice-N.txt`, and `$LR_TMPDIR/cursor-output-slice-N.txt` as the output files. Poll for sentinel files: `$LR_TMPDIR/cursor-output-slice-N.txt.done`, `$LR_TMPDIR/codex-general-output-slice-N.txt.done`, and `$LR_TMPDIR/codex-deep-output-slice-N.txt.done`. Only monitor reviewers that were actually launched.
 
 **Critical**: Do NOT read Cursor's output file until `$LR_TMPDIR/cursor-output-slice-N.txt.done` exists. Cursor buffers all stdout — the file is empty (0 bytes) until the process exits. The `.done` sentinel file is the reliable completion signal.
 
@@ -172,7 +172,7 @@ If validation fails (empty output after retry, timeout, or non-zero exit), appen
 
 **2. Negotiate** with external reviewers (if they produced findings):
 
-Follow the **Negotiation Protocol** in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/external-reviewers.md`, using `$LR_TMPDIR` as the tmpdir, with `max_rounds=1`. With 2 Codex instances (Codex-General and Codex-Deep-Analysis), negotiate with each separately using distinct prompt/output file paths (e.g., `codex-general-negotiation-prompt.txt` / `codex-general-negotiation-output.txt` and `codex-deep-negotiation-prompt.txt` / `codex-deep-negotiation-output.txt`). Accept findings unless factually incorrect or contradicting CLAUDE.md.
+Follow the **Negotiation Protocol** in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`, using `$LR_TMPDIR` as the tmpdir, with `max_rounds=1`. With 2 Codex instances (Codex-General and Codex-Deep-Analysis), negotiate with each separately using distinct prompt/output file paths (e.g., `codex-general-negotiation-prompt.txt` / `codex-general-negotiation-output.txt` and `codex-deep-negotiation-prompt.txt` / `codex-deep-negotiation-output.txt`). Accept findings unless factually incorrect or contradicting CLAUDE.md.
 
 Note: "accepted" in the negotiation sense means the finding is valid — it may still be classified as DEFER below.
 

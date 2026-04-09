@@ -25,7 +25,7 @@
 #                              or hardcoded paths (/Users/, /home/, /opt/)
 #   9. Script reference integrity — every ${CLAUDE_PLUGIN_ROOT}/(scripts|skills|.claude/skills)/...sh
 #                              and $PWD/.claude/skills/...sh referenced from any SKILL.md
-#                              or skills/shared/larch/*.md must exist on disk
+#                              or skills/shared/*.md must exist on disk
 #  10. Executability         — every .sh file under scripts/, skills/*/scripts/, and
 #                              .claude/skills/*/scripts/ must be chmod +x
 #  11. Dead-script detection — every scripts/*.sh must have a STRUCTURED invocation reference
@@ -444,7 +444,7 @@ validate_executability() {
 #   B. $PWD/scripts/<name>.sh   or   $PWD/.claude/skills/*/scripts/<name>.sh
 #   C. "$SCRIPT_DIR/<name>.sh"  (script-to-script invocation pattern)
 #   D. scripts/<name>.sh tokens in workflow `run:` blocks or JSON command fields
-#   E. scripts/<name>.sh tokens in shared/larch markdown code blocks
+#   E. scripts/<name>.sh tokens in shared markdown code blocks
 #
 # Plain prose mentions in narrative text or shell comments do NOT count.
 validate_dead_scripts() {
@@ -486,7 +486,7 @@ validate_dead_scripts() {
                 | grep -oE 'scripts/[a-zA-Z0-9._-]+\.sh'
         done
 
-        # Pattern E: bare scripts/<name>.sh tokens in shared/larch markdown
+        # Pattern E: bare scripts/<name>.sh tokens in shared markdown
         # code fences ONLY — narrative prose mentions do not count.
         if [ -d skills/shared ]; then
             while IFS= read -r md_file; do

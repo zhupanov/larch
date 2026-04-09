@@ -55,7 +55,7 @@ Parse the output for `SESSION_TMPDIR`. Set `DESIGN_TMPDIR` = `SESSION_TMPDIR`. S
 
 ### 0b — Quick External Reviewer Check
 
-Read and follow the **Binary Check** section in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/external-reviewers.md`.
+Read and follow the **Binary Check** section in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`.
 
 ## Step 1 — Create Branch
 
@@ -179,7 +179,7 @@ Use `timeout: 1260000` on the Bash tool call. **Do NOT** set `run_in_background:
 
 Note: This is a separate `wait-for-reviewers.sh` call from the one in Step 3. Both are permitted because they operate on completely distinct sentinel file sets (`*-sketch-output.txt.done` vs `*-plan-output.txt.done`).
 
-**Validate sketch outputs**: Follow the **Validating External Reviewer Output** section in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/external-reviewers.md`, using `$DESIGN_TMPDIR/cursor-sketch-output.txt` and `$DESIGN_TMPDIR/codex-sketch-output.txt` as the output files. For sketches, a valid output is non-empty and contains substantive architectural content (at least a paragraph). If a sketch is empty despite exit code 0, retry once with a `-retry` suffix per the shared procedure.
+**Validate sketch outputs**: Follow the **Validating External Reviewer Output** section in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`, using `$DESIGN_TMPDIR/cursor-sketch-output.txt` and `$DESIGN_TMPDIR/codex-sketch-output.txt` as the output files. For sketches, a valid output is non-empty and contains substantive architectural content (at least a paragraph). If a sketch is empty despite exit code 0, retry once with a `-retry` suffix per the shared procedure.
 
 ### 2a.4 — Synthesis
 
@@ -275,7 +275,7 @@ Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
 Launch both Claude subagents **last** in the same message (they finish fastest).
 
-Use the two reviewer archetypes from `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/reviewer-templates.md`, filling in the variables for **plan review**:
+Use the two reviewer archetypes from `${CLAUDE_PLUGIN_ROOT}/skills/shared/reviewer-templates.md`, filling in the variables for **plan review**:
 
 - **`{REVIEW_TARGET}`** = `"an implementation plan"`
 - **`{CONTEXT_BLOCK}`**:
@@ -294,7 +294,7 @@ Additionally, append the following competition context to each reviewer's prompt
 
 ### Monitoring External Reviewers
 
-Follow the **Monitoring External Reviewers** and **Validating External Reviewer Output** sections in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/external-reviewers.md`, using `$DESIGN_TMPDIR/codex-general-plan-output.txt`, `$DESIGN_TMPDIR/codex-deep-plan-output.txt`, and `$DESIGN_TMPDIR/cursor-plan-output.txt` as the output files.
+Follow the **Monitoring External Reviewers** and **Validating External Reviewer Output** sections in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`, using `$DESIGN_TMPDIR/codex-general-plan-output.txt`, `$DESIGN_TMPDIR/codex-deep-plan-output.txt`, and `$DESIGN_TMPDIR/cursor-plan-output.txt` as the output files.
 
 ### After all reviewers return
 
@@ -310,7 +310,7 @@ If **all reviewers** report no in-scope issues and no out-of-scope observations,
 
 ### Voting Panel (replaces negotiation)
 
-After deduplication, submit both in-scope findings and out-of-scope observations to a 3-agent voting panel per the **Voting Protocol** in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/voting-protocol.md`. Include OOS items on the ballot with `[OUT_OF_SCOPE]` prefix per the protocol's OOS section — voters can promote OOS items to in-scope by voting YES. For plan review:
+After deduplication, submit both in-scope findings and out-of-scope observations to a 3-agent voting panel per the **Voting Protocol** in `${CLAUDE_PLUGIN_ROOT}/skills/shared/voting-protocol.md`. Include OOS items on the ballot with `[OUT_OF_SCOPE]` prefix per the protocol's OOS section — voters can promote OOS items to in-scope by voting YES. For plan review:
 
 - **Voter 1**: Claude Deep Analysis reviewer subagent — fresh Agent tool invocation with the voting prompt. Instruct: `"You are a senior architect and correctness specialist on a voting panel. You will vote YES, NO, or EXONERATE on proposed modifications to an implementation plan. Be scrupulous — only vote YES for findings that are correct, important, and worth revising the plan for. Vote EXONERATE if the concern is legitimate but not worth implementing in this PR."`
 - **Voter 2**: Codex — via `run-external-reviewer.sh` with the ballot. If `codex_available` is false, launch a Claude subagent voter instead per the Voting Protocol.

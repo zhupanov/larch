@@ -43,7 +43,7 @@ Parse the output for `SESSION_TMPDIR`. Set `RESEARCH_TMPDIR` = `SESSION_TMPDIR`.
 
 ### 0b — Quick External Reviewer Check
 
-Read and follow the **Binary Check** section in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/external-reviewers.md`.
+Read and follow the **Binary Check** section in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`.
 
 ### 0c — Record Research Context
 
@@ -131,7 +131,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-reviewers.sh --timeout 1860 "$RESEARCH_TM
 
 Use `timeout: 1860000` on the Bash tool call. **Do NOT** set `run_in_background: true` — this call must block. Only include sentinel paths for external reviewers that were actually launched.
 
-**Validate research outputs**: For research outputs, the validation criteria differ from the standard review validation in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/external-reviewers.md`: instead of checking for numbered findings or `NO_ISSUES_FOUND`, check that the output is non-empty and contains at least one paragraph of substantive prose. Use `$RESEARCH_TMPDIR/cursor-research-output.txt` and `$RESEARCH_TMPDIR/codex-research-output.txt` as the output files. If an output is empty despite exit code 0, retry once with a `-retry` suffix per the shared procedure in `external-reviewers.md`.
+**Validate research outputs**: For research outputs, the validation criteria differ from the standard review validation in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`: instead of checking for numbered findings or `NO_ISSUES_FOUND`, check that the output is non-empty and contains at least one paragraph of substantive prose. Use `$RESEARCH_TMPDIR/cursor-research-output.txt` and `$RESEARCH_TMPDIR/codex-research-output.txt` as the output files. If an output is empty despite exit code 0, retry once with a `-retry` suffix per the shared procedure in `external-reviewers.md`.
 
 ### 1.4 — Synthesis
 
@@ -202,7 +202,7 @@ Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
 Launch both Claude subagents **last** in the same message (they finish fastest).
 
-Use the two reviewer archetypes from `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/reviewer-templates.md`, filling in the variables for **research validation**:
+Use the two reviewer archetypes from `${CLAUDE_PLUGIN_ROOT}/skills/shared/reviewer-templates.md`, filling in the variables for **research validation**:
 
 - **`{REVIEW_TARGET}`** = `"research findings"`
 - **`{CONTEXT_BLOCK}`**:
@@ -219,7 +219,7 @@ Use the two reviewer archetypes from `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/
 
 ### Monitoring External Reviewers
 
-Follow the **Monitoring External Reviewers** and **Validating External Reviewer Output** sections in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/external-reviewers.md`, using `$RESEARCH_TMPDIR/codex-general-validation-output.txt`, `$RESEARCH_TMPDIR/codex-deep-validation-output.txt`, and `$RESEARCH_TMPDIR/cursor-validation-output.txt` as the output files.
+Follow the **Monitoring External Reviewers** and **Validating External Reviewer Output** sections in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`, using `$RESEARCH_TMPDIR/codex-general-validation-output.txt`, `$RESEARCH_TMPDIR/codex-deep-validation-output.txt`, and `$RESEARCH_TMPDIR/cursor-validation-output.txt` as the output files.
 
 ### After all reviewers return
 
@@ -237,12 +237,12 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-reviewers.sh --timeout 1860 "$RESEARCH_TM
 
 Use `timeout: 1860000` on the Bash tool call. **Do NOT** set `run_in_background: true` — this call must block.
 
-2. Read each reviewer's exit code from its sentinel file, then validate its output per the shared procedure in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/external-reviewers.md`.
+2. Read each reviewer's exit code from its sentinel file, then validate its output per the shared procedure in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`.
 3. Merge external reviewer findings into the already-processed Claude findings.
 
 ### Codex and Cursor Negotiation (in parallel)
 
-If any external reviewers produced findings, negotiate with each independently. With 2 Codex instances (Codex-General and Codex-Deep-Analysis), negotiate with each separately using distinct prompt/output file paths (e.g., `codex-general-negotiation-prompt.txt` / `codex-general-negotiation-output.txt` and `codex-deep-negotiation-prompt.txt` / `codex-deep-negotiation-output.txt`). Run all negotiations **in parallel** when multiple external reviewers produced findings. Use the **Negotiation Protocol** in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/external-reviewers.md`, using `$RESEARCH_TMPDIR` as the tmpdir. Merge accepted/rejected outcomes after all complete.
+If any external reviewers produced findings, negotiate with each independently. With 2 Codex instances (Codex-General and Codex-Deep-Analysis), negotiate with each separately using distinct prompt/output file paths (e.g., `codex-general-negotiation-prompt.txt` / `codex-general-negotiation-output.txt` and `codex-deep-negotiation-prompt.txt` / `codex-deep-negotiation-output.txt`). Run all negotiations **in parallel** when multiple external reviewers produced findings. Use the **Negotiation Protocol** in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`, using `$RESEARCH_TMPDIR` as the tmpdir. Merge accepted/rejected outcomes after all complete.
 
 ### Finalize Validation
 

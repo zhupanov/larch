@@ -18,9 +18,9 @@ When changes touch `.claude/settings.json`, verify that the `permissions.allow` 
 
 ### Skill and Script Genericity
 
-When changes touch files under `scripts/` or `skills/shared/larch/`, verify the changes do not introduce repo-specific content: no repo-specific paths (e.g., `server/`, `cli/`, `myservice`), cluster names (e.g., `prod-1`, `staging-2`), service-specific environment variable names, or hardcoded project references that would break when the file is used in a different repository.
+When changes touch files under `scripts/` or `skills/shared/`, verify the changes do not introduce repo-specific content: no repo-specific paths (e.g., `server/`, `cli/`, `myservice`), cluster names (e.g., `prod-1`, `staging-2`), service-specific environment variable names, or hardcoded project references that would break when the file is used in a different repository.
 
-- **Generic directories**: `scripts/`, `skills/shared/larch/` — changes to files here must not introduce repo-specific references.
+- **Generic directories**: `scripts/`, `skills/shared/` — changes to files here must not introduce repo-specific references.
 - **Repo-specific directories**: individual skill-specific script directories (e.g., `skills/implement/scripts/`, `skills/loop-review/scripts/`), and the private `.claude/skills/relevant-checks/` skill — files here are repo-specific by design and exempt from this rule.
 
 ## Step 0 — Session Setup
@@ -37,7 +37,7 @@ Parse the output for `SESSION_TMPDIR`. Set `REVIEW_TMPDIR` = `SESSION_TMPDIR`. S
 
 ### 0b — Quick External Reviewer Check
 
-Read and follow the **Binary Check** section in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/external-reviewers.md`.
+Read and follow the **Binary Check** section in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`.
 
 ## Step 1 — Gather Context
 
@@ -109,7 +109,7 @@ Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
 Launch both Claude subagents **last** in the same message (they finish fastest).
 
-Use the two reviewer archetypes from `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/reviewer-templates.md`, filling in the variables for **code review**:
+Use the two reviewer archetypes from `${CLAUDE_PLUGIN_ROOT}/skills/shared/reviewer-templates.md`, filling in the variables for **code review**:
 
 - **`{REVIEW_TARGET}`** = `"code changes"`
 - **`{CONTEXT_BLOCK}`**:
@@ -132,7 +132,7 @@ Additionally, append the following competition context to each reviewer's prompt
 
 ### Monitoring External Reviewers
 
-Follow the **Monitoring External Reviewers** and **Validating External Reviewer Output** sections in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/external-reviewers.md`, using `$REVIEW_TMPDIR/codex-general-output.txt`, `$REVIEW_TMPDIR/codex-deep-output.txt`, and `$REVIEW_TMPDIR/cursor-output.txt` as the output files.
+Follow the **Monitoring External Reviewers** and **Validating External Reviewer Output** sections in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`, using `$REVIEW_TMPDIR/codex-general-output.txt`, `$REVIEW_TMPDIR/codex-deep-output.txt`, and `$REVIEW_TMPDIR/cursor-output.txt` as the output files.
 
 **Critical**: Do NOT read `$REVIEW_TMPDIR/cursor-output.txt` until `$REVIEW_TMPDIR/cursor-output.txt.done` exists. Cursor buffers all stdout — the file is empty (0 bytes) until the process exits. The `.done` sentinel file is written by the wrapper script upon completion and contains the exit code.
 
@@ -145,7 +145,7 @@ This step repeats until reviewers find no more issues. Track the current **round
 **Process Claude findings immediately** — do not wait for external reviewers before starting. After both Claude subagents return:
 
 1. Collect findings from the two Claude subagents right away. Claude subagents produce **dual-list output** (per `reviewer-templates.md`): "In-Scope Findings" and "Out-of-Scope Observations". Parse both lists from each subagent.
-2. **Then** poll for external reviewer sentinel files (`$REVIEW_TMPDIR/cursor-output.txt.done`, `$REVIEW_TMPDIR/codex-general-output.txt.done`, and `$REVIEW_TMPDIR/codex-deep-output.txt.done`, only for reviewers that were actually launched) using the polling procedure in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/external-reviewers.md`.
+2. **Then** poll for external reviewer sentinel files (`$REVIEW_TMPDIR/cursor-output.txt.done`, `$REVIEW_TMPDIR/codex-general-output.txt.done`, and `$REVIEW_TMPDIR/codex-deep-output.txt.done`, only for reviewers that were actually launched) using the polling procedure in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`.
 3. Once sentinel files exist, read each reviewer's exit code, then read and validate the output per the shared procedure. External reviewers (Codex, Cursor) produce single-list output — treat their entire output as in-scope findings.
 4. Merge external reviewer in-scope findings into the Claude in-scope findings. Deduplicate in-scope findings and OOS observations separately (see `voting-protocol.md` OOS section). If the same issue appears in both lists from different reviewers, merge under the in-scope finding.
 
@@ -161,7 +161,7 @@ Merge findings from all reviewers into a single deduplicated list, grouped by fi
 
 ### 3c.1 — Voting Panel (round 1 only)
 
-**In round 1**: Submit both in-scope findings and out-of-scope observations to a 3-agent voting panel per the **Voting Protocol** in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/voting-protocol.md`. Include OOS items on the ballot with `[OUT_OF_SCOPE]` prefix per the protocol's OOS section. For code review:
+**In round 1**: Submit both in-scope findings and out-of-scope observations to a 3-agent voting panel per the **Voting Protocol** in `${CLAUDE_PLUGIN_ROOT}/skills/shared/voting-protocol.md`. Include OOS items on the ballot with `[OUT_OF_SCOPE]` prefix per the protocol's OOS section. For code review:
 
 - **Voter 1**: Claude General reviewer subagent — fresh Agent tool invocation with the voting prompt. Instruct: `"You are a very scrupulous senior engineer code reviewer on a voting panel. You will vote YES, NO, or EXONERATE on proposed code changes. Be extremely rigorous — only vote YES for findings that identify genuine bugs, logic errors, security issues, or clearly important improvements. Vote EXONERATE if the concern is legitimate but not worth implementing in this PR. Vote NO for trivial style nits, subjective preferences, or speculative concerns."`
 - **Voter 2**: Codex — via `run-external-reviewer.sh` with the ballot. If `codex_available` is false, launch a Claude subagent voter instead per the Voting Protocol. Instruct similarly as a "very scrupulous senior engineer code reviewer."

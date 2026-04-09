@@ -237,7 +237,7 @@ Skip `/review`. Instead, run a simplified one-round review:
    ${CLAUDE_PLUGIN_ROOT}/scripts/gather-branch-context.sh --output-dir "$IMPLEMENT_TMPDIR"
    ```
    Parse the output for `DIFF_FILE`, `FILE_LIST_FILE`, and `COMMIT_LOG_FILE`. Read these files to get the full diff, file list, and commit log.
-2. Launch **2 Claude subagent reviewers** (general, deep-analysis) using the same reviewer archetypes from `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/reviewer-templates.md` with these variable bindings: `{REVIEW_TARGET}` = `"code changes"`, `{CONTEXT_BLOCK}` = the commit log + file list + full diff, `{OUTPUT_INSTRUCTION}` = `"File path and line number(s)"` + `"What the issue is"` + `"Suggested fix"`. **No Codex, no Cursor, no external reviewers. No competition notice** (there is no voting panel in quick mode).
+2. Launch **2 Claude subagent reviewers** (general, deep-analysis) using the same reviewer archetypes from `${CLAUDE_PLUGIN_ROOT}/skills/shared/reviewer-templates.md` with these variable bindings: `{REVIEW_TARGET}` = `"code changes"`, `{CONTEXT_BLOCK}` = the commit log + file list + full diff, `{OUTPUT_INSTRUCTION}` = `"File path and line number(s)"` + `"What the issue is"` + `"Suggested fix"`. **No Codex, no Cursor, no external reviewers. No competition notice** (there is no voting panel in quick mode).
 3. Collect findings from all 2 subagents. Deduplicate.
 4. **Main agent decides**: Evaluate each finding and unilaterally accept or reject it. No voting panel. Accept findings that identify genuine bugs, logic errors, or important improvements. Reject trivial style nits or speculative concerns.
 5. Implement accepted fixes. Run `/relevant-checks` if files changed.
@@ -799,7 +799,7 @@ For each file in `CONFLICT_FILES`:
 
 **3a. Create temp directory**: Create `$IMPLEMENT_TMPDIR/conflict-review/` for reviewer artifacts. If it already exists (from a prior conflict resolution in this rebase loop), remove it and recreate.
 
-**3b. Check external reviewer availability**: Run `${CLAUDE_PLUGIN_ROOT}/scripts/check-reviewers.sh` to set `codex_available` and `cursor_available` flags. Follow the Binary Check procedure in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/external-reviewers.md`.
+**3b. Check external reviewer availability**: Run `${CLAUDE_PLUGIN_ROOT}/scripts/check-reviewers.sh` to set `codex_available` and `cursor_available` flags. Follow the Binary Check procedure in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`.
 
 **3c. Prepare review context**: For each non-trivial conflicted file, prepare a per-file conflict context block:
 ```
@@ -819,16 +819,16 @@ For each file in `CONFLICT_FILES`:
 
 Also capture `git diff --cached` as supplementary context showing the full staged state.
 
-**3d. Launch reviewers**: Launch 2 Claude subagent reviewers + Codex + Cursor (if available) using the reviewer archetypes from `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/reviewer-templates.md` with:
+**3d. Launch reviewers**: Launch 2 Claude subagent reviewers + Codex + Cursor (if available) using the reviewer archetypes from `${CLAUDE_PLUGIN_ROOT}/skills/shared/reviewer-templates.md` with:
 - `{REVIEW_TARGET}` = `"merge conflict resolution"`
 - `{CONTEXT_BLOCK}` = the per-file conflict context blocks from 3c + supplementary `git diff --cached`
 - `{OUTPUT_INSTRUCTION}` = `"File path and line number(s)"` + `"What the issue is with the resolution"` + `"Suggested correction"`
 
-Follow `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/external-reviewers.md` for launch order (Cursor first, Codex, then Claude subagents), background execution, sentinel polling via `wait-for-reviewers.sh`, and output validation. Use `$IMPLEMENT_TMPDIR/conflict-review/` as the tmpdir for all reviewer output files, sentinel files, and ballot files.
+Follow `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md` for launch order (Cursor first, Codex, then Claude subagents), background execution, sentinel polling via `wait-for-reviewers.sh`, and output validation. Use `$IMPLEMENT_TMPDIR/conflict-review/` as the tmpdir for all reviewer output files, sentinel files, and ballot files.
 
 **3d-ii. Collect and deduplicate**: After all reviewers complete, collect their findings. Parse Claude subagent dual-list outputs (in-scope findings + OOS observations). Read and validate external reviewer outputs per `external-reviewers.md`. Merge all findings, deduplicate (same file + same issue = one finding), assign stable sequential IDs (`FINDING_1`, `FINDING_2`, etc.), and write the ballot to `$IMPLEMENT_TMPDIR/conflict-review/ballot.txt` following the ballot format in `voting-protocol.md`.
 
-**3e. Voting**: Run the voting protocol from `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/voting-protocol.md` with code review voter composition:
+**3e. Voting**: Run the voting protocol from `${CLAUDE_PLUGIN_ROOT}/skills/shared/voting-protocol.md` with code review voter composition:
 - **Voter 1**: Claude General Reviewer subagent (fresh Agent invocation)
 - **Voter 2**: Codex (if available) — via `run-external-reviewer.sh`
 - **Voter 3**: Cursor (if available) — via `run-external-reviewer.sh`
