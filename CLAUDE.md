@@ -29,7 +29,7 @@ The plugin source (`"./"` in `marketplace.json`) ships the **entire repository**
 - `.claude/skills/relevant-checks/` — reference implementation; each consumer repo provides its own
 - `.claude/settings.json` — local Claude Code harness config (permissions, dev hooks); not loaded when installed via the marketplace (only active for `--plugin-dir .` development)
 
-**Shared fragments (not a skill):** `skills/shared/larch/` — reviewer templates, voting protocol, external-reviewer conventions. No `SKILL.md`.
+**Shared fragments (not a skill):** `skills/shared/` — reviewer templates, voting protocol, external-reviewer conventions. No `SKILL.md`.
 
 ### Axis B — What drives MAJOR/MINOR version bumps
 
@@ -59,15 +59,15 @@ These invariants are what an editing agent will otherwise get wrong.
 
 ### Scripts and references
 
-- **Dead-script invariant**: every `scripts/*.sh` must have a structured reference somewhere in the repo. The authoritative list of accepted reference patterns (SKILL.md files, `hooks/hooks.json`, `.claude/settings.json`, workflow `run:` blocks, inter-script `$SCRIPT_DIR/` references, and fenced code blocks in `skills/shared/larch/*.md`) is defined by **validator 11** in `scripts/validate-plugin-structure.sh` — consult its header when in doubt.
-- **Script reference integrity** (validator 9): any script path referenced from a `SKILL.md` or `skills/shared/larch/*.md` must exist on disk.
+- **Dead-script invariant**: every `scripts/*.sh` must have a structured reference somewhere in the repo. The authoritative list of accepted reference patterns (SKILL.md files, `hooks/hooks.json`, `.claude/settings.json`, workflow `run:` blocks, inter-script `$SCRIPT_DIR/` references, and fenced code blocks in `skills/shared/*.md`) is defined by **validator 11** in `scripts/validate-plugin-structure.sh` — consult its header when in doubt.
+- **Script reference integrity** (validator 9): any script path referenced from a `SKILL.md` or `skills/shared/*.md` must exist on disk.
 - **Executability** (validator 10): every `.sh` file under `scripts/`, `skills/*/scripts/`, and `.claude/skills/*/scripts/` must be `chmod +x`.
 
 ### SKILL.md and agents
 
 - **Frontmatter** (validator 6): `name:` must equal `basename(dirname)`; `description:` is required.
 - **Agents** (validator 7): every `agents/*.md` must have YAML frontmatter with `name:` and `description:`.
-- **Reviewer archetypes must stay aligned**: `agents/<name>.md` and `skills/shared/larch/reviewer-templates.md` are two sides of the same contract. The shared-templates file is the prompt source; the agent file is the harness registration. Never change one without the other.
+- **Reviewer archetypes must stay aligned**: `agents/<name>.md` and `skills/shared/reviewer-templates.md` are two sides of the same contract. The shared-templates file is the prompt source; the agent file is the harness registration. Never change one without the other.
 
 ### Linter configuration
 
@@ -98,8 +98,8 @@ Full lifecycle: `docs/workflow-lifecycle.md`.
 
 ## Common editing tasks — where to look
 
-- **Changing a skill's behavior** → **start** at `skills/<name>/SKILL.md`, then **trace every called helper script** in `skills/<name>/scripts/`, shared scripts in `scripts/`, and shared templates in `skills/shared/larch/` before making changes. Editing only `SKILL.md` is often incomplete — behavior is frequently split between the prompt and executable helpers.
-- **Adding or modifying a reviewer archetype** → edit BOTH `agents/<name>.md` AND `skills/shared/larch/reviewer-templates.md`; they must stay aligned.
+- **Changing a skill's behavior** → **start** at `skills/<name>/SKILL.md`, then **trace every called helper script** in `skills/<name>/scripts/`, shared scripts in `scripts/`, and shared templates in `skills/shared/` before making changes. Editing only `SKILL.md` is often incomplete — behavior is frequently split between the prompt and executable helpers.
+- **Adding or modifying a reviewer archetype** → edit BOTH `agents/<name>.md` AND `skills/shared/reviewer-templates.md`; they must stay aligned.
 - **Changing a shared workflow script** → edit `scripts/<name>.sh`, then grep for every caller across `skills/`, `hooks/`, `.claude/settings.json`, `.github/workflows/`, and other scripts.
 - **Changing development-only skills** → edit under `.claude/skills/bump-version/` or `.claude/skills/relevant-checks/`. Classified as PATCH.
 - **Docs or scripts only** → classified as PATCH. No MAJOR/MINOR impact.
