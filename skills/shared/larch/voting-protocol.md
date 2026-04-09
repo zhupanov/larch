@@ -86,40 +86,44 @@ You must vote on every finding. Do NOT skip any. Do NOT modify files.
 
 ## Launching Voters
 
-Launch all 3 voters **in parallel** (in a single message). Spawn order: Cursor first (slowest), then Codex, then Claude subagent (fastest).
+Launch all 3 voters **in parallel** (in a single message). When external tools are unavailable, launch Claude replacement voters instead so the total voter count always remains 3. Spawn order: Cursor first (slowest), then Codex, then Claude subagent (fastest).
 
 **Cursor voter** (if `cursor_available`):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "<tmpdir>/cursor-vote-output.txt" --timeout 600 --capture-stdout -- \
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "<tmpdir>/cursor-vote-output.txt" --timeout 1200 --capture-stdout -- \
   cursor agent -p --force --trust --model gpt-5.4-medium --workspace "$PWD" \
     "<voter prompt with ballot>"
 ```
 
-Use `run_in_background: true` and `timeout: 660000`.
+Use `run_in_background: true` and `timeout: 1260000`.
+
+**Cursor voter replacement** (if `cursor_available` is false): Launch a Claude subagent voter via the Agent tool with the voter prompt. This replacement ensures the total voter count always remains 3.
 
 **Codex voter** (if `codex_available`):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "<tmpdir>/codex-vote-output.txt" --timeout 600 -- \
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "<tmpdir>/codex-vote-output.txt" --timeout 1200 -- \
   codex exec --full-auto -C "$PWD" \
     --output-last-message "<tmpdir>/codex-vote-output.txt" \
     "<voter prompt with ballot>"
 ```
 
-Use `run_in_background: true` and `timeout: 660000`.
+Use `run_in_background: true` and `timeout: 1260000`.
+
+**Codex voter replacement** (if `codex_available` is false): Launch a Claude subagent voter via the Agent tool with the voter prompt. This replacement ensures the total voter count always remains 3.
 
 **Claude voter**: Launch via Agent tool with the voter prompt.
 
 Wait for external voter sentinels using `wait-for-reviewers.sh` (use the same tmpdir as the review phase — do not create a new temp directory for voting). Only include sentinel paths for voters that were actually launched:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-reviewers.sh --timeout 660 \
+${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-reviewers.sh --timeout 1260 \
   "<tmpdir>/cursor-vote-output.txt.done" \
   "<tmpdir>/codex-vote-output.txt.done"
 ```
 
-Use `timeout: 660000` on the Bash tool call. **Do NOT** set `run_in_background: true` — this call must block. Note: voter output files use the `-vote-` infix to avoid collision with reviewer output files (`-plan-output` or `-output`).
+Use `timeout: 1260000` on the Bash tool call. **Do NOT** set `run_in_background: true` — this call must block. Note: voter output files use the `-vote-` infix to avoid collision with reviewer output files (`-plan-output` or `-output`).
 
 ## Competition Scoring
 

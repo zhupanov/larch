@@ -131,12 +131,12 @@ Print `🤝 Step 2a — Running collaborative sketch phase.` and proceed to 2a.2
 **Cursor sketch** (if `cursor_available`):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "$DESIGN_TMPDIR/cursor-sketch-output.txt" --timeout 600 --capture-stdout -- \
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "$DESIGN_TMPDIR/cursor-sketch-output.txt" --timeout 1200 --capture-stdout -- \
   cursor agent -p --force --trust --model gpt-5.4-medium --workspace "$PWD" \
     "You are looking at a codebase and need to propose a high-level implementation approach for this feature: <FEATURE_DESCRIPTION>. Explore the codebase to understand the relevant architecture, then write 2-3 paragraphs covering: (1) Key architectural decisions and the approach you would take, (2) Which files/modules to modify and why, (3) Main tradeoffs you would consider. Do NOT modify files."
 ```
 
-Use `run_in_background: true` and `timeout: 660000` on the Bash tool call.
+Use `run_in_background: true` and `timeout: 1260000` on the Bash tool call.
 
 **Cursor replacement** (if `cursor_available` is false): Launch a Claude subagent (Innovation/Exploration) via the Agent tool instead:
 
@@ -145,13 +145,13 @@ Prompt: `"You are an Innovation/Exploration architect. Propose a high-level impl
 **Codex sketch** (if `codex_available`):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$DESIGN_TMPDIR/codex-sketch-output.txt" --timeout 600 -- \
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$DESIGN_TMPDIR/codex-sketch-output.txt" --timeout 1200 -- \
   codex exec --full-auto -C "$PWD" \
     --output-last-message "$DESIGN_TMPDIR/codex-sketch-output.txt" \
     "You are looking at a codebase and need to propose a high-level implementation approach for this feature: <FEATURE_DESCRIPTION>. Explore the codebase to understand the relevant architecture, then write 2-3 paragraphs covering: (1) Key architectural decisions and the approach you would take, (2) Which files/modules to modify and why, (3) Main tradeoffs you would consider. Do NOT modify files."
 ```
 
-Use `run_in_background: true` and `timeout: 660000` on the Bash tool call.
+Use `run_in_background: true` and `timeout: 1260000` on the Bash tool call.
 
 **Codex replacement** (if `codex_available` is false): Launch a Claude subagent (Edge-cases/Failure-modes) via the Agent tool instead:
 
@@ -172,10 +172,10 @@ Prompt: `"You are a Pragmatism/Safety engineer. Propose a high-level implementat
 Wait for external sketch sentinels using `wait-for-reviewers.sh`. Only include paths for external reviewers that were actually launched (not Claude replacements — those return via Agent tool):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-reviewers.sh --timeout 660 "$DESIGN_TMPDIR/cursor-sketch-output.txt.done" "$DESIGN_TMPDIR/codex-sketch-output.txt.done"
+${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-reviewers.sh --timeout 1260 "$DESIGN_TMPDIR/cursor-sketch-output.txt.done" "$DESIGN_TMPDIR/codex-sketch-output.txt.done"
 ```
 
-Use `timeout: 660000` on the Bash tool call. **Do NOT** set `run_in_background: true` — this call must block. Only include sentinel paths for external reviewers that were actually launched — omit any path whose reviewer was replaced by a Claude subagent.
+Use `timeout: 1260000` on the Bash tool call. **Do NOT** set `run_in_background: true` — this call must block. Only include sentinel paths for external reviewers that were actually launched — omit any path whose reviewer was replaced by a Claude subagent.
 
 Note: This is a separate `wait-for-reviewers.sh` call from the one in Step 3. Both are permitted because they operate on completely distinct sentinel file sets (`*-sketch-output.txt.done` vs `*-plan-output.txt.done`).
 
@@ -215,7 +215,7 @@ Print the plan to the user under a `## Implementation Plan` header so reviewers 
 
 **IMPORTANT: Plan review MUST ALWAYS run with all available reviewers (2 Claude subagents + 2 Codex instances and Cursor if available). Never skip or abbreviate this step regardless of how straightforward the plan appears — even when all sketch agents agreed, the plan is short, or the change seems trivial. Reviewers validate against the actual codebase state, catching issues that sketch-phase reasoning alone cannot detect.**
 
-Launch **all reviewers in parallel** (in a single message). **Spawn order matters for parallelism** — launch the slowest reviewers first: Cursor (slowest), then both Codex instances, then Claude subagents (fastest). Each reviewer receives the plan text and the feature description. Each must **only report findings** — never edit files.
+Launch **all 5 reviewers in parallel** (in a single message). When external tools are unavailable, launch Claude replacement subagents instead so the total reviewer count always remains 5. **Spawn order matters for parallelism** — launch the slowest reviewers first: Cursor (slowest), then both Codex instances, then Claude subagents (fastest). Each reviewer receives the plan text and the feature description. Each must **only report findings** — never edit files.
 
 ### External Reviewer Setup (if `codex_available` or `cursor_available`)
 
@@ -228,12 +228,16 @@ Run Cursor **first** in the parallel message (it takes the longest). Cursor has 
 Invoke Cursor via the shared monitored wrapper script (with `--capture-stdout` since Cursor writes results to stdout):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "$DESIGN_TMPDIR/cursor-plan-output.txt" --timeout 900 --capture-stdout -- \
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "$DESIGN_TMPDIR/cursor-plan-output.txt" --timeout 1800 --capture-stdout -- \
   cursor agent -p --force --trust --model gpt-5.4-medium --workspace "$PWD" \
     "Review the implementation plan in $DESIGN_TMPDIR/plan.txt for this project. Read the plan file, then explore the codebase to validate the plan. Combine 4 perspectives: (1) General: logical flaws, code reuse, test coverage, backward compat, pattern consistency. (2) Correctness: logic errors, off-by-one, nil handling, type mismatches, races, error paths. (3) Risk/Integration: breaking changes, side effects, thread safety, deployment risks, regressions, CI. (4) Architecture: separation of concerns, contract boundaries, invariants, semantic boundaries. Return numbered findings with perspective, concern, and suggested revision. If NO issues, output exactly NO_ISSUES_FOUND. Do NOT modify files."
 ```
 
-Use `run_in_background: true` and `timeout: 960000` on the Bash tool call.
+Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
+
+**Cursor replacement** (if `cursor_available` is false): Launch a Claude subagent (Risk/Integration) via the Agent tool instead. This replacement ensures the total reviewer count remains 5 regardless of external tool availability.
+
+Prompt: `"You are a Risk/Integration plan reviewer. Review the implementation plan provided below for this project. Explore the codebase via Read/Grep/Glob tools to validate the plan against the actual codebase state. Combine 4 perspectives: (1) General: logical flaws, code reuse, test coverage, backward compat, pattern consistency. (2) Correctness: logic errors, off-by-one, nil handling, type mismatches, races, error paths. (3) Risk/Integration: breaking changes, side effects, thread safety, deployment risks, regressions, CI. (4) Architecture: separation of concerns, contract boundaries, invariants, semantic boundaries. Return findings in two separate sections: In-Scope Findings (numbered, with concern and suggested revision) and Out-of-Scope Observations. If no in-scope issues, say 'No in-scope issues found.' Do NOT modify files. <include {CONTEXT_BLOCK} and competition notice>"`
 
 ### Codex Reviewers (if `codex_available`) — 2 instances
 
@@ -242,24 +246,30 @@ Run both Codex instances **second** in the parallel message (after Cursor). Each
 **Codex-General** — focuses on general code quality and risk/integration perspectives:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$DESIGN_TMPDIR/codex-general-plan-output.txt" --timeout 900 -- \
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$DESIGN_TMPDIR/codex-general-plan-output.txt" --timeout 1800 -- \
   codex exec --full-auto -C "$PWD" \
     --output-last-message "$DESIGN_TMPDIR/codex-general-plan-output.txt" \
     "Review the implementation plan in $DESIGN_TMPDIR/plan.txt for this project. Read the plan file, then explore the codebase to validate the plan. Focus on general code quality and risk/integration perspectives: (1) General: logical flaws, code reuse, test coverage, backward compat, pattern consistency. (2) Risk/Integration: breaking changes, side effects, thread safety, deployment risks, regressions, CI. Return numbered findings with perspective, concern, and suggested revision. If NO issues, output exactly NO_ISSUES_FOUND. Do NOT modify files."
 ```
 
-Use `run_in_background: true` and `timeout: 960000` on the Bash tool call.
+Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
 **Codex-Deep-Analysis** — focuses on correctness and architecture perspectives:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$DESIGN_TMPDIR/codex-deep-plan-output.txt" --timeout 900 -- \
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$DESIGN_TMPDIR/codex-deep-plan-output.txt" --timeout 1800 -- \
   codex exec --full-auto -C "$PWD" \
     --output-last-message "$DESIGN_TMPDIR/codex-deep-plan-output.txt" \
     "Review the implementation plan in $DESIGN_TMPDIR/plan.txt for this project. Read the plan file, then explore the codebase to validate the plan. Focus on correctness and architecture perspectives: (1) Correctness: logic errors, off-by-one, nil handling, type mismatches, races, error paths. (2) Architecture: separation of concerns, contract boundaries, invariants, semantic boundaries. Return numbered findings with perspective, concern, and suggested revision. If NO issues, output exactly NO_ISSUES_FOUND. Do NOT modify files."
 ```
 
-Use `run_in_background: true` and `timeout: 960000` on the Bash tool call.
+Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
+
+**Codex replacements** (if `codex_available` is false): Launch 2 Claude subagents to replace the 2 Codex instances. These replacements ensure the total reviewer count remains 5 regardless of external tool availability.
+
+**Claude (Codex-General replacement)**: Launch via Agent tool with prompt: `"You are a code quality and risk/integration plan reviewer. Review the implementation plan provided below for this project. Explore the codebase via Read/Grep/Glob tools. Focus on general code quality and risk/integration: logical flaws, code reuse, test coverage, backward compat, pattern consistency, breaking changes, side effects, deployment risks, regressions, CI. Return findings in two separate sections: In-Scope Findings (numbered, with concern and suggested revision) and Out-of-Scope Observations. If no in-scope issues, say 'No in-scope issues found.' Do NOT modify files. <include {CONTEXT_BLOCK} and competition notice>"`
+
+**Claude (Codex-Deep-Analysis replacement)**: Launch via Agent tool with prompt: `"You are a deep correctness and architecture plan reviewer. Review the implementation plan provided below for this project. Explore the codebase via Read/Grep/Glob tools. Focus on correctness and architecture: logic errors, off-by-one, nil handling, type mismatches, races, error paths, separation of concerns, contract boundaries, invariants, semantic boundaries. Return findings in two separate sections: In-Scope Findings (numbered, with concern and suggested revision) and Out-of-Scope Observations. If no in-scope issues, say 'No in-scope issues found.' Do NOT modify files. <include {CONTEXT_BLOCK} and competition notice>"`
 
 ### Claude Subagents (2 reviewers)
 

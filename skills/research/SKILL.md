@@ -85,12 +85,12 @@ Print `🔬 Step 1 — Running collaborative research phase.` and proceed to 1.2
 **Cursor research** (if `cursor_available`):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "$RESEARCH_TMPDIR/cursor-research-output.txt" --timeout 900 --capture-stdout -- \
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "$RESEARCH_TMPDIR/cursor-research-output.txt" --timeout 1800 --capture-stdout -- \
   cursor agent -p --force --trust --model gpt-5.4-medium --workspace "$PWD" \
     "You are researching a codebase to answer this question: <RESEARCH_QUESTION>. Explore the codebase to understand the relevant architecture and code. Write 2-3 paragraphs covering: (1) Your key findings and observations relevant to the research question, (2) Which files/modules/areas are most relevant and why, (3) Any risks, constraints, or feasibility concerns you identify. Do NOT modify files."
 ```
 
-Use `run_in_background: true` and `timeout: 960000` on the Bash tool call.
+Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
 **Cursor replacement** (if `cursor_available` is false): Launch a Claude subagent (Alternative Perspectives) via the Agent tool instead:
 
@@ -99,13 +99,13 @@ Prompt: `"You are an Alternative Perspectives researcher. Investigate this resea
 **Codex research** (if `codex_available`):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$RESEARCH_TMPDIR/codex-research-output.txt" --timeout 900 -- \
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$RESEARCH_TMPDIR/codex-research-output.txt" --timeout 1800 -- \
   codex exec --full-auto -C "$PWD" \
     --output-last-message "$RESEARCH_TMPDIR/codex-research-output.txt" \
     "You are researching a codebase to answer this question: <RESEARCH_QUESTION>. Explore the codebase to understand the relevant architecture and code. Write 2-3 paragraphs covering: (1) Your key findings and observations relevant to the research question, (2) Which files/modules/areas are most relevant and why, (3) Any risks, constraints, or feasibility concerns you identify. Do NOT modify files."
 ```
 
-Use `run_in_background: true` and `timeout: 960000` on the Bash tool call.
+Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
 **Codex replacement** (if `codex_available` is false): Launch a Claude subagent (Edge-cases/Gaps) via the Agent tool instead:
 
@@ -126,10 +126,10 @@ Prompt: `"You are a Risk/Feasibility researcher. Investigate this research quest
 Wait for external research sentinels using `wait-for-reviewers.sh`. Only include paths for external reviewers that were actually launched (not Claude replacements — those return via Agent tool):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-reviewers.sh --timeout 960 "$RESEARCH_TMPDIR/cursor-research-output.txt.done" "$RESEARCH_TMPDIR/codex-research-output.txt.done"
+${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-reviewers.sh --timeout 1860 "$RESEARCH_TMPDIR/cursor-research-output.txt.done" "$RESEARCH_TMPDIR/codex-research-output.txt.done"
 ```
 
-Use `timeout: 960000` on the Bash tool call. **Do NOT** set `run_in_background: true` — this call must block. Only include sentinel paths for external reviewers that were actually launched.
+Use `timeout: 1860000` on the Bash tool call. **Do NOT** set `run_in_background: true` — this call must block. Only include sentinel paths for external reviewers that were actually launched.
 
 **Validate research outputs**: For research outputs, the validation criteria differ from the standard review validation in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/external-reviewers.md`: instead of checking for numbered findings or `NO_ISSUES_FOUND`, check that the output is non-empty and contains at least one paragraph of substantive prose. Use `$RESEARCH_TMPDIR/cursor-research-output.txt` and `$RESEARCH_TMPDIR/codex-research-output.txt` as the output files. If an output is empty despite exit code 0, retry once with a `-retry` suffix per the shared procedure in `external-reviewers.md`.
 
@@ -165,38 +165,38 @@ The research report is already written to `$RESEARCH_TMPDIR/research-report.txt`
 Run Cursor **first** in the parallel message (it takes the longest):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "$RESEARCH_TMPDIR/cursor-validation-output.txt" --timeout 900 --capture-stdout -- \
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "$RESEARCH_TMPDIR/cursor-validation-output.txt" --timeout 1800 --capture-stdout -- \
   cursor agent -p --force --trust --model gpt-5.4-medium --workspace "$PWD" \
     "Review the research findings in $RESEARCH_TMPDIR/research-report.txt for accuracy and completeness. Read the report, then explore the codebase to verify claims. Combine 4 perspectives: (1) General: Are findings accurate? Is anything important missing? Are conclusions well-supported by evidence? (2) Correctness: Are specific code references correct? Are there factual errors about the codebase? (3) Risk/Completeness: Are risks properly identified? Are there blind spots or omissions? (4) Architecture: Are architectural observations accurate? Are there structural patterns that were missed? Return numbered findings with perspective, concern, and suggested correction. If the research is accurate and complete, output exactly NO_ISSUES_FOUND. Do NOT modify files."
 ```
 
-Use `run_in_background: true` and `timeout: 960000` on the Bash tool call.
+Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
 ### Codex-General Reviewer (if `codex_available`)
 
 Run Codex-General **second** in the parallel message:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$RESEARCH_TMPDIR/codex-general-validation-output.txt" --timeout 900 -- \
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$RESEARCH_TMPDIR/codex-general-validation-output.txt" --timeout 1800 -- \
   codex exec --full-auto -C "$PWD" \
     --output-last-message "$RESEARCH_TMPDIR/codex-general-validation-output.txt" \
     "Review the research findings in $RESEARCH_TMPDIR/research-report.txt for accuracy and completeness. Read the report, then explore the codebase to verify claims. Focus on 2 perspectives: (1) General: Are findings accurate? Is anything important missing? Are conclusions well-supported by evidence? (2) Risk/Completeness: Are risks properly identified? Are there blind spots or omissions? Return numbered findings with perspective, concern, and suggested correction. If the research is accurate and complete, output exactly NO_ISSUES_FOUND. Do NOT modify files."
 ```
 
-Use `run_in_background: true` and `timeout: 960000` on the Bash tool call.
+Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
 ### Codex-Deep-Analysis Reviewer (if `codex_available`)
 
 Run Codex-Deep-Analysis **third** in the parallel message:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$RESEARCH_TMPDIR/codex-deep-validation-output.txt" --timeout 900 -- \
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$RESEARCH_TMPDIR/codex-deep-validation-output.txt" --timeout 1800 -- \
   codex exec --full-auto -C "$PWD" \
     --output-last-message "$RESEARCH_TMPDIR/codex-deep-validation-output.txt" \
     "Review the research findings in $RESEARCH_TMPDIR/research-report.txt for accuracy and completeness. Read the report, then explore the codebase to verify claims. Focus on 2 perspectives: (1) Correctness: Are specific code references correct? Are there factual errors about the codebase? (2) Architecture: Are architectural observations accurate? Are there structural patterns that were missed? Return numbered findings with perspective, concern, and suggested correction. If the research is accurate and complete, output exactly NO_ISSUES_FOUND. Do NOT modify files."
 ```
 
-Use `run_in_background: true` and `timeout: 960000` on the Bash tool call.
+Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
 ### Claude Subagents (2 reviewers)
 
@@ -232,10 +232,10 @@ Follow the **Monitoring External Reviewers** and **Validating External Reviewer 
 After processing Claude findings, wait for external reviewer sentinels using `wait-for-reviewers.sh`. Only include paths for external reviewers that were actually launched:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-reviewers.sh --timeout 960 "$RESEARCH_TMPDIR/cursor-validation-output.txt.done" "$RESEARCH_TMPDIR/codex-general-validation-output.txt.done" "$RESEARCH_TMPDIR/codex-deep-validation-output.txt.done"
+${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-reviewers.sh --timeout 1860 "$RESEARCH_TMPDIR/cursor-validation-output.txt.done" "$RESEARCH_TMPDIR/codex-general-validation-output.txt.done" "$RESEARCH_TMPDIR/codex-deep-validation-output.txt.done"
 ```
 
-Use `timeout: 960000` on the Bash tool call. **Do NOT** set `run_in_background: true` — this call must block.
+Use `timeout: 1860000` on the Bash tool call. **Do NOT** set `run_in_background: true` — this call must block.
 
 2. Read each reviewer's exit code from its sentinel file, then validate its output per the shared procedure in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/external-reviewers.md`.
 3. Merge external reviewer findings into the already-processed Claude findings.
