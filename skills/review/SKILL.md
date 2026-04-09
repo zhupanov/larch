@@ -69,7 +69,7 @@ Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
 **Cursor replacement** (if `cursor_available` is false): Launch a Claude subagent (Risk/Integration) via the Agent tool instead. This replacement ensures the total reviewer count remains 5 regardless of external tool availability.
 
-Prompt: `"You are a Risk/Integration reviewer examining code changes. <same {CONTEXT_BLOCK} as Claude subagents>. Combine 4 review perspectives: (1) General: bugs, logic, quality, tests, backward compat, style. (2) Correctness: logic errors, off-by-one, nil handling, type mismatches, races, error paths. (3) Risk/Integration: breaking changes, side effects, thread safety, deployment risks, regressions, CI. (4) Architecture: separation of concerns, contract boundaries, invariants, semantic boundaries. Return findings in two separate sections: In-Scope Findings (numbered, with file:line, issue, suggested fix) and Out-of-Scope Observations. If no in-scope issues, say 'No in-scope issues found.' Do NOT edit any files."`
+Prompt: `"You are a Risk/Integration reviewer examining code changes. <include {CONTEXT_BLOCK} and competition notice>. Combine 4 review perspectives: (1) General: bugs, logic, quality, tests, backward compat, style. (2) Correctness: logic errors, off-by-one, nil handling, type mismatches, races, error paths. (3) Risk/Integration: breaking changes, side effects, thread safety, deployment risks, regressions, CI. (4) Architecture: separation of concerns, contract boundaries, invariants, semantic boundaries. Return findings in two separate sections: In-Scope Findings (numbered, with file:line, issue, suggested fix) and Out-of-Scope Observations. If no in-scope issues, say 'No in-scope issues found.' Do NOT edit any files."`
 
 ### Codex Reviewers (if `codex_available`) — 2 instances
 
@@ -164,10 +164,8 @@ Merge findings from all reviewers into a single deduplicated list, grouped by fi
 **In round 1**: Submit both in-scope findings and out-of-scope observations to a 3-agent voting panel per the **Voting Protocol** in `${CLAUDE_PLUGIN_ROOT}/skills/shared/larch/voting-protocol.md`. Include OOS items on the ballot with `[OUT_OF_SCOPE]` prefix per the protocol's OOS section. For code review:
 
 - **Voter 1**: Claude General reviewer subagent — fresh Agent tool invocation with the voting prompt. Instruct: `"You are a very scrupulous senior engineer code reviewer on a voting panel. You will vote YES, NO, or EXONERATE on proposed code changes. Be extremely rigorous — only vote YES for findings that identify genuine bugs, logic errors, security issues, or clearly important improvements. Vote EXONERATE if the concern is legitimate but not worth implementing in this PR. Vote NO for trivial style nits, subjective preferences, or speculative concerns."`
-- **Voter 2**: Codex — via `run-external-reviewer.sh` with the ballot. Instruct similarly as a "very scrupulous senior engineer code reviewer."
-- **Voter 3**: Cursor — via `run-external-reviewer.sh` with the ballot. Instruct similarly.
-
-If fewer than 2 voters are available (both Codex and Cursor unavailable), follow the Voting Protocol's fallback: skip voting, accept all findings, and print the insufficient-voters warning.
+- **Voter 2**: Codex — via `run-external-reviewer.sh` with the ballot. If `codex_available` is false, launch a Claude subagent voter instead per the Voting Protocol. Instruct similarly as a "very scrupulous senior engineer code reviewer."
+- **Voter 3**: Cursor — via `run-external-reviewer.sh` with the ballot. If `cursor_available` is false, launch a Claude subagent voter instead per the Voting Protocol. Instruct similarly.
 
 **Ballot file handling**: Use the Write tool (not `cat` with heredoc or Bash) to write the ballot to `$REVIEW_TMPDIR/ballot.txt`. For Codex and Cursor voter prompts, reference the ballot file path (e.g., "Read the ballot from $REVIEW_TMPDIR/ballot.txt") instead of inlining the ballot content. This avoids permission prompts from `cat > file << 'EOF'` or `BALLOT=$(cat file)` patterns.
 

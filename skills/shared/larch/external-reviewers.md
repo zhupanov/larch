@@ -25,7 +25,7 @@ After launching Codex and/or Cursor as background tasks, **poll for `.done` sent
 1. Continue working on other tasks (e.g., processing Claude subagent results) while external reviewers run in the background.
 2. After all other tasks are done, invoke the wait script with the sentinel file paths for all launched reviewers:
    ```bash
-   ${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-reviewers.sh "<cursor-output-file>.done" "<codex-output-file>.done"
+   ${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-reviewers.sh --timeout 1860 "<cursor-output-file>.done" "<codex-output-file>.done"
    ```
    Only include paths for reviewers that were actually launched. For this `wait-for-reviewers.sh` Bash tool call, use `timeout: 1860000` (1860 seconds = 1 860 000 ms) and **do NOT** set `run_in_background: true` — this call must block until all sentinels are found. The script polls every 5 seconds, prints compact dot-based progress to stderr, and outputs machine-parseable `DONE <name>: exit=<code>` or `TIMEOUT <name>` lines to stdout. It always exits 0. **Important**: Invoke the wait script exactly ONCE with ALL sentinel file paths in a SINGLE Bash tool call. Do NOT make multiple Bash calls or write ad-hoc polling loops. If you launched the reviewer with a custom timeout via `run-external-reviewer.sh`, pass the matching value plus 60 seconds grace with `--timeout <seconds>` (seconds) and set the Bash tool `timeout` to the same value in milliseconds.
 3. **Do NOT read output files until the corresponding `.done` sentinel file exists.** Reading early will see an empty file (especially for Cursor, whose stdout is fully buffered). Parse the script's stdout `DONE`/`TIMEOUT` lines to determine which reviewers completed.
