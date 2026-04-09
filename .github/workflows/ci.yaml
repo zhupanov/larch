@@ -22,6 +22,8 @@ jobs:
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: |
+            pre-commit-
       - name: Install pre-commit
         run: pip install pre-commit==4.2.0
       - name: Run all linters
