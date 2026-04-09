@@ -119,6 +119,29 @@ get_field() {
             }'
 }
 
+# Emit only the executable text from a YAML/shell file by stripping full-line
+# and trailing # comments. Lines starting with optional whitespace then `#` are
+# dropped; ` # ...` trailing comments are stripped from the rest. JSON has no
+# comments so this function is not used for .json files.
+strip_yaml_comments() {
+    awk '
+        /^[[:space:]]*#/ { next }
+        { sub(/[[:space:]]+#.*$/, ""); print }
+    ' "$1"
+}
+
+# Emit only content inside fenced code blocks (``` or ~~~) from a markdown file.
+# Toggles state on each fence line, prints the body lines.
+extract_code_fences() {
+    awk '
+        /^[[:space:]]*```/ || /^[[:space:]]*~~~/ {
+            in_code = !in_code
+            next
+        }
+        in_code { print }
+    ' "$1"
+}
+
 # Validate hook command paths in a JSON file.
 # Args: $1 = JSON file path, $2 = label for error messages.
 # Reads ALL string values from the JSON, filters to those containing
@@ -276,9 +299,12 @@ validate_skill_frontmatter() {
         if [ -n "$name" ] && [ "$name" != "$base" ]; then
             fail "$skill_md: frontmatter name '$name' does not match directory '$base'"
         fi
-        # Optional scalar fields: if present, value must be non-empty.
+        # Optional scalar fields: if present in the frontmatter, value must be non-empty.
+        # Scope the presence check to extracted frontmatter only — searching the whole
+        # file would false-positive on body lines that happen to start with the key
+        # (e.g., a SKILL.md documenting frontmatter syntax in its prose).
         for field in "argument-hint" "allowed-tools"; do
-            if grep -qE "^${field}:" "$skill_md"; then
+            if extract_frontmatter "$skill_md" 2>/dev/null | grep -qE "^${field}:"; then
                 val=$(get_field "$skill_md" "$field")
                 [ -n "$val" ] || fail "$skill_md: optional field '$field' is present but empty"
             fi
@@ -351,12 +377,18 @@ validate_pwd_hygiene() {
 # ---------------------------------------------------------------------------
 
 # Process substitution keeps ERROR_COUNT increments in the parent shell.
-# Extracts BOTH ${CLAUDE_PLUGIN_ROOT}/... (public) AND $PWD/.claude/skills/... (private).
+# Extracts:
+#   - ${CLAUDE_PLUGIN_ROOT}/(scripts|skills|.claude/skills)/...sh (public)
+#   - $PWD/.claude/skills/...sh                                   (private)
+#   - ${CLAUDE_PLUGIN_ROOT_PLACEHOLDER:-$PWD}/.claude/skills/...sh (legacy private placeholder
+#                                                                  used by .claude/skills/bump-version/SKILL.md)
 validate_script_references() {
     # shellcheck disable=SC2016  # intentional literal ${CLAUDE_PLUGIN_ROOT} and $PWD in regex
     local pattern_pub='\$\{CLAUDE_PLUGIN_ROOT\}/(scripts|skills|\.claude/skills)/[a-zA-Z0-9._/-]+\.sh'
     # shellcheck disable=SC2016  # intentional literal $PWD in regex
     local pattern_priv='\$PWD/\.claude/skills/[a-zA-Z0-9._/-]+\.sh'
+    # shellcheck disable=SC2016  # intentional literal ${CLAUDE_PLUGIN_ROOT_PLACEHOLDER:-$PWD} in regex
+    local pattern_placeholder='\$\{CLAUDE_PLUGIN_ROOT_PLACEHOLDER:-\$PWD\}/\.claude/skills/[a-zA-Z0-9._/-]+\.sh'
     local ref rel
 
     # Public references via ${CLAUDE_PLUGIN_ROOT}
@@ -372,6 +404,15 @@ validate_script_references() {
         rel="${ref#\$PWD/}"
         [ -f "$rel" ] || fail "script reference missing on disk: $ref (expected $rel)"
     done < <(grep -rhoE "$pattern_priv" .claude/skills/ 2>/dev/null | sort -u)
+
+    # Legacy placeholder form: ${CLAUDE_PLUGIN_ROOT_PLACEHOLDER:-$PWD}/.claude/skills/...
+    # Used by .claude/skills/bump-version/SKILL.md to remain compatible with both
+    # plugin-runtime invocation and direct $PWD invocation.
+    while IFS= read -r ref; do
+        [ -z "$ref" ] && continue
+        rel="${ref#\$\{CLAUDE_PLUGIN_ROOT_PLACEHOLDER:-\$PWD\}/}"
+        [ -f "$rel" ] || fail "script reference missing on disk: $ref (expected $rel)"
+    done < <(grep -rhoE "$pattern_placeholder" .claude/skills/ 2>/dev/null | sort -u)
 }
 
 # ---------------------------------------------------------------------------
@@ -415,6 +456,8 @@ validate_dead_scripts() {
     # shellcheck disable=SC2064
     trap "rm -f '$references_file'" RETURN
 
+    local wf_file json_file md_file
+
     # Collect references from all patterns into the temp file in a single redirect.
     # shellcheck disable=SC2016  # all single-quoted patterns contain intentional literal $ tokens
     {
@@ -427,16 +470,30 @@ validate_dead_scripts() {
         grep -rhoE '\$SCRIPT_DIR/[a-zA-Z0-9._-]+\.sh' scripts/ 2>/dev/null \
             | sed -E 's|^\$SCRIPT_DIR/|scripts/|'
 
-        # Pattern D: bare scripts/<name>.sh tokens in workflow run: blocks and JSON command fields.
-        # Use a leading boundary so we don't match longer prefixes.
-        grep -rhoE '(^|[^a-zA-Z0-9._/-])scripts/[a-zA-Z0-9._-]+\.sh' \
-            .github/workflows/ .claude/settings.json hooks/hooks.json 2>/dev/null \
-            | grep -oE 'scripts/[a-zA-Z0-9._-]+\.sh'
-
-        # Pattern E: bare scripts/<name>.sh tokens in shared/larch markdown code blocks
-        if [ -d skills/shared ]; then
-            grep -rhoE '(^|[^a-zA-Z0-9._/-])scripts/[a-zA-Z0-9._-]+\.sh' skills/shared/ 2>/dev/null \
+        # Pattern D: bare scripts/<name>.sh tokens in workflow run: blocks and
+        # JSON command fields. To honor the contract that comments and prose
+        # do not count as live references, strip YAML comments from workflow
+        # files first; JSON files have no comments and pass through unchanged.
+        for wf_file in .github/workflows/*.yaml .github/workflows/*.yml; do
+            [ -f "$wf_file" ] || continue
+            strip_yaml_comments "$wf_file" \
+                | grep -oE '(^|[^a-zA-Z0-9._/-])scripts/[a-zA-Z0-9._-]+\.sh' \
                 | grep -oE 'scripts/[a-zA-Z0-9._-]+\.sh'
+        done
+        for json_file in .claude/settings.json hooks/hooks.json; do
+            [ -f "$json_file" ] || continue
+            grep -hoE '(^|[^a-zA-Z0-9._/-])scripts/[a-zA-Z0-9._-]+\.sh' "$json_file" \
+                | grep -oE 'scripts/[a-zA-Z0-9._-]+\.sh'
+        done
+
+        # Pattern E: bare scripts/<name>.sh tokens in shared/larch markdown
+        # code fences ONLY — narrative prose mentions do not count.
+        if [ -d skills/shared ]; then
+            while IFS= read -r md_file; do
+                extract_code_fences "$md_file" \
+                    | grep -oE '(^|[^a-zA-Z0-9._/-])scripts/[a-zA-Z0-9._-]+\.sh' \
+                    | grep -oE 'scripts/[a-zA-Z0-9._-]+\.sh'
+            done < <(find skills/shared -type f -name '*.md' 2>/dev/null)
         fi
     } >> "$references_file"
 
