@@ -212,9 +212,9 @@ Print: `✅ Step 2a.4 — Approach synthesis written.`
 
 Print: `⚖️ Step 2a.5 — Running dialectic debate on contested decisions...`
 
-Read `$DESIGN_TMPDIR/contested-decisions.md`. If the contents equal `NO_CONTESTED_DECISIONS`, print `⏩ Step 2a.5 — No contested decisions found. Skipping dialectic debate.` and proceed to Step 2b.
+Read `$DESIGN_TMPDIR/contested-decisions.md`. If the file contains only `NO_CONTESTED_DECISIONS` (ignoring leading/trailing whitespace and newlines), print `⏩ Step 2a.5 — No contested decisions found. Skipping dialectic debate.` and proceed to Step 2b.
 
-Otherwise, select up to the first 3 decisions from the file (they are already in priority order from Step 2a.4). For each selected decision, launch a **thesis agent** and an **antithesis agent** as Claude subagents via the Agent tool. **All thesis+antithesis pairs across all decisions must be issued in a single Agent fan-out message** (up to 6 Agent tool calls in one message) to maximize parallelism.
+Otherwise, read `$DESIGN_TMPDIR/approach-synthesis.txt` — this provides `{SYNTHESIS_TEXT}` for the agent prompts below. Select up to the first 3 decisions from the file (they are already in priority order from Step 2a.4). For each selected decision, launch a **thesis agent** and an **antithesis agent** as Claude subagents via the Agent tool. **All thesis+antithesis pairs across all decisions must be issued in a single Agent fan-out message** (up to 6 Agent tool calls in one message) to maximize parallelism.
 
 **Thesis agent prompt template**:
 ```
