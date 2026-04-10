@@ -552,15 +552,16 @@ validate_plugin_enriched() {
     [ -f "$f" ] || return 0
     jq empty "$f" 2>/dev/null || return 0  # skip if invalid JSON (validator 1 catches this)
 
-    local desc email kw_len
+    local desc email
     desc=$(jq -r '.description // empty' "$f")
     [ -n "$desc" ] || fail "$f missing required field: description"
 
     email=$(jq -r '.author.email // empty' "$f")
     [ -n "$email" ] || fail "$f missing required field: author.email"
 
-    kw_len=$(jq '.keywords | length // 0' "$f" 2>/dev/null)
-    [ "$kw_len" -gt 0 ] 2>/dev/null || fail "$f keywords must be a non-empty array"
+    if ! jq -e '.keywords | type == "array" and length > 0' "$f" >/dev/null 2>&1; then
+        fail "$f keywords must be a non-empty array"
+    fi
 }
 
 # ---------------------------------------------------------------------------
