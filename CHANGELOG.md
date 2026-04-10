@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.7] - 2026-04-10
+
+### Added
+
+- Validators 19-23 in `validate-plugin-structure.sh`: Slack fallback consistency (V19), userConfig key→env var mapping (V20), bidirectional agent-template count (V21), docs file reference existence (V22), userConfig sensitive boolean type check (V23).
+
+### Changed
+
+- Enhanced V16 with bidirectional count check (reviewer-template sections must match agent file count).
+- Enhanced V18 with `sensitive` field boolean type validation.
+- Narrowed V22 scope to only the Canonical sources section of CLAUDE.md.
+- Improved V20 key normalization to handle camelCase and kebab-case keys.
+
 ## [1.1.6] - 2026-04-09
 
 ### Added

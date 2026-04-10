@@ -46,6 +46,19 @@
 #                              plugin.json must match basic email regex (.+@.+\..+)
 #  18. userConfig structure    — if plugin.json has userConfig, it must be an object
 #                              where each key has a "description" string field
+#  19. Slack fallback consistency — every scripts/*.sh that does a bash fallback read
+#                              of LARCH_SLACK_BOT_TOKEN or LARCH_SLACK_CHANNEL_ID must
+#                              also reference the corresponding CLAUDE_PLUGIN_OPTION_* var
+#  20. userConfig key→env mapping — every userConfig key in plugin.json must have a
+#                              corresponding CLAUDE_PLUGIN_OPTION_<UPPER_KEY> reference
+#                              in at least one scripts/*.sh file
+#  21. Agent-template count    — number of "## Reviewer" sections in
+#                              skills/shared/reviewer-templates.md must equal number of
+#                              agents/*.md files (bidirectional alignment with V16)
+#  22. Docs file references    — every docs/*.md path referenced in the Canonical
+#                              sources section of CLAUDE.md must exist on disk
+#  23. userConfig sensitive type — if a userConfig entry has a "sensitive" field,
+#                              its value must be a boolean (not string/number/null)
 #
 # Exemption from PWD hygiene check (validator 8):
 #   .claude/skills/bump-version/SKILL.md
@@ -666,14 +679,111 @@ validate_userconfig_structure() {
         return 0
     fi
 
-    # Each key must have a description that is a non-empty string
+    # Each key must have a description that is a non-empty string.
+    # If sensitive field is present, it must be a boolean (V23 enhancement).
     local key
     while IFS= read -r key; do
         [ -z "$key" ] && continue
         if ! jq -e ".userConfig[\"$key\"].description | type == \"string\" and length > 0" "$f" >/dev/null 2>&1; then
             fail "$f userConfig.$key missing or invalid description (must be a non-empty string)"
         fi
+        # V23: if sensitive field exists, verify it is boolean
+        if jq -e ".userConfig[\"$key\"] | has(\"sensitive\")" "$f" >/dev/null 2>&1; then
+            if ! jq -e ".userConfig[\"$key\"].sensitive | type == \"boolean\"" "$f" >/dev/null 2>&1; then
+                fail "$f userConfig.$key.sensitive must be a boolean (true/false)"
+            fi
+        fi
     done < <(jq -r '.userConfig | keys[]' "$f" 2>/dev/null)
+}
+
+# ---------------------------------------------------------------------------
+# Validator 19: Slack fallback consistency
+# ---------------------------------------------------------------------------
+
+validate_slack_fallback_consistency() {
+    # For each script that does a bash fallback read of LARCH_SLACK_BOT_TOKEN or
+    # LARCH_SLACK_CHANNEL_ID (the ${VAR:-...} pattern), verify it also references
+    # the corresponding CLAUDE_PLUGIN_OPTION_* variable in the same file.
+    local script var plugin_var
+    for script in scripts/*.sh; do
+        [ -f "$script" ] || continue
+        for var in LARCH_SLACK_BOT_TOKEN LARCH_SLACK_CHANNEL_ID; do
+            # Only check files that do actual bash fallback reads (${VAR:- pattern)
+            if grep -q "\${${var}:-" "$script" 2>/dev/null; then
+                plugin_var="CLAUDE_PLUGIN_OPTION_${var#LARCH_}"
+                if ! grep -q "$plugin_var" "$script" 2>/dev/null; then
+                    fail "$script reads \${${var}:-...} but does not reference $plugin_var"
+                fi
+            fi
+        done
+    done
+}
+
+# ---------------------------------------------------------------------------
+# Validator 20: userConfig key → env var mapping
+# ---------------------------------------------------------------------------
+
+validate_userconfig_env_mapping() {
+    local f=".claude-plugin/plugin.json"
+    [ -f "$f" ] || return 0
+    jq -e 'has("userConfig")' "$f" >/dev/null 2>&1 || return 0
+
+    local key upper_key env_var
+    while IFS= read -r key; do
+        [ -z "$key" ] && continue
+        # Convert key to UPPER_SNAKE_CASE for env var name:
+        # - Replace hyphens and dots with underscores
+        # - Insert underscore before uppercase letters (camelCase → CAMEL_CASE)
+        # - Uppercase everything
+        upper_key=$(echo "$key" | sed -E 's/[-.]/_/g; s/([a-z])([A-Z])/\1_\2/g' | tr '[:lower:]' '[:upper:]')
+        env_var="CLAUDE_PLUGIN_OPTION_${upper_key}"
+        if ! grep -rq "$env_var" scripts/ 2>/dev/null; then
+            fail "userConfig key '$key' has no corresponding $env_var reference in scripts/"
+        fi
+    done < <(jq -r '.userConfig | keys[]' "$f" 2>/dev/null)
+}
+
+# ---------------------------------------------------------------------------
+# Validator 21: agent-template count (bidirectional extension of V16)
+# ---------------------------------------------------------------------------
+
+validate_agent_template_count() {
+    local agents_dir="agents"
+    local templates="skills/shared/reviewer-templates.md"
+    [ -d "$agents_dir" ] || return 0
+    [ -f "$templates" ] || return 0  # V16 already catches missing template
+
+    # Count "## Reviewer" section headers (not all ## headers like ## Variables)
+    local template_count agent_count
+    template_count=$(grep -cE '^## Reviewer' "$templates" 2>/dev/null || echo 0)
+    agent_count=0
+    local agent_md
+    for agent_md in "$agents_dir"/*.md; do
+        [ -f "$agent_md" ] || continue
+        agent_count=$((agent_count + 1))
+    done
+
+    if [ "$template_count" -ne "$agent_count" ]; then
+        fail "agent-template count mismatch: $agent_count agent file(s) but $template_count '## Reviewer' section(s) in $templates"
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Validator 22: docs file references from CLAUDE.md
+# ---------------------------------------------------------------------------
+
+validate_docs_references() {
+    local claude_md="CLAUDE.md"
+    [ -f "$claude_md" ] || return 0
+
+    # Extract docs/*.md paths from the "Canonical sources" section of CLAUDE.md only.
+    # The section starts with "## Canonical sources" and ends at the next "## " header.
+    local doc_path
+    while IFS= read -r doc_path; do
+        [ -z "$doc_path" ] && continue
+        [ -f "$doc_path" ] || fail "docs reference in CLAUDE.md canonical sources not found on disk: $doc_path"
+    done < <(awk '/^## Canonical sources/,/^## [^C]/' "$claude_md" 2>/dev/null \
+                | grep -oE 'docs/[a-zA-Z0-9._-]+\.md' | sort -u)
 }
 
 # ---------------------------------------------------------------------------
@@ -699,6 +809,10 @@ main() {
     validate_agent_template_alignment
     validate_email_format
     validate_userconfig_structure
+    validate_slack_fallback_consistency
+    validate_userconfig_env_mapping
+    validate_agent_template_count
+    validate_docs_references
 
     if [ "$ERROR_COUNT" -eq 0 ]; then
         echo "Plugin structure OK"
