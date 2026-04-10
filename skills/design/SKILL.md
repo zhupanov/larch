@@ -30,6 +30,7 @@ Suggested emoji palette (use consistently):
 | 1 | 🔀 | Branch creation |
 | 1c | ❓ | Clarifying questions |
 | 2a | 🤝 | Collaborative sketches |
+| 2a.5 | ⚖️ | Dialectic debate |
 | 2b | 📐 | Full plan design |
 | 3 | 🔍 | Plan review |
 | 3a | ✅ | Post-review confirmation |
@@ -190,16 +191,88 @@ Read all 5 sketches (Claude General + Architecture/Standards + Pragmatism/Safety
 3. Notes which ideas from each sketch are being incorporated into the full plan
 4. Highlights any **Architecture/Standards** concerns that should be addressed in the plan
 5. Highlights any **Pragmatism/Safety** warnings about regression risk or unnecessary complexity
+6. Lists contested decisions as a structured markdown list in `$DESIGN_TMPDIR/contested-decisions.md`. Use this schema:
+
+   ```markdown
+   ### DECISION_1: <short title>
+   - **Chosen**: <the synthesis choice>
+   - **Alternative**: <the strongest alternative>
+   - **Tension**: <why this is contested — which sketches diverged and why>
+   - **Impact**: High/Medium/Low
+   - **Affected files**: <comma-separated list of files/modules impacted by this decision>
+   ```
+
+   List decisions in priority order: High impact first, then by degree of sketch disagreement (more agents on different sides = higher priority), then by order of appearance in the synthesis. If no sketches diverged (all 5 agreed on all points), write exactly `NO_CONTESTED_DECISIONS` as the entire file content.
 
 Print the synthesis under an `## Approach Synthesis` header. Write the synthesis to `$DESIGN_TMPDIR/approach-synthesis.txt` so it can be referenced by Step 2b.
 
-Print: `✅ Step 2a — Sketch synthesis complete (5 agents).`
+Print: `✅ Step 2a.4 — Approach synthesis written.`
+
+### 2a.5 — Dialectic Resolution of Contested Decisions
+
+Print: `⚖️ Step 2a.5 — Running dialectic debate on contested decisions...`
+
+Read `$DESIGN_TMPDIR/contested-decisions.md`. If the file contains only `NO_CONTESTED_DECISIONS` (ignoring leading/trailing whitespace and newlines), print `⏩ Step 2a.5 — No contested decisions found. Skipping dialectic debate.` and proceed to Step 2b.
+
+Otherwise, read `$DESIGN_TMPDIR/approach-synthesis.txt` — this provides `{SYNTHESIS_TEXT}` for the agent prompts below. Select up to the first 3 decisions from the file (they are already in priority order from Step 2a.4). For each selected decision, launch a **thesis agent** and an **antithesis agent** as Claude subagents via the Agent tool. **All thesis+antithesis pairs across all decisions must be issued in a single Agent fan-out message** (up to 6 Agent tool calls in one message) to maximize parallelism.
+
+**Thesis agent prompt template**:
+```
+You are defending this architectural decision for the feature: {FEATURE_DESCRIPTION}.
+
+The synthesis of 5 independent sketches chose {CHOSEN} over {ALTERNATIVE} because: {TENSION}.
+
+Your role: argue why {CHOSEN} is the right call given the codebase, requirements, and constraints. Reference specific evidence from the synthesis and the codebase (via Read/Grep/Glob tools, focusing on: {AFFECTED_FILES}). Write 1-2 focused paragraphs.
+
+## Synthesis
+{SYNTHESIS_TEXT}
+
+## Contested Decision
+{DECISION_BLOCK}
+```
+
+**Antithesis agent prompt template**:
+```
+You are challenging this architectural decision for the feature: {FEATURE_DESCRIPTION}.
+
+The synthesis of 5 independent sketches chose {CHOSEN} over {ALTERNATIVE}.
+
+Your role: argue why {ALTERNATIVE} would be better, surface risks in {CHOSEN}, poke at hidden assumptions, and present the most compelling case for switching. Reference specific evidence from the synthesis and the codebase (via Read/Grep/Glob tools, focusing on: {AFFECTED_FILES}). Write 1-2 focused paragraphs.
+
+## Synthesis
+{SYNTHESIS_TEXT}
+
+## Contested Decision
+{DECISION_BLOCK}
+```
+
+**After all agents return**, apply the **debate quorum rule** for each decision:
+- If **both** thesis and antithesis produced substantive output (non-empty, at least one paragraph each), the orchestrator writes a **binding resolution** for that decision.
+- If **either side** failed, returned empty output, or produced malformed/non-substantive content, print `**⚠ Debate for DECISION_N failed (missing <thesis/antithesis> output). Falling back to synthesis decision.**` and do NOT write a binding resolution for that decision. The Step 2a.4 synthesis call stands for that point.
+
+Write all successful resolutions to `$DESIGN_TMPDIR/dialectic-resolutions.md` using this format:
+
+```markdown
+### DECISION_1: <title>
+**Resolution**: <the final binding decision — must be one of the two options: either the chosen or the alternative>
+**Thesis summary**: <1-2 sentence summary of the thesis agent's key argument>
+**Antithesis summary**: <1-2 sentence summary of the antithesis agent's key argument>
+**Why thesis prevails** / **Why antithesis prevails**: <explicit justification that directly addresses the losing side's strongest argument — must not dismiss the counterargument without engaging it>
+```
+
+Print resolutions under a `## Dialectic Resolutions` header.
+
+**Scope**: Dialectic resolutions are **binding for Step 2b plan generation only**. They may be superseded later by accepted Step 3 review findings. The finalized plan (after Step 3 review) remains the sole canonical output.
+
+Print: `✅ Step 2a.5 — Dialectic debate complete (<N> decisions resolved).` (where N is the count of decisions that passed the quorum rule).
 
 ## Step 2b — Design the Implementation Plan
 
 Before writing any code, create a concrete implementation plan. Research the codebase (read relevant files, grep for patterns, understand existing architecture). See CLAUDE.md for project-specific development references and conventions.
 
 Read `$DESIGN_TMPDIR/approach-synthesis.txt` from Step 2a and incorporate the synthesis into the plan. The synthesis should inform architectural decisions, file selection, and tradeoff resolutions.
+
+Also read `$DESIGN_TMPDIR/dialectic-resolutions.md` if it exists and is non-empty. For each resolved decision, the plan **must** follow the resolution direction and explicitly note how the antithesis concern was addressed. These resolutions are binding for Step 2b — do not override them. (Note: Step 3 plan review may subsequently revise the plan based on accepted review findings, which supersede dialectic resolutions.)
 
 Produce a plan that includes:
 
