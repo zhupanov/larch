@@ -90,7 +90,7 @@ For each slice (using `N` as the 1-based slice index):
 
 ### 3b — Gather file list
 
-Use Glob to collect relevant source files in the slice (`.go`, `.md`, `.yaml`, `.sh`). Exclude `*_test.go` from review targets (but tests serve as context for reviewers).
+Use Glob to collect relevant source files in the slice (common extensions: `.py`, `.ts`, `.tsx`, `.js`, `.jsx`, `.go`, `.rs`, `.java`, `.rb`, `.sh`, `.c`, `.cpp`, `.cs`, `.md`, `.yaml`, `.yml`, `.json`). Exclude test files (e.g., `*_test.go`, `*_test.py`, `*.test.ts`, `*.spec.js`) from review targets (but tests serve as context for reviewers).
 
 Write the full file list to `$LR_TMPDIR/slice-N-files.txt` (one path per line) for external reviewers to read.
 

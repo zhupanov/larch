@@ -587,14 +587,19 @@ validate_security_md() {
 
 validate_shared_md_references() {
     # Extract ${CLAUDE_PLUGIN_ROOT}/skills/shared/*.md paths from public SKILL.md files
-    # and verify each referenced file exists on disk. Mirrors validator 9 for scripts.
-    local ref rel
+    # (not skills/shared/ itself) and verify each referenced file exists on disk.
+    # Mirrors validator 9 for scripts. Scope: skills/*/SKILL.md only (excludes shared/).
+    local ref rel skill_md
     # shellcheck disable=SC2016  # intentional literal ${CLAUDE_PLUGIN_ROOT} in regex
-    while IFS= read -r ref; do
-        [ -z "$ref" ] && continue
-        rel="${ref#\$\{CLAUDE_PLUGIN_ROOT\}/}"
-        [ -f "$rel" ] || fail "shared markdown reference missing on disk: $ref (expected $rel)"
-    done < <(grep -rhoE '\$\{CLAUDE_PLUGIN_ROOT\}/skills/shared/[a-zA-Z0-9._-]+\.md' skills/ 2>/dev/null | sort -u)
+    for skill_md in skills/*/SKILL.md; do
+        [ -f "$skill_md" ] || continue
+        case "$skill_md" in skills/shared/*) continue ;; esac
+        while IFS= read -r ref; do
+            [ -z "$ref" ] && continue
+            rel="${ref#\$\{CLAUDE_PLUGIN_ROOT\}/}"
+            [ -f "$rel" ] || fail "shared markdown reference missing on disk: $ref (in $skill_md, expected $rel)"
+        done < <(grep -hoE '\$\{CLAUDE_PLUGIN_ROOT\}/skills/shared/[a-zA-Z0-9._-]+\.md' "$skill_md" 2>/dev/null)
+    done
 }
 
 # ---------------------------------------------------------------------------
@@ -650,23 +655,24 @@ validate_userconfig_structure() {
     [ -f "$f" ] || return 0
     jq empty "$f" 2>/dev/null || return 0
 
-    # Skip if no userConfig field
-    if ! jq -e '.userConfig' "$f" >/dev/null 2>&1; then
+    # Skip if no userConfig field (use has() to distinguish absent from null)
+    if ! jq -e 'has("userConfig")' "$f" >/dev/null 2>&1; then
         return 0
     fi
 
-    # userConfig must be an object
+    # userConfig must be an object (catches null, arrays, strings, etc.)
     if ! jq -e '.userConfig | type == "object"' "$f" >/dev/null 2>&1; then
         fail "$f userConfig must be an object"
         return 0
     fi
 
-    # Each key must have a description string
-    local key desc
+    # Each key must have a description that is a non-empty string
+    local key
     while IFS= read -r key; do
         [ -z "$key" ] && continue
-        desc=$(jq -r ".userConfig[\"$key\"].description // empty" "$f")
-        [ -n "$desc" ] || fail "$f userConfig.$key missing required field: description"
+        if ! jq -e ".userConfig[\"$key\"].description | type == \"string\" and length > 0" "$f" >/dev/null 2>&1; then
+            fail "$f userConfig.$key missing or invalid description (must be a non-empty string)"
+        fi
     done < <(jq -r '.userConfig | keys[]' "$f" 2>/dev/null)
 }
 
