@@ -1,7 +1,7 @@
 ---
 name: loop-review
 description: Systematic code review of entire repository by partitioning into slices, reviewing each with specialized subagents, implementing improvements via /implement, and logging deferred suggestions. Use when the user wants a comprehensive quality sweep, systematic code review, or iterative improvement pass across the whole codebase.
-argument-hint: "[partition criteria]"
+argument-hint: "[--debug] [partition criteria]"
 allowed-tools: Bash, Read, Edit, Write, Grep, Glob, Agent, Task, WebFetch, WebSearch, Skill
 ---
 
@@ -9,7 +9,42 @@ allowed-tools: Bash, Read, Edit, Write, Grep, Glob, Agent, Task, WebFetch, WebSe
 
 Systematically review the entire codebase by partitioning into slices, reviewing each with specialized code reviewers (2 Claude subagents + 2 Codex + Cursor), implementing improvements via `/implement`, and tracking deferred suggestions in a checked-in document.
 
-**This skill runs fully autonomously** — never ask for user confirmation. Make all implement/defer decisions based on the classification criteria in Step 3d. All sub-skills (`/implement`, `/review`, `/design`, `/relevant-checks`) also run autonomously. **Always pass `--auto --merge` when invoking `/implement`** — `--auto` suppresses interactive question checkpoints in `/design`, and `--merge` opts into the CI+rebase+merge loop that loop-review's batched flow depends on (without `--merge`, `/implement` stops after PR creation and would break loop-review's merge-and-return-to-main expectation).
+**Flags**: Parse flags from the start of `$ARGUMENTS` before treating the remainder as partition criteria. Flags may appear in any order; stop at the first non-flag token.
+
+- `--debug`: Set a mental flag `debug_mode=true`. Controls output verbosity — see Verbosity Control below. Default: `debug_mode=false`. When `debug_mode=true`, propagate `--debug` to all `/implement` invocations.
+
+**This skill runs fully autonomously** — never ask for user confirmation. Make all implement/defer decisions based on the classification criteria in Step 3d. All sub-skills (`/implement`, `/review`, `/design`, `/relevant-checks`) also run autonomously. **Always pass `--auto --merge` when invoking `/implement`** (plus `--debug` if `debug_mode=true`) — `--auto` suppresses interactive question checkpoints in `/design`, and `--merge` opts into the CI+rebase+merge loop that loop-review's batched flow depends on (without `--merge`, `/implement` stops after PR creation and would break loop-review's merge-and-return-to-main expectation).
+
+## Progress Reporting
+
+**Every step MUST print clearly visible status lines** so the user can instantly see where execution is at. Use distinct emoji prefixes:
+
+- Print a **start line** when entering a step: e.g., `🔄 Step 3 — Reviewing slice: scripts/...`
+- Print a **completion line** when done: e.g., `✅ Step 3 — Slice complete (3 findings implemented, 1 deferred)`
+
+| Step | Emoji | Description |
+|------|-------|-------------|
+| 0 | 🔧 | Session setup |
+| 1 | 📋 | Partition repository |
+| 2 | 🔍 | Review slice |
+| 3 | 🔄 | Implement/defer findings |
+| 4 | 💾 | Final deferred commit |
+| 5 | 📊 | Summary report |
+| 6 | 🏁 | Cleanup |
+
+### Verbosity Control
+
+**When `debug_mode=false` (default):**
+
+- Use empty string for the `description` parameter on all Bash tool calls.
+- Use terse 3-5 word descriptions for Agent tool calls.
+- Do not produce explanatory prose between tool call outputs — only print: step start/completion emoji lines, all warning/error lines (`**⚠ ...`), structured summaries (slice results, findings lists, deferred items, final report).
+
+**Suppressed output (only when `debug_mode=false`):** explanatory prose, script paths, rationale for decisions between tool calls.
+
+**When `debug_mode=true`:** use descriptive text for `description` on all Bash and Agent tool calls; print full explanatory text (current verbose behavior).
+
+**Limitation**: Verbosity suppression is prompt-enforced and best-effort.
 
 ## Step 0 — Session Setup
 
@@ -45,9 +80,11 @@ Set `codex_available` and `cursor_available` flags for the entire session. If ei
 
 ## Step 1 — Partition the Repository
 
-### Custom criteria (if `$ARGUMENTS` is non-empty)
+After flag stripping in the Flags section above, save the remainder of `$ARGUMENTS` as `PARTITION_CRITERIA`. Use `PARTITION_CRITERIA` (not raw `$ARGUMENTS`) for all partition logic below.
 
-Parse `$ARGUMENTS` as the partition strategy:
+### Custom criteria (if `PARTITION_CRITERIA` is non-empty)
+
+Parse `PARTITION_CRITERIA` as the partition strategy:
 
 - `by directory` — same as default below
 - `by module` — one slice per logical module: group related source files, handlers, and tests together based on the project's module/package structure (e.g., one slice per package in Go, one per module directory in Python, one per feature directory in TypeScript)
@@ -56,7 +93,7 @@ Parse `$ARGUMENTS` as the partition strategy:
 
 ### Default: From partition config or auto-discovery
 
-If `$ARGUMENTS` is empty:
+If `PARTITION_CRITERIA` is empty:
 
 1. **Check for `.claude/loop-review-partitions.json`**: If this file exists, read it. It contains an array of `{"name": "<slice name>", "paths": ["<path>", ...]}` objects. Use these as the slices.
 
@@ -228,10 +265,10 @@ Track accumulated IMPLEMENT findings in `$LR_TMPDIR/impl-accumulated.md`. After 
 
 **When flushing — invoke /implement:**
 
-Build a task description combining all accumulated IMPLEMENT findings and invoke `/implement` via the Skill tool. **Always prepend `--auto --merge`** — `--auto` suppresses interactive questions, `--merge` opts into the CI+rebase+merge loop (since `/implement`'s default is now to stop after PR creation):
+Build a task description combining all accumulated IMPLEMENT findings and invoke `/implement` via the Skill tool. **Always prepend `--auto --merge`** (plus `--debug` if `debug_mode=true`) — `--auto` suppresses interactive questions, `--merge` opts into the CI+rebase+merge loop (since `/implement`'s default is now to stop after PR creation). **The `--debug` flag MUST appear before the non-flag word "Implement"** which terminates flag parsing:
 
 ```
---auto --merge Implement code review findings from loop-review (slices: <slice names>):
+[--debug] --auto --merge Implement code review findings from loop-review (slices: <slice names>):
 
 ## Changes to implement
 

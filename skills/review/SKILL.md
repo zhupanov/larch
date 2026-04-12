@@ -1,12 +1,59 @@
 ---
 name: review
 description: Code review current branch changes with specialized subagents
+argument-hint: "[--debug]"
 allowed-tools: Bash, Read, Edit, Write, Grep, Glob, Agent, Task, WebFetch, Skill
 ---
 
 # Code Review Skill
 
 Review all changes on the current branch (vs `main`) using two specialized Claude subagent reviewers plus two Codex and one Cursor reviewer, then implement all accepted suggestions.
+
+**Flags**: Parse flags from `$ARGUMENTS`. Flags may appear in any order; stop at the first non-flag token. After stripping all flags, the remainder (if any) is unused — `/review` takes no positional arguments.
+
+- `--debug`: Set a mental flag `debug_mode=true`. Controls output verbosity — see Verbosity Control below. Default: `debug_mode=false`.
+
+## Progress Reporting
+
+**Every step MUST print clearly visible status lines** so the user can instantly see where execution is at. Use distinct emoji prefixes:
+
+- Print a **start line** when entering a step: e.g., `🔍 Step 2 — Launching reviewers...`
+- Print a **completion line** when done: e.g., `✅ Step 3 — Review complete (2 rounds, 5 findings fixed)`
+
+| Step | Emoji | Description |
+|------|-------|-------------|
+| 0 | 🔧 | Session setup |
+| 1 | 📋 | Gather context |
+| 2 | 🔍 | Launch reviewers |
+| 3 | 🔄 | Collect, deduplicate, implement |
+| 4 | 📊 | Final summary |
+| 5 | 🧹 | Cleanup |
+
+### Verbosity Control
+
+**When `debug_mode=false` (default):**
+
+- Use empty string for the `description` parameter on all Bash tool calls.
+- Use terse 3-5 word descriptions for Agent tool calls.
+- Do not produce explanatory prose between tool call outputs — only print: step start/completion emoji lines, all warning/error lines (`**⚠ ...`), structured summaries (voting tallies, scoreboards, round summaries, findings lists, final summary), and the compact reviewer status table (see below).
+
+**Compact reviewer status table**: After launching all reviewers (Step 2), maintain a mental tracker of each reviewer's status. Print a compact table after EACH status change:
+
+```
+📊 Reviewers: | General: ✅ | Deep: ⏳ | Codex-G: ✅ | Codex-D: ❌ | Cursor: ⏳ |
+```
+
+Icons: ✅ done, ⏳ pending/in-progress, ❌ failed/timeout, ⊘ skipped (unavailable).
+
+**Timing**: (1) Print initial table after launching all reviewers (all ⏳ or ⊘). (2) Update after each Claude subagent returns. (3) Update after `wait-for-reviewers.sh` returns (all external reviewers resolved).
+
+This replaces individual per-reviewer completion messages in non-debug mode. Do NOT print individual "Reviewer X completed" or "Reviewer X returned N findings" lines.
+
+**Suppressed output (only when `debug_mode=false`):** explanatory prose, script paths, rationale for decisions between tool calls, per-reviewer individual completion messages.
+
+**When `debug_mode=true`:** use descriptive text for `description` on all Bash and Agent tool calls; print full explanatory text and BOTH status table and per-reviewer details.
+
+**Limitation**: Verbosity suppression is prompt-enforced and best-effort.
 
 ## Domain-Specific Review Rules
 

@@ -1,7 +1,7 @@
 ---
 name: research
 description: Collaborative read-only research using 5 research agents (3 Claude + Cursor + Codex) then 5 validation reviewers (2 Claude + 2 Codex + Cursor). Produces findings summary, risk assessment, difficulty estimates, and feasibility verdict without modifying the repo.
-argument-hint: "<research question or topic>"
+argument-hint: "[--debug] <research question or topic>"
 allowed-tools: Bash, Read, Grep, Glob, Agent, Task, WebFetch, WebSearch
 ---
 
@@ -9,7 +9,11 @@ allowed-tools: Bash, Read, Grep, Glob, Agent, Task, WebFetch, WebSearch
 
 Collaborative read-only research task using 5 research agents (3 Claude subagents + Codex + Cursor) and 5 validation reviewers (2 Claude subagents + 2 Codex + Cursor). Produces a structured research report without modifying the repository.
 
-The research question is described by `$ARGUMENTS`.
+**Flags**: Parse flags from the start of `$ARGUMENTS` before treating the remainder as the research question. Flags may appear in any order; stop at the first non-flag token. After stripping all flags, save the remainder as `RESEARCH_QUESTION`.
+
+- `--debug`: Set a mental flag `debug_mode=true`. Controls output verbosity — see Verbosity Control below. Default: `debug_mode=false`.
+
+The research question is described by `RESEARCH_QUESTION` (not raw `$ARGUMENTS`). Use `RESEARCH_QUESTION` wherever human-readable topic text is needed (e.g., agent prompts, report headers, temp file content).
 
 **Read-only contract**: This skill does NOT create branches, modify files, or make commits. All scratch artifacts are written to `/tmp` via Bash. The `allowed-tools` frontmatter omits `Edit`, `Write`, and `Skill` — the orchestrating agent cannot use those tools. External reviewers (Codex, Cursor) are instructed not to modify files, but this is a behavioral constraint (prompt-enforced), not mechanically enforced. Known limitation: concurrent repo changes during a long research run may cause agents to see slightly different snapshots.
 
@@ -28,6 +32,28 @@ Suggested emoji palette (use consistently):
 | 2 | 🔍 | Findings validation |
 | 3 | 📊 | Final research report |
 | 4 | 🏁 | Cleanup |
+
+### Verbosity Control
+
+**When `debug_mode=false` (default):**
+
+- Use empty string for the `description` parameter on all Bash tool calls.
+- Use terse 3-5 word descriptions for Agent tool calls.
+- Do not produce explanatory prose between tool call outputs — only print: step start/completion emoji lines, all warning/error lines (`**⚠ ...`), structured summaries (findings, risk assessments, research report sections), and the compact agent status table (see below).
+
+**Compact agent status table**: After launching research agents (Step 1) or validation reviewers (Step 2), maintain a mental tracker of each agent's status. Print a compact table after EACH status change:
+
+```
+📊 Agents: | General: ✅ | Domain: ⏳ | Contrarian: ✅ | Cursor: ❌ | Codex: ⏳ |
+```
+
+Icons: ✅ done, ⏳ pending/in-progress, ❌ failed/timeout, ⊘ skipped (unavailable). This replaces individual per-agent completion messages in non-debug mode.
+
+**Suppressed output (only when `debug_mode=false`):** explanatory prose, script paths, rationale for decisions between tool calls, per-agent individual completion messages.
+
+**When `debug_mode=true`:** use descriptive text for `description` on all Bash and Agent tool calls; print full explanatory text and BOTH status table and per-agent details.
+
+**Limitation**: Verbosity suppression is prompt-enforced and best-effort.
 
 ## Step 0 — Session Setup
 
@@ -260,7 +286,7 @@ Print the final research report under a `## Research Report` header with the fol
 ```markdown
 ## Research Report
 
-**Research question**: <the original $ARGUMENTS>
+**Research question**: <RESEARCH_QUESTION>
 **Codebase context**: Branch `<CURRENT_BRANCH>`, commit `<HEAD_SHA>`
 **Research phase**: <N> agents (Cursor: ✅/❌, Codex: ✅/❌)
 **Validation phase**: <N> reviewers (Cursor: ✅/❌, Codex: ✅/❌)
