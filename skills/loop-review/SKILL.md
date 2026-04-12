@@ -74,7 +74,7 @@ ${CLAUDE_PLUGIN_ROOT}/skills/loop-review/scripts/init-session-files.sh --dir "$L
 
 ### 0c — Quick External Reviewer Check
 
-Read and follow the **Binary Check** section in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`.
+Read and follow the **Binary Check and Health Probe** section in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`.
 
 Set `codex_available` and `cursor_available` flags for the entire session. If either is unavailable, append the warning to `$LR_TMPDIR/warnings.md`.
 

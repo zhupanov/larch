@@ -14,7 +14,8 @@
 #   --skip-slack-check    Skip LARCH_SLACK_BOT_TOKEN and LARCH_SLACK_CHANNEL_ID check entirely
 #   --skip-repo-check     Skip repo name derivation entirely
 #   --caller-env <path>   Path to KEY=value file with already-discovered values.
-#                          Recognized keys: SLACK_OK, SLACK_MISSING, REPO, REPO_UNAVAILABLE.
+#                          Recognized keys: SLACK_OK, SLACK_MISSING, REPO, REPO_UNAVAILABLE,
+#                          CODEX_HEALTHY, CURSOR_HEALTHY.
 #                          If a key is present and non-empty, the script skips re-deriving it.
 #                          SESSION_TMPDIR is never inherited — a fresh tmpdir is always created.
 #                          If the file does not exist or is empty, full discovery happens.
@@ -25,6 +26,8 @@
 #   SLACK_MISSING=<csv>         Output when SLACK_OK=false (comma-separated missing var names)
 #   REPO=<owner/repo>           Output unless --skip-repo-check
 #   REPO_UNAVAILABLE=true|false Output unless --skip-repo-check
+#   CODEX_HEALTHY=<value>       Output if present in --caller-env (passthrough only)
+#   CURSOR_HEALTHY=<value>      Output if present in --caller-env (passthrough only)
 #
 # On preflight failure, outputs PREFLIGHT_ERROR=<message> and exits non-zero.
 #
@@ -74,6 +77,8 @@ CALLER_SLACK_OK=""
 CALLER_SLACK_MISSING=""
 CALLER_REPO=""
 CALLER_REPO_UNAVAILABLE=""
+CALLER_CODEX_HEALTHY=""
+CALLER_CURSOR_HEALTHY=""
 
 if [[ -n "$CALLER_ENV" && -f "$CALLER_ENV" ]]; then
     while IFS='=' read -r key value || [[ -n "$key" ]]; do
@@ -84,6 +89,8 @@ if [[ -n "$CALLER_ENV" && -f "$CALLER_ENV" ]]; then
             SLACK_MISSING)     CALLER_SLACK_MISSING="$value" ;;
             REPO)              CALLER_REPO="$value" ;;
             REPO_UNAVAILABLE)  CALLER_REPO_UNAVAILABLE="$value" ;;
+            CODEX_HEALTHY)     CALLER_CODEX_HEALTHY="$value" ;;
+            CURSOR_HEALTHY)    CALLER_CURSOR_HEALTHY="$value" ;;
             *)                 ;; # Ignore unknown keys
         esac
     done < "$CALLER_ENV"
@@ -190,4 +197,12 @@ if [[ "$SKIP_REPO_CHECK" == "false" ]]; then
         echo "REPO=$REPO"
         echo "REPO_UNAVAILABLE=$REPO_UNAVAILABLE"
     fi
+fi
+
+# --- 5. Re-emit reviewer health keys (passthrough from caller-env) ---
+if [[ -n "$CALLER_CODEX_HEALTHY" ]]; then
+    echo "CODEX_HEALTHY=$CALLER_CODEX_HEALTHY"
+fi
+if [[ -n "$CALLER_CURSOR_HEALTHY" ]]; then
+    echo "CURSOR_HEALTHY=$CALLER_CURSOR_HEALTHY"
 fi

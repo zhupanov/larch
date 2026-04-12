@@ -89,16 +89,39 @@ Parse the output for `SESSION_TMPDIR`, `SLACK_OK`, `SLACK_MISSING`, `REPO`, `REP
 - If `SLACK_OK=false`, print: `**⚠ Slack is not fully configured (<SLACK_MISSING> not set). Slack announcement (Step 11) and :merged: emoji (Step 13) will be skipped.**` Set a mental flag `slack_available=false`.
 - If `REPO_UNAVAILABLE=true`, print `**⚠ Could not determine repository name. CI monitoring (Steps 10, 12) and merge (Step 12b) will be skipped.**` Set a mental flag `repo_unavailable=true`.
 
+### Health Probe
+
+Run the reviewer health probe to determine initial external reviewer availability. If `SESSION_ENV_PATH` is non-empty, first parse the `session-setup.sh` output for `CODEX_HEALTHY` and `CURSOR_HEALTHY` (passed through from caller-env). If either is `false`, pass the corresponding `--skip-codex-probe` or `--skip-cursor-probe` flag to avoid re-probing a tool already known to be unhealthy:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/check-reviewers.sh --probe [--skip-codex-probe] [--skip-cursor-probe]
+```
+
+Parse the output for `CODEX_AVAILABLE`, `CURSOR_AVAILABLE`, `CODEX_HEALTHY`, `CURSOR_HEALTHY`. Use the same precedence as `external-reviewers.md`:
+- If `CODEX_AVAILABLE=false`: print `**⚠ Codex not available (binary not found). Proceeding without Codex reviewer.**`
+- Else if `CODEX_HEALTHY=false`: print `**⚠ Codex installed but not responding (health check failed). Using Claude replacement.**`
+- Same for Cursor. Only check `*_HEALTHY` when `*_AVAILABLE=true`.
+
 ### Write Session Env for Child Skills
 
-Write the discovered values to `$IMPLEMENT_TMPDIR/session-env.sh` so they can be forwarded to `/design`:
+Write the discovered values to `$IMPLEMENT_TMPDIR/session-env.sh` so they can be forwarded to child skills (`/design`, `/review`):
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/write-session-env.sh --output "$IMPLEMENT_TMPDIR/session-env.sh" \
-  --slack-ok <value> --slack-missing <value> --repo <value> --repo-unavailable <value>
+  --slack-ok <value> --slack-missing <value> --repo <value> --repo-unavailable <value> \
+  --codex-healthy <value> --cursor-healthy <value>
 ```
 
-This file will be passed to `/design` via `--session-env` in Step 1.
+This file will be passed to `/design` via `--session-env` in Step 1, and to `/review` via `--session-env` in Step 5.
+
+### Cross-Skill Health Propagation
+
+After each child skill returns (`/design` in Step 1, `/review` in Step 5), check for a health status file at `$IMPLEMENT_TMPDIR/session-env.sh.health`. If it exists, read `CODEX_HEALTHY` and `CURSOR_HEALTHY` from it. If either value changed to `false` (a reviewer timed out during the child skill):
+
+1. Read the current values from `$IMPLEMENT_TMPDIR/session-env.sh` (parse `SLACK_OK`, `SLACK_MISSING`, `REPO`, `REPO_UNAVAILABLE` line-by-line, same safe parsing as `session-setup.sh` — do NOT source the file)
+2. Re-write the file using `write-session-env.sh` with those preserved values plus the updated health flags
+
+This ensures runtime timeouts propagate across skill boundaries within the `/implement` flow without clobbering existing Slack/repo state.
 
 ## Execution Issues Tracking
 
@@ -175,6 +198,10 @@ Proceed to Step 2.
 - If `IS_USER_BRANCH=true` **AND** a reviewed implementation plan is visible in the conversation context above: The plan was created by a prior `/design` invocation in this session. Proceed to Step 2.
 - If `IS_USER_BRANCH=true` but **no** implementation plan is visible in the conversation context: Invoke the `/design` skill with `--session-env $IMPLEMENT_TMPDIR/session-env.sh` prepended to the feature description to create a plan on the current branch. **If `auto_mode=true`, also prepend `--auto`**. **If `debug_mode=true`, also prepend `--debug`**. Canonical invocation order: `[--debug] [--auto] --session-env $IMPLEMENT_TMPDIR/session-env.sh <FEATURE_DESCRIPTION>`. After `/design` completes, proceed to Step 2.
 - If on `main` or empty (detached HEAD) or any non-user branch: No design plan exists yet. Invoke the `/design` skill with `--session-env $IMPLEMENT_TMPDIR/session-env.sh` prepended to the feature description to create a branch and design the plan. **If `auto_mode=true`, also prepend `--auto`**. **If `debug_mode=true`, also prepend `--debug`**. Canonical invocation order: `[--debug] [--auto] --session-env $IMPLEMENT_TMPDIR/session-env.sh <FEATURE_DESCRIPTION>`. After `/design` completes, proceed to Step 2.
+
+### Cross-Skill Health Update (after /design)
+
+After `/design` returns (in normal mode), follow the **Cross-Skill Health Propagation** procedure from Step 0: read `$IMPLEMENT_TMPDIR/session-env.sh.health` if it exists, and re-write `$IMPLEMENT_TMPDIR/session-env.sh` with updated health flags if any reviewer timed out during `/design`.
 
 ### Capture branch name (`BRANCH_NAME`)
 
@@ -268,7 +295,9 @@ Print: `🔍 Step 5 — Quick mode: simplified review (2 Claude subagents, 1 rou
 
 **IMPORTANT: Code review must ALWAYS be invoked via `/review`. Never skip this step regardless of the nature of the changes — whether code, skills, documentation, data files, or configuration. All changes require full review.**
 
-Invoke the `/review` skill. **If `debug_mode=true`, invoke `/review --debug`.** Otherwise, invoke `/review` with no arguments. This launches 2 parallel Claude subagent reviewers (general, deep-analysis) plus two Codex and Cursor reviewers (if available), implements their suggestions recursively until clean.
+Invoke the `/review` skill with `--session-env $IMPLEMENT_TMPDIR/session-env.sh` to forward reviewer health state. **If `debug_mode=true`, invoke `/review --debug --session-env $IMPLEMENT_TMPDIR/session-env.sh`.** Otherwise, invoke `/review --session-env $IMPLEMENT_TMPDIR/session-env.sh`. This launches 2 parallel Claude subagent reviewers (general, deep-analysis) plus two Codex and Cursor reviewers (if available and healthy), implements their suggestions recursively until clean.
+
+After `/review` returns, follow the **Cross-Skill Health Propagation** procedure from Step 0 to read the health status file and update `session-env.sh` if any reviewer timed out during the review.
 
 ### Track Rejected Code Review Findings
 
@@ -855,7 +884,7 @@ For each file in `CONFLICT_FILES`:
 
 **3a. Create temp directory**: Create `$IMPLEMENT_TMPDIR/conflict-review/` for reviewer artifacts. If it already exists (from a prior conflict resolution in this rebase loop), remove it and recreate.
 
-**3b. Check external reviewer availability**: Run `${CLAUDE_PLUGIN_ROOT}/scripts/check-reviewers.sh` to set `codex_available` and `cursor_available` flags. Follow the Binary Check procedure in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`.
+**3b. Check external reviewer availability**: Follow the **Binary Check and Health Probe** procedure in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`. Honor any `CODEX_HEALTHY=false` / `CURSOR_HEALTHY=false` state from the session-env (reviewers already known to be unhealthy should not be re-probed or used).
 
 **3c. Prepare review context**: For each non-trivial conflicted file, prepare a per-file conflict context block:
 ```

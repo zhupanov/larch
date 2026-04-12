@@ -1,7 +1,7 @@
 ---
 name: review
 description: Code review current branch changes with specialized subagents
-argument-hint: "[--debug]"
+argument-hint: "[--debug] [--session-env <path>]"
 allowed-tools: Bash, Read, Edit, Write, Grep, Glob, Agent, Task, WebFetch, Skill
 ---
 
@@ -12,6 +12,7 @@ Review all changes on the current branch (vs `main`) using two specialized Claud
 **Flags**: Parse flags from `$ARGUMENTS`. Flags may appear in any order; stop at the first non-flag token. After stripping all flags, the remainder (if any) is unused — `/review` takes no positional arguments.
 
 - `--debug`: Set a mental flag `debug_mode=true`. Controls output verbosity — see Verbosity Control below. Default: `debug_mode=false`.
+- `--session-env <path>`: Set `SESSION_ENV_PATH` to the given path. This file contains already-discovered session values from a caller skill (e.g., `/implement`) including reviewer health state (`CODEX_HEALTHY`, `CURSOR_HEALTHY`). If not provided, `SESSION_ENV_PATH` is empty (standalone invocation — full health probe at Step 0b).
 
 ## Progress Reporting
 
@@ -82,9 +83,24 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/create-session-tmpdir.sh --prefix claude-review
 
 Parse the output for `SESSION_TMPDIR`. Set `REVIEW_TMPDIR` = `SESSION_TMPDIR`. Substitute the actual path in every command below.
 
+### 0a.1 — Read Session Env (if provided)
+
+If `SESSION_ENV_PATH` is non-empty, read the file and parse `CODEX_HEALTHY` and `CURSOR_HEALTHY` keys (line-by-line, same safe parsing as `session-setup.sh` — do NOT source the file). Save these values for use in Step 0b. If the file does not exist or keys are absent, treat health as unknown (will be probed in Step 0b).
+
 ### 0b — Quick External Reviewer Check
 
-Read and follow the **Binary Check** section in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`.
+Read and follow the **Binary Check and Health Probe** section in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`. If `SESSION_ENV_PATH` provided `CODEX_HEALTHY=false` or `CURSOR_HEALTHY=false`, honor those values per the session-env override procedure in that section.
+
+### 0b.1 — Write Health Status File (if session-env provided)
+
+If `SESSION_ENV_PATH` is non-empty, write the final reviewer health state to `${SESSION_ENV_PATH}.health` so the calling skill (e.g., `/implement`) can read it after `/review` returns:
+
+```
+CODEX_HEALTHY=<true|false>
+CURSOR_HEALTHY=<true|false>
+```
+
+This file reflects both inherited health state and any runtime timeout fallbacks that occurred during this skill's execution. The calling skill reads this file to update its session-env before invoking the next child skill.
 
 ## Step 1 — Gather Context
 
@@ -276,6 +292,12 @@ Print a final summary:
 - **External reviewer warnings** (repeat any preflight or runtime warnings from Codex/Cursor here so they are visible at the end)
 
 ## Step 5 — Cleanup
+
+### 5a — Update Health Status File
+
+If `SESSION_ENV_PATH` is non-empty and any reviewer was marked unhealthy during this session (via the Runtime Timeout Fallback procedure in `external-reviewers.md`), re-write the health status file at `${SESSION_ENV_PATH}.health` with the final health state before cleanup. This ensures the calling skill sees any runtime timeouts that occurred during this skill's execution, not just the initial state.
+
+### 5b — Remove Temp Directory
 
 Remove the session temp directory and all files within it:
 
