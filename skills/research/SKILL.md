@@ -69,7 +69,7 @@ Parse the output for `SESSION_TMPDIR`. Set `RESEARCH_TMPDIR` = `SESSION_TMPDIR`.
 
 ### 0b — Quick External Reviewer Check
 
-Read and follow the **Binary Check** section in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`.
+Read and follow the **Binary Check and Health Probe** section in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`.
 
 ### 0c — Record Research Context
 

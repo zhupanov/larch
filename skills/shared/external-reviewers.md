@@ -2,21 +2,40 @@
 
 Shared mechanical procedures for running Codex and Cursor as external reviewers. Each skill provides its own reviewer invocation commands (prompts, output paths, tmpdir variables) — this file covers the common scaffolding.
 
-## Binary Check (Step 0b)
+## Binary Check and Health Probe (Step 0b)
 
-Run the shared `check-reviewers.sh` script to check for Codex and Cursor binaries:
+Run the shared `check-reviewers.sh` script with `--probe` to check for binaries **and** verify each tool is actually responding:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/check-reviewers.sh
+${CLAUDE_PLUGIN_ROOT}/scripts/check-reviewers.sh --probe
 ```
 
-Parse the output for `CODEX_AVAILABLE` and `CURSOR_AVAILABLE`.
+Parse the output for `CODEX_AVAILABLE`, `CURSOR_AVAILABLE`, `CODEX_HEALTHY`, `CURSOR_HEALTHY`.
 
-Set mental flags `codex_available` and `cursor_available` from the script output. For each that is `false`, print a **bold** warning:
-- `**⚠ Codex not available (binary not found). Proceeding without Codex reviewer.**`
-- `**⚠ Cursor not available (binary not found). Proceeding without Cursor reviewer.**`
+**Session-env override**: If session-env (from `--caller-env` or `--session-env`) provides `CODEX_HEALTHY=false` or `CURSOR_HEALTHY=false`, set the corresponding `*_available` mental flag to `false` immediately **without re-probing that tool**. Still run the full check (binary + probe) for tools whose health is unknown (not present in session-env). Print: `**⚠ <Codex|Cursor> marked unhealthy by caller — using Claude replacement for this session.**`
 
-**Note**: If either tool is installed but fails during the actual review (e.g., auth issues, timeout), the failure is handled gracefully — the review proceeds with warnings.
+Set mental flags `codex_available` and `cursor_available` based on the combined result:
+- If `CODEX_AVAILABLE=false`: `codex_available=false`. Print: `**⚠ Codex not available (binary not found). Proceeding without Codex reviewer.**`
+- Else if `CODEX_HEALTHY=false`: `codex_available=false`. Print: `**⚠ Codex installed but not responding (health check failed). Using Claude replacement.**`
+- Else: `codex_available=true`
+- Same logic for Cursor.
+
+**Note**: `*_AVAILABLE` is a pure install-state signal (binary exists on PATH). `*_HEALTHY` indicates whether the tool actually responded to a trivial prompt within the 60-second probe timeout. Callers must combine both to determine runtime usability.
+
+## Runtime Timeout Fallback
+
+When processing reviewer results (after `wait-for-reviewers.sh` returns), check each reviewer's sentinel file exit code and output validity. If any of the following are true for a reviewer, set the corresponding `*_available` mental flag to `false` for **all subsequent steps in this session**:
+
+- Sentinel exit code is `124` (timeout — the common case when `run-external-reviewer.sh` enforces its timeout)
+- Sentinel exit code is non-zero (any other failure)
+- Output is empty/invalid after the retry-once procedure (per "Validating External Reviewer Output" below)
+- `wait-for-reviewers.sh` reports `TIMEOUT` for the reviewer (sentinel never appeared — wrapper killed externally)
+
+Print: `**⚠ <Reviewer> timed out — using Claude replacement for remainder of session.**`
+
+This is a mental flag flip within the current skill invocation. For cross-skill propagation within `/implement`, child skills write a structured health status file — see the `/implement` SKILL.md for details.
+
+**Note**: Once a reviewer is marked unhealthy during a session, it stays unhealthy for the remainder of that session. This is intentional — it prevents oscillation and wasted time on flaky tools during extended outages.
 
 ## Monitoring External Reviewers
 

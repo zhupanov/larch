@@ -77,11 +77,22 @@ Only include `--caller-env "$SESSION_ENV_PATH"` if `SESSION_ENV_PATH` is non-emp
 
 If the script exits non-zero, print the `PREFLIGHT_ERROR` from its output and abort.
 
-Parse the output for `SESSION_TMPDIR`. Set `DESIGN_TMPDIR` = `SESSION_TMPDIR`. Substitute the actual path in every command below.
+Parse the output for `SESSION_TMPDIR`, and also `CODEX_HEALTHY`, `CURSOR_HEALTHY` if present (passed through from caller-env). Set `DESIGN_TMPDIR` = `SESSION_TMPDIR`. Substitute the actual path in every command below.
 
 ### 0b — Quick External Reviewer Check
 
-Read and follow the **Binary Check** section in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`.
+Read and follow the **Binary Check and Health Probe** section in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`. If `session-setup.sh` output included `CODEX_HEALTHY=false` or `CURSOR_HEALTHY=false` (inherited from caller), honor those values per the session-env override procedure in that section.
+
+### 0b.1 — Write Health Status File (if session-env provided)
+
+If `SESSION_ENV_PATH` is non-empty, write the initial reviewer health state to `${SESSION_ENV_PATH}.health` so the calling skill (e.g., `/implement`) can read it after `/design` returns:
+
+```
+CODEX_HEALTHY=<true|false>
+CURSOR_HEALTHY=<true|false>
+```
+
+This file reflects both inherited health state and the probe result. It will be updated again before cleanup if any runtime timeout fallbacks occur during this skill's execution.
 
 ## Step 1 — Create Branch
 
@@ -605,6 +616,12 @@ Print any rejected plan review findings:
 3. If the file doesn't exist or is empty, print: `📊 Step 4 — All plan review suggestions were implemented.`
 
 ## Step 5 — Cleanup and Final Warnings
+
+### 5a — Update Health Status File
+
+If `SESSION_ENV_PATH` is non-empty and any reviewer was marked unhealthy during this session (via the Runtime Timeout Fallback procedure in `external-reviewers.md`), re-write the health status file at `${SESSION_ENV_PATH}.health` with the final health state before cleanup. This ensures the calling skill sees any runtime timeouts that occurred during this skill's execution, not just the initial state.
+
+### 5b — Remove Temp Directory
 
 Remove the session temp directory and all files within it:
 
