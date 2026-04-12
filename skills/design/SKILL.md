@@ -25,7 +25,7 @@ The feature to design is described by the remainder of `$ARGUMENTS` after flags 
 
 - Print a **start line** when entering a step: e.g., `🔀 Step 1 — Creating branch...`
 - Print a **completion line** only when it carries informational payload (counts, outcomes, or conditional-skip reasons). Pure "step complete" announcements without payload are not needed — the start line of the next step signals completion. Only the final step (Step 5) prints an unconditional completion announcement.
-- When `STEP_PREFIX` is non-empty, prepend it to step numbers **in emoji status lines only** (e.g., `🔀 Step 1.1 — Creating branch...` when `STEP_PREFIX="1."`). Do NOT prefix section headers (e.g., `## Implementation Plan`), structured output headers, or artifact labels.
+- When `STEP_PREFIX` is non-empty, prepend it to step numbers **in emoji status lines only** (e.g., `🔀 Step 1.1 — Creating branch...` when `STEP_PREFIX="1."`). Do NOT prefix section headers (e.g., `## Implementation Plan`), structured output headers, or artifact labels. **This rule overrides the literal step numbers in `Print:` directives and examples throughout this file** — whenever a `Print:` line or example contains `Step N`, emit `Step ${STEP_PREFIX}N` instead (e.g., `Print: \`❓ Step 1c\`` becomes `❓ Step 1.1c` when `STEP_PREFIX="1."`).
 
 Suggested emoji palette (use consistently):
 | Step | Emoji | Description |
@@ -635,4 +635,5 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-tmpdir.sh --dir "$DESIGN_TMPDIR"
 - `**⚠ Codex sketch timed out / produced empty output**`
 - `**⚠ Step 3b — Architecture diagram generation failed. Proceeding without diagram.**`
 
-Print: `🏁 Step 5 — Design complete! The implementation plan is ready. Run /implement to proceed with implementation.`
+If `STEP_PREFIX` is empty (standalone mode): Print: `🏁 Step 5 — Design complete! The implementation plan is ready. Run /implement to proceed with implementation.`
+If `STEP_PREFIX` is non-empty (orchestrated mode): skip this final print — the parent orchestrator handles overall progress.

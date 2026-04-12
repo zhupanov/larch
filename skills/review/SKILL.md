@@ -21,7 +21,7 @@ Review all changes on the current branch (vs `main`) using two specialized Claud
 
 - Print a **start line** when entering a step: e.g., `🔍 Step 2 — Launching reviewers...`
 - Print a **completion line** only when it carries informational payload (counts, outcomes, or conditional-skip reasons). Pure "step complete" announcements without payload are not needed — the start line of the next step signals completion.
-- When `STEP_PREFIX` is non-empty, prepend it to step numbers **in emoji status lines only** (e.g., `🔍 Step 5.2 — Launching reviewers...` when `STEP_PREFIX="5."`). Do NOT prefix section headers (e.g., `## Review Round {N}`), structured output headers, or artifact labels.
+- When `STEP_PREFIX` is non-empty, prepend it to step numbers **in emoji status lines only** (e.g., `🔍 Step 5.2 — Launching reviewers...` when `STEP_PREFIX="5."`). Do NOT prefix section headers (e.g., `## Review Round {N}`), structured output headers, or artifact labels. **This rule overrides the literal step numbers in `Print:` directives and examples throughout this file** — whenever a `Print:` line or example contains `Step N`, emit `Step ${STEP_PREFIX}N` instead.
 
 | Step | Emoji | Description |
 |------|-------|-------------|
