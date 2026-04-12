@@ -80,9 +80,11 @@ Set `codex_available` and `cursor_available` flags for the entire session. If ei
 
 ## Step 1 — Partition the Repository
 
-### Custom criteria (if `$ARGUMENTS` is non-empty)
+After flag stripping in the Flags section above, save the remainder of `$ARGUMENTS` as `PARTITION_CRITERIA`. Use `PARTITION_CRITERIA` (not raw `$ARGUMENTS`) for all partition logic below.
 
-Parse `$ARGUMENTS` as the partition strategy:
+### Custom criteria (if `PARTITION_CRITERIA` is non-empty)
+
+Parse `PARTITION_CRITERIA` as the partition strategy:
 
 - `by directory` — same as default below
 - `by module` — one slice per logical module: group related source files, handlers, and tests together based on the project's module/package structure (e.g., one slice per package in Go, one per module directory in Python, one per feature directory in TypeScript)
@@ -91,7 +93,7 @@ Parse `$ARGUMENTS` as the partition strategy:
 
 ### Default: From partition config or auto-discovery
 
-If `$ARGUMENTS` is empty:
+If `PARTITION_CRITERIA` is empty:
 
 1. **Check for `.claude/loop-review-partitions.json`**: If this file exists, read it. It contains an array of `{"name": "<slice name>", "paths": ["<path>", ...]}` objects. Use these as the slices.
 

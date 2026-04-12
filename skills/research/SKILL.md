@@ -9,11 +9,11 @@ allowed-tools: Bash, Read, Grep, Glob, Agent, Task, WebFetch, WebSearch
 
 Collaborative read-only research task using 5 research agents (3 Claude subagents + Codex + Cursor) and 5 validation reviewers (2 Claude subagents + 2 Codex + Cursor). Produces a structured research report without modifying the repository.
 
-**Flags**: Parse flags from the start of `$ARGUMENTS` before treating the remainder as the research question. Flags may appear in any order; stop at the first non-flag token. After stripping all flags, save the remainder as the research question.
+**Flags**: Parse flags from the start of `$ARGUMENTS` before treating the remainder as the research question. Flags may appear in any order; stop at the first non-flag token. After stripping all flags, save the remainder as `RESEARCH_QUESTION`.
 
 - `--debug`: Set a mental flag `debug_mode=true`. Controls output verbosity — see Verbosity Control below. Default: `debug_mode=false`.
 
-The research question is described by `$ARGUMENTS` after flag stripping.
+The research question is described by `RESEARCH_QUESTION` (not raw `$ARGUMENTS`). Use `RESEARCH_QUESTION` wherever human-readable topic text is needed (e.g., agent prompts, report headers, temp file content).
 
 **Read-only contract**: This skill does NOT create branches, modify files, or make commits. All scratch artifacts are written to `/tmp` via Bash. The `allowed-tools` frontmatter omits `Edit`, `Write`, and `Skill` — the orchestrating agent cannot use those tools. External reviewers (Codex, Cursor) are instructed not to modify files, but this is a behavioral constraint (prompt-enforced), not mechanically enforced. Known limitation: concurrent repo changes during a long research run may cause agents to see slightly different snapshots.
 
@@ -286,7 +286,7 @@ Print the final research report under a `## Research Report` header with the fol
 ```markdown
 ## Research Report
 
-**Research question**: <the original $ARGUMENTS>
+**Research question**: <RESEARCH_QUESTION>
 **Codebase context**: Branch `<CURRENT_BRANCH>`, commit `<HEAD_SHA>`
 **Research phase**: <N> agents (Cursor: ✅/❌, Codex: ✅/❌)
 **Validation phase**: <N> reviewers (Cursor: ✅/❌, Codex: ✅/❌)
