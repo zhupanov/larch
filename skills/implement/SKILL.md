@@ -91,13 +91,16 @@ Parse the output for `SESSION_TMPDIR`, `SLACK_OK`, `SLACK_MISSING`, `REPO`, `REP
 
 ### Health Probe
 
-Run the reviewer health probe to determine initial external reviewer availability:
+Run the reviewer health probe to determine initial external reviewer availability. If `SESSION_ENV_PATH` is non-empty, first parse the `session-setup.sh` output for `CODEX_HEALTHY` and `CURSOR_HEALTHY` (passed through from caller-env). If either is `false`, pass the corresponding `--skip-codex-probe` or `--skip-cursor-probe` flag to avoid re-probing a tool already known to be unhealthy:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/check-reviewers.sh --probe
+${CLAUDE_PLUGIN_ROOT}/scripts/check-reviewers.sh --probe [--skip-codex-probe] [--skip-cursor-probe]
 ```
 
-Parse the output for `CODEX_AVAILABLE`, `CURSOR_AVAILABLE`, `CODEX_HEALTHY`, `CURSOR_HEALTHY`. If `CODEX_HEALTHY=false`, print: `**⚠ Codex installed but not responding (health check failed). Using Claude replacement.**` If `CURSOR_HEALTHY=false`, print: `**⚠ Cursor installed but not responding (health check failed). Using Claude replacement.**` If a binary is not found (`*_AVAILABLE=false`), print the standard binary-not-found warning.
+Parse the output for `CODEX_AVAILABLE`, `CURSOR_AVAILABLE`, `CODEX_HEALTHY`, `CURSOR_HEALTHY`. Use the same precedence as `external-reviewers.md`:
+- If `CODEX_AVAILABLE=false`: print `**⚠ Codex not available (binary not found). Proceeding without Codex reviewer.**`
+- Else if `CODEX_HEALTHY=false`: print `**⚠ Codex installed but not responding (health check failed). Using Claude replacement.**`
+- Same for Cursor. Only check `*_HEALTHY` when `*_AVAILABLE=true`.
 
 ### Write Session Env for Child Skills
 
@@ -113,7 +116,12 @@ This file will be passed to `/design` via `--session-env` in Step 1, and to `/re
 
 ### Cross-Skill Health Propagation
 
-After each child skill returns (`/design` in Step 1, `/review` in Step 5), check for a health status file at `$IMPLEMENT_TMPDIR/session-env.sh.health`. If it exists, read `CODEX_HEALTHY` and `CURSOR_HEALTHY` from it. If either value changed to `false` (a reviewer timed out during the child skill), re-write `$IMPLEMENT_TMPDIR/session-env.sh` with updated health flags using `write-session-env.sh` before invoking the next child skill. This ensures runtime timeouts propagate across skill boundaries within the `/implement` flow.
+After each child skill returns (`/design` in Step 1, `/review` in Step 5), check for a health status file at `$IMPLEMENT_TMPDIR/session-env.sh.health`. If it exists, read `CODEX_HEALTHY` and `CURSOR_HEALTHY` from it. If either value changed to `false` (a reviewer timed out during the child skill):
+
+1. Read the current values from `$IMPLEMENT_TMPDIR/session-env.sh` (parse `SLACK_OK`, `SLACK_MISSING`, `REPO`, `REPO_UNAVAILABLE` line-by-line, same safe parsing as `session-setup.sh` — do NOT source the file)
+2. Re-write the file using `write-session-env.sh` with those preserved values plus the updated health flags
+
+This ensures runtime timeouts propagate across skill boundaries within the `/implement` flow without clobbering existing Slack/repo state.
 
 ## Execution Issues Tracking
 

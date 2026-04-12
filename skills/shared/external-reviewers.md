@@ -12,7 +12,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/check-reviewers.sh --probe
 
 Parse the output for `CODEX_AVAILABLE`, `CURSOR_AVAILABLE`, `CODEX_HEALTHY`, `CURSOR_HEALTHY`.
 
-**Session-env override**: If session-env (from `--caller-env` or `--session-env`) provides `CODEX_HEALTHY=false` or `CURSOR_HEALTHY=false`, set the corresponding `*_available` mental flag to `false` immediately **without re-probing that tool**. Still run the full check (binary + probe) for tools whose health is unknown (not present in session-env). Print: `**⚠ <Codex|Cursor> marked unhealthy by caller — using Claude replacement for this session.**`
+**Session-env override**: If session-env (from `--caller-env` or `--session-env`) provides `CODEX_HEALTHY=false` or `CURSOR_HEALTHY=false`, set the corresponding `*_available` mental flag to `false` immediately **without re-probing that tool**. Pass `--skip-codex-probe` and/or `--skip-cursor-probe` to `check-reviewers.sh` for tools already known unhealthy. Still run the full check (binary + probe) for tools whose health is unknown (not present in session-env). Print: `**⚠ <Codex|Cursor> marked unhealthy by caller — using Claude replacement for this session.**`
 
 Set mental flags `codex_available` and `cursor_available` based on the combined result:
 - If `CODEX_AVAILABLE=false`: `codex_available=false`. Print: `**⚠ Codex not available (binary not found). Proceeding without Codex reviewer.**`

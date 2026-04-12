@@ -6,7 +6,7 @@
 # actually responding (catches auth failures, network issues, outages).
 #
 # Usage:
-#   check-reviewers.sh [--probe]
+#   check-reviewers.sh [--probe] [--skip-codex-probe] [--skip-cursor-probe]
 #
 # Outputs (key=value to stdout):
 #   CODEX_AVAILABLE=true|false    — binary exists on PATH
@@ -23,9 +23,17 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 PROBE=false
-if [[ "${1:-}" == "--probe" ]]; then
-    PROBE=true
-fi
+SKIP_CODEX_PROBE=false
+SKIP_CURSOR_PROBE=false
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --probe)              PROBE=true; shift ;;
+        --skip-codex-probe)   SKIP_CODEX_PROBE=true; shift ;;
+        --skip-cursor-probe)  SKIP_CURSOR_PROBE=true; shift ;;
+        *) echo "check-reviewers.sh: unknown argument: $1" >&2; exit 1 ;;
+    esac
+done
 
 CODEX_AVAILABLE="false"
 CURSOR_AVAILABLE="false"
@@ -49,8 +57,10 @@ if [[ "$PROBE" == "true" ]]; then
     # Clean up probe tmpdir on exit
     trap 'rm -rf "$PROBE_DIR"' EXIT
 
-    # Launch probes in parallel for available tools
-    if [[ "$CODEX_AVAILABLE" == "true" ]]; then
+    # Launch probes in parallel for available tools (skip already-known-unhealthy)
+    if [[ "$CODEX_AVAILABLE" == "true" && "$SKIP_CODEX_PROBE" == "true" ]]; then
+        CODEX_HEALTHY="false"
+    elif [[ "$CODEX_AVAILABLE" == "true" ]]; then
         "$SCRIPT_DIR/run-external-reviewer.sh" \
             --tool codex \
             --output "$PROBE_DIR/codex-probe.txt" \
@@ -61,7 +71,9 @@ if [[ "$PROBE" == "true" ]]; then
             >"$PROBE_DIR/codex-wrapper.log" 2>&1 &
     fi
 
-    if [[ "$CURSOR_AVAILABLE" == "true" ]]; then
+    if [[ "$CURSOR_AVAILABLE" == "true" && "$SKIP_CURSOR_PROBE" == "true" ]]; then
+        CURSOR_HEALTHY="false"
+    elif [[ "$CURSOR_AVAILABLE" == "true" ]]; then
         "$SCRIPT_DIR/run-external-reviewer.sh" \
             --tool cursor \
             --output "$PROBE_DIR/cursor-probe.txt" \
@@ -72,12 +84,12 @@ if [[ "$PROBE" == "true" ]]; then
             >"$PROBE_DIR/cursor-wrapper.log" 2>&1 &
     fi
 
-    # Build sentinel list for wait-for-reviewers.sh
+    # Build sentinel list for wait-for-reviewers.sh (only for probes actually launched)
     SENTINELS=()
-    if [[ "$CODEX_AVAILABLE" == "true" ]]; then
+    if [[ "$CODEX_AVAILABLE" == "true" && "$SKIP_CODEX_PROBE" == "false" ]]; then
         SENTINELS+=("$PROBE_DIR/codex-probe.txt.done")
     fi
-    if [[ "$CURSOR_AVAILABLE" == "true" ]]; then
+    if [[ "$CURSOR_AVAILABLE" == "true" && "$SKIP_CURSOR_PROBE" == "false" ]]; then
         SENTINELS+=("$PROBE_DIR/cursor-probe.txt.done")
     fi
 
@@ -87,8 +99,8 @@ if [[ "$PROBE" == "true" ]]; then
             >"$PROBE_DIR/wait.log" 2>&1 || true
     fi
 
-    # Check codex probe result
-    if [[ "$CODEX_AVAILABLE" == "true" ]]; then
+    # Check codex probe result (skip if probe was not launched)
+    if [[ "$CODEX_AVAILABLE" == "true" && "$SKIP_CODEX_PROBE" == "false" ]]; then
         if [[ -f "$PROBE_DIR/codex-probe.txt.done" ]]; then
             CODEX_EXIT=$(cat "$PROBE_DIR/codex-probe.txt.done")
             if [[ "$CODEX_EXIT" == "0" ]]; then
@@ -100,8 +112,8 @@ if [[ "$PROBE" == "true" ]]; then
         fi
     fi
 
-    # Check cursor probe result
-    if [[ "$CURSOR_AVAILABLE" == "true" ]]; then
+    # Check cursor probe result (skip if probe was not launched)
+    if [[ "$CURSOR_AVAILABLE" == "true" && "$SKIP_CURSOR_PROBE" == "false" ]]; then
         if [[ -f "$PROBE_DIR/cursor-probe.txt.done" ]]; then
             CURSOR_EXIT=$(cat "$PROBE_DIR/cursor-probe.txt.done")
             if [[ "$CURSOR_EXIT" == "0" ]]; then
@@ -112,6 +124,13 @@ if [[ "$PROBE" == "true" ]]; then
         fi
     fi
 
-    echo "CODEX_HEALTHY=$CODEX_HEALTHY"
-    echo "CURSOR_HEALTHY=$CURSOR_HEALTHY"
+    # Only emit health keys for tools that are installed — absent binaries
+    # are already handled by *_AVAILABLE=false and should not propagate a
+    # misleading *_HEALTHY=false into session-env.
+    if [[ "$CODEX_AVAILABLE" == "true" ]]; then
+        echo "CODEX_HEALTHY=$CODEX_HEALTHY"
+    fi
+    if [[ "$CURSOR_AVAILABLE" == "true" ]]; then
+        echo "CURSOR_HEALTHY=$CURSOR_HEALTHY"
+    fi
 fi

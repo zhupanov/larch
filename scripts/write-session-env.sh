@@ -45,12 +45,13 @@ fi
 
 # Atomic write: write to temp file first, then mv into place
 TMPFILE=$(mktemp "${OUTPUT}.tmp.XXXXXX")
-cat > "$TMPFILE" << ENVEOF
-SLACK_OK=$SLACK_OK
-SLACK_MISSING=$SLACK_MISSING
-REPO=$REPO
-REPO_UNAVAILABLE=$REPO_UNAVAILABLE
-CODEX_HEALTHY=$CODEX_HEALTHY
-CURSOR_HEALTHY=$CURSOR_HEALTHY
-ENVEOF
+{
+  echo "SLACK_OK=$SLACK_OK"
+  echo "SLACK_MISSING=$SLACK_MISSING"
+  echo "REPO=$REPO"
+  echo "REPO_UNAVAILABLE=$REPO_UNAVAILABLE"
+  # Only write health keys when values are non-empty (omit = absent/unknown)
+  [[ -n "$CODEX_HEALTHY" ]] && echo "CODEX_HEALTHY=$CODEX_HEALTHY"
+  [[ -n "$CURSOR_HEALTHY" ]] && echo "CURSOR_HEALTHY=$CURSOR_HEALTHY"
+} > "$TMPFILE"
 mv "$TMPFILE" "$OUTPUT"
