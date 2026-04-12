@@ -1,7 +1,7 @@
 ---
 name: design
 description: Design an implementation plan with collaborative multi-reviewer review. 5 agents independently propose approaches before the full plan, then 5 reviewers validate the plan.
-argument-hint: "[--auto] [--session-env <path>] <feature description>"
+argument-hint: "[--auto] [--debug] [--session-env <path>] <feature description>"
 allowed-tools: AskUserQuestion, Bash, Read, Edit, Write, Grep, Glob, Agent, Task, WebFetch, WebSearch
 ---
 
@@ -12,6 +12,7 @@ Design an implementation plan for a feature and review it with multiple speciali
 **Flags**: Parse flags from the start of `$ARGUMENTS` before treating the remainder as the feature description. Flags may appear in any order; stop at the first non-flag token.
 
 - `--auto`: Set a mental flag `auto_mode=true`. When `auto_mode=true`, all interactive question checkpoints (Steps 1c, 1d, 3.5, and 3a) are skipped — the skill runs fully autonomously without user interaction. When `--quick` is set in the caller and `/design` is skipped entirely, `--auto` has no effect.
+- `--debug`: Set a mental flag `debug_mode=true`. Controls output verbosity — see Verbosity Control below. Default: `debug_mode=false`.
 - `--session-env <path>`: Set `SESSION_ENV_PATH` to the given path. This file contains already-discovered session values from a caller skill (e.g., `/implement`) and will be forwarded to `session-setup.sh` via `--caller-env`. If not provided, `SESSION_ENV_PATH` is empty (standalone invocation — full discovery).
 
 The feature to design is described by the remainder of `$ARGUMENTS` after flags are stripped.
@@ -39,6 +40,28 @@ Suggested emoji palette (use consistently):
 | 3b | 🗺️ | Architecture diagram |
 | 4 | 📊 | Rejected findings report |
 | 5 | 🏁 | Cleanup |
+
+### Verbosity Control
+
+**When `debug_mode=false` (default):**
+
+- Use empty string for the `description` parameter on all Bash tool calls.
+- Use terse 3-5 word descriptions for Agent tool calls.
+- Do not produce explanatory prose between tool call outputs — only print: step start/completion emoji lines, all warning/error lines (`**⚠ ...`), structured summaries (voting tallies, scoreboards, round summaries, findings lists, approach synthesis, dialectic resolutions, implementation plans, architecture diagrams), and the compact reviewer status table (see below).
+
+**Compact reviewer status table**: After launching sketch agents (Step 2a) or plan reviewers (Step 3), maintain a mental tracker of each agent's status. Print a compact table after EACH status change:
+
+```
+📊 Reviewers: | General: ✅ | Arch: ⏳ | Pragmatic: ✅ | Cursor: ❌ | Codex: ⏳ |
+```
+
+Icons: ✅ done, ⏳ pending/in-progress, ❌ failed/timeout, ⊘ skipped (unavailable). This replaces individual per-agent completion messages in non-debug mode.
+
+**Suppressed output (only when `debug_mode=false`):** explanatory prose, script paths, rationale for decisions between tool calls, per-reviewer individual completion messages.
+
+**When `debug_mode=true`:** use descriptive text for `description` on all Bash and Agent tool calls; print full explanatory text and BOTH status table and per-agent details.
+
+**Limitation**: Verbosity suppression is prompt-enforced and best-effort.
 
 ## Step 0 — Session Setup
 

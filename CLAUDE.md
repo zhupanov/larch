@@ -85,11 +85,11 @@ These invariants are what an editing agent will otherwise get wrong.
 
 Use the bare form (matches `README.md`; see each `SKILL.md` for full argument details):
 
-- `/design <feature>` — collaborative plan with 5 sketch agents + 5 plan reviewers + voting panel
-- `/implement [--quick] [--auto] [--merge] <feature>` — end-to-end: design → code → PR; with `--merge` also runs the CI+rebase+merge loop
-- `/review` — code review of current branch with 2 Claude + 2 Codex + Cursor reviewers
-- `/research <topic>` — read-only research; 5 researchers + 5 validators, no repo modifications
-- `/loop-review [partition]` — systematic repo-wide review, partitioned into slices
+- `/design [--debug] <feature>` — collaborative plan with 5 sketch agents + 5 plan reviewers + voting panel
+- `/implement [--quick] [--auto] [--merge] [--debug] <feature>` — end-to-end: design → code → PR; with `--merge` also runs the CI+rebase+merge loop
+- `/review [--debug]` — code review of current branch with 2 Claude + 2 Codex + Cursor reviewers
+- `/research [--debug] <topic>` — read-only research; 5 researchers + 5 validators, no repo modifications
+- `/loop-review [--debug] [partition]` — systematic repo-wide review, partitioned into slices
 - `/relevant-checks` — pre-commit linters + plugin-structure validator, scoped to changed files
 - `/alias <name> <skill> [flags...]` — create a project-level alias skill in `.claude/skills/` that forwards to a larch skill with preset flags
 - `/bump-version` — classify and apply the semver bump (invoked by `/implement` Step 8 and after each rebase in Steps 10/12)

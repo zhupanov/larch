@@ -1,7 +1,7 @@
 ---
 name: implement
 description: Full end-to-end feature workflow — design, implement, code review, version bump, PR, Slack announce, and cleanup. Pass --merge to additionally run the CI+rebase+merge loop and delete the local branch after merging.
-argument-hint: "[--quick] [--auto] [--merge] [--session-env <path>] <feature description>"
+argument-hint: "[--quick] [--auto] [--merge] [--debug] [--session-env <path>] <feature description>"
 allowed-tools: AskUserQuestion, Bash, Read, Edit, Write, Grep, Glob, Agent, Task, WebFetch, WebSearch, Skill
 ---
 
@@ -17,6 +17,7 @@ The feature to implement is described by `$ARGUMENTS` after flag stripping.
 - `--auto`: Set a mental flag `auto_mode=true`. When `auto_mode=true`: (a) forward `--auto` to `/design` invocation in Step 1, suppressing `/design`'s interactive question checkpoints; (b) suppress this skill's own opportunistic questions in Step 2; (c) in Step 12, when merge conflicts require user input for uncertain resolutions, suppress `AskUserQuestion` and use best-effort resolution instead (bailing if confidence is too low). When `--quick` is also set and `/design` is skipped, `--auto` still suppresses Step 2 questions. The default (no `--auto`) enables interactive questions.
 - `--merge`: Set a mental flag `merge=true`. When `merge=true`, Steps 12–15 run (CI+rebase+merge loop, :merged: emoji, local cleanup, and main verification). When `merge=false` (default), these steps are skipped — the PR is created and the workflow stops after the initial CI wait, Slack announcement, rejected findings report, final report, and temp cleanup.
 - `--no-merge`: **Deprecated** — recognized for backward compatibility but treated as a no-op (the new default already skips merge steps). When this flag is encountered, print: `**ℹ '--no-merge' is now the default and no longer needed; the flag is recognized as a no-op for backward compatibility.**`
+- `--debug`: Set a mental flag `debug_mode=true`. Controls output verbosity — see Verbosity Control below. When `debug_mode=true`, forward `--debug` to `/design` (Step 1) and `/review` (Step 5) invocations. Default: `debug_mode=false`.
 - `--session-env <path>`: Set `SESSION_ENV_PATH` to the given path. This file contains already-discovered session values from a caller skill and will be forwarded to `session-setup.sh` via `--caller-env` and to `/design` via `--session-env`. If not provided, `SESSION_ENV_PATH` is empty (standalone invocation — full discovery).
 
 ## Progress Reporting
@@ -52,6 +53,22 @@ Suggested emoji palette (use consistently):
 | 16 | 📊 | Rejected code review findings report |
 | 17 | 📊 | Final report |
 | 18 | 🏁 | Final cleanup + warnings |
+
+### Verbosity Control
+
+**When `debug_mode=false` (default):**
+
+- Use empty string for the `description` parameter on all Bash tool calls.
+- Use terse 3-5 word descriptions for Agent tool calls.
+- Do not produce explanatory prose between tool call outputs — only print the designated output categories below.
+
+**Preserved output (NEVER suppressed, regardless of `debug_mode`):** step start/completion emoji lines, all warning/error lines (`**⚠ ...`), structured summaries (voting tallies, competition scoreboards, round summaries, final summaries/reports), architecture diagrams, code flow diagrams, implementation plans (original and revised), dialectic resolutions, accepted/rejected findings lists, out-of-scope observations, PR body sections.
+
+**Suppressed output (only when `debug_mode=false`):** explanatory prose describing what will happen next or what just happened, script paths and command descriptions, rationale for decisions between tool calls, per-reviewer individual completion messages (replaced by status table in child skills).
+
+**When `debug_mode=true`:** use descriptive text for `description` parameter on all Bash and Agent tool calls; print full explanatory text between tool calls (current verbose behavior).
+
+**Limitation**: Verbosity suppression is prompt-enforced and best-effort; it may degrade in very long sessions.
 
 ## Step 0 — Session Setup
 
@@ -156,8 +173,8 @@ Proceed to Step 2.
 
 **Decision logic**:
 - If `IS_USER_BRANCH=true` **AND** a reviewed implementation plan is visible in the conversation context above: The plan was created by a prior `/design` invocation in this session. Proceed to Step 2.
-- If `IS_USER_BRANCH=true` but **no** implementation plan is visible in the conversation context: Invoke the `/design` skill with `--session-env $IMPLEMENT_TMPDIR/session-env.sh` prepended to the feature description to create a plan on the current branch. **If `auto_mode=true`, also prepend `--auto`** so `/design` suppresses interactive questions. After `/design` completes, proceed to Step 2.
-- If on `main` or empty (detached HEAD) or any non-user branch: No design plan exists yet. Invoke the `/design` skill with `--session-env $IMPLEMENT_TMPDIR/session-env.sh` prepended to the feature description to create a branch and design the plan. **If `auto_mode=true`, also prepend `--auto`** so `/design` suppresses interactive questions. After `/design` completes, proceed to Step 2.
+- If `IS_USER_BRANCH=true` but **no** implementation plan is visible in the conversation context: Invoke the `/design` skill with `--session-env $IMPLEMENT_TMPDIR/session-env.sh` prepended to the feature description to create a plan on the current branch. **If `auto_mode=true`, also prepend `--auto`**. **If `debug_mode=true`, also prepend `--debug`**. Canonical invocation order: `[--debug] [--auto] --session-env $IMPLEMENT_TMPDIR/session-env.sh <FEATURE_DESCRIPTION>`. After `/design` completes, proceed to Step 2.
+- If on `main` or empty (detached HEAD) or any non-user branch: No design plan exists yet. Invoke the `/design` skill with `--session-env $IMPLEMENT_TMPDIR/session-env.sh` prepended to the feature description to create a branch and design the plan. **If `auto_mode=true`, also prepend `--auto`**. **If `debug_mode=true`, also prepend `--debug`**. Canonical invocation order: `[--debug] [--auto] --session-env $IMPLEMENT_TMPDIR/session-env.sh <FEATURE_DESCRIPTION>`. After `/design` completes, proceed to Step 2.
 
 ### Capture branch name (`BRANCH_NAME`)
 
@@ -251,7 +268,7 @@ Print: `🔍 Step 5 — Quick mode: simplified review (2 Claude subagents, 1 rou
 
 **IMPORTANT: Code review must ALWAYS be invoked via `/review`. Never skip this step regardless of the nature of the changes — whether code, skills, documentation, data files, or configuration. All changes require full review.**
 
-Invoke the `/review` skill. This launches 2 parallel Claude subagent reviewers (general, deep-analysis) plus two Codex and Cursor reviewers (if available), implements their suggestions recursively until clean.
+Invoke the `/review` skill. **If `debug_mode=true`, invoke `/review --debug`.** Otherwise, invoke `/review` with no arguments. This launches 2 parallel Claude subagent reviewers (general, deep-analysis) plus two Codex and Cursor reviewers (if available), implements their suggestions recursively until clean.
 
 ### Track Rejected Code Review Findings
 
