@@ -58,8 +58,18 @@ if [[ $# -eq 0 ]]; then
     usage; exit 1
 fi
 
-# Clear stale output and sentinel file
-rm -f "$OUTPUT_FILE" "${OUTPUT_FILE}.done"
+# Clear stale output, sentinel, and metadata files
+rm -f "$OUTPUT_FILE" "${OUTPUT_FILE}.done" "${OUTPUT_FILE}.meta"
+
+# Write metadata for collect-reviewer-results.sh retry support.
+# CMD is shell-quoted via printf '%q' to preserve argument boundaries.
+{
+    echo "TOOL=$TOOL_NAME"
+    echo "TIMEOUT=$TIMEOUT_SECONDS"
+    echo "CAPTURE_STDOUT=$CAPTURE_STDOUT"
+    echo "OUTPUT_FILE=$OUTPUT_FILE"
+    printf 'CMD=%s\n' "$(printf '%q ' "$@")"
+} > "${OUTPUT_FILE}.meta"
 
 # Write sentinel file on ANY exit — the reliable completion signal for callers.
 # Callers poll for <output-file>.done instead of waiting for runtime notifications.
