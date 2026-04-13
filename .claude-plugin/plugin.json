@@ -4,7 +4,7 @@
   "description": "Multi-agent workflow automation for Claude Code: design, code review, implementation, and PR automation with collaborative reviewers (Claude subagents + Codex + Cursor).",
   "author": {
     "name": "Sergey Zhupanov",
-    "email": "sergey@zhupanov.com"
+    "email": "zhupanov@yahoo.com"
   },
   "license": "MIT",
   "repository": "https://github.com/zhupanov/larch",
