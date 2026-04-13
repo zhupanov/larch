@@ -104,7 +104,7 @@ Plus 2 external agents (or Claude replacements):
 4. **Cursor** (if available) — or **Claude (Alternative Perspectives)** replacement: questions assumptions, explores unconventional angles, and surfaces insights that the other agents might overlook
 5. **Codex** (if available) — or **Claude (Edge-cases/Gaps)** replacement: focuses on what might be missing, edge cases, gaps in the codebase, failure modes, and boundary conditions relevant to the research question
 
-Print `🔬 Step 1 — Running collaborative research phase.` and proceed to 1.2.
+Print `▸ 1: research` and proceed to 1.2.
 
 ### 1.2 — Launch Research Perspectives in Parallel
 
@@ -181,6 +181,8 @@ Print the synthesis under a `## Research Synthesis` header. Write the synthesis 
 Print: `✅ 1: research — synthesis complete (5 agents)`
 
 ## Step 2 — Findings Validation
+
+Print: `▸ 2: validation`
 
 **IMPORTANT: Findings validation MUST ALWAYS run with all available reviewers (2 Claude subagents + 2 Codex instances and Cursor if available). Never skip or abbreviate this step regardless of how straightforward the findings appear. Reviewers validate against the actual codebase state, catching inaccuracies or omissions that the research phase may have missed.**
 
@@ -277,9 +279,11 @@ If any findings were accepted (from Claude subagents, Codex, or Cursor):
 2. Revise the research synthesis to incorporate corrections and additions.
 3. Print the revised synthesis under a `## Revised Research Findings` header.
 
-If all reviewers report no issues, print: `✅ Step 2 — All findings validated. No corrections needed.`
+If all reviewers report no issues, print: `✅ 2: validation — all findings validated, no corrections needed`
 
 ## Step 3 — Final Research Report
+
+Print: `▸ 3: report`
 
 Print the final research report under a `## Research Report` header with the following structure:
 

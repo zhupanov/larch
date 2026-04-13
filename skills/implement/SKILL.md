@@ -168,8 +168,8 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/rebase-push.sh --no-push
 If the script exits non-zero, print: `**⚠ Failed to ensure local main is fresh. Bailing to cleanup.**` and skip to Step 18.
 
 If successful:
-- If stdout contains `SKIPPED_ALREADY_FRESH=true`: if `debug_mode=true`, print: `⏩ Local main already at latest — no update needed.` Otherwise, silently continue.
-- Otherwise, print: `✅ Local main rebased onto latest origin/main.`
+- If stdout contains `SKIPPED_ALREADY_FRESH=true`: if `debug_mode=true`, print: `⏩ 1.m: design plan | update main — already at latest` Otherwise, silently continue.
+- Otherwise, print: `✅ 1.m: design plan | update main — rebased onto latest origin/main`
 
 ### Quick mode (`quick_mode=true`)
 
@@ -219,8 +219,9 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/rebase-push.sh --no-push --skip-if-pushed
 If the script exits non-zero, print: `**⚠ Rebase onto main failed. Bailing to cleanup.**` and skip to Step 18.
 
 If successful:
-- If the stdout contains `SKIPPED_ALREADY_PUSHED=true` or `SKIPPED_ALREADY_FRESH=true`: if `debug_mode=true`, print the corresponding skip message. Otherwise, silently continue.
-- Otherwise, print: `✅ Rebased onto latest main.`
+- If stdout contains `SKIPPED_ALREADY_PUSHED=true`: if `debug_mode=true`, print: `⏩ 1.r: design plan | rebase — already pushed` Otherwise, silently continue.
+- If stdout contains `SKIPPED_ALREADY_FRESH=true`: if `debug_mode=true`, print: `⏩ 1.r: design plan | rebase — already at latest main` Otherwise, silently continue.
+- Otherwise, print: `✅ 1.r: design plan | rebase — rebased onto latest main`
 
 ## Step 2 — Implement the Feature
 
@@ -258,8 +259,9 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/rebase-push.sh --no-push --skip-if-pushed
 If the script exits non-zero, print: `**⚠ Rebase onto main failed. Bailing to cleanup.**` and skip to Step 18.
 
 If successful:
-- If the stdout contains `SKIPPED_ALREADY_PUSHED=true` or `SKIPPED_ALREADY_FRESH=true`: if `debug_mode=true`, print the corresponding skip message. Otherwise, silently continue.
-- Otherwise, print: `✅ Rebased onto latest main.`
+- If stdout contains `SKIPPED_ALREADY_PUSHED=true`: if `debug_mode=true`, print: `⏩ 4.r: commit (impl) | rebase — already pushed` Otherwise, silently continue.
+- If stdout contains `SKIPPED_ALREADY_FRESH=true`: if `debug_mode=true`, print: `⏩ 4.r: commit (impl) | rebase — already at latest main` Otherwise, silently continue.
+- Otherwise, print: `✅ 4.r: commit (impl) | rebase — rebased onto latest main`
 
 ## Step 5 — Code Review
 
@@ -335,8 +337,9 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/rebase-push.sh --no-push --skip-if-pushed
 If the script exits non-zero, print: `**⚠ Rebase onto main failed. Bailing to cleanup.**` and skip to Step 18.
 
 If successful:
-- If the stdout contains `SKIPPED_ALREADY_PUSHED=true` or `SKIPPED_ALREADY_FRESH=true`: if `debug_mode=true`, print the corresponding skip message. Otherwise, silently continue.
-- Otherwise, print: `✅ Rebased onto latest main.`
+- If stdout contains `SKIPPED_ALREADY_PUSHED=true`: if `debug_mode=true`, print: `⏩ 7.r: commit (review) | rebase — already pushed` Otherwise, silently continue.
+- If stdout contains `SKIPPED_ALREADY_FRESH=true`: if `debug_mode=true`, print: `⏩ 7.r: commit (review) | rebase — already at latest main` Otherwise, silently continue.
+- Otherwise, print: `✅ 7.r: commit (review) | rebase — rebased onto latest main`
 
 ## Step 7a — Code Flow Diagram
 
@@ -360,9 +363,9 @@ Print the diagram under a `## Code Flow Diagram` header with a mermaid code fenc
 ```
 ```
 
-**If diagram generation succeeds**, print: `✅ Step 7a — Code flow diagram generated.`
+**If diagram generation succeeds**, print: `✅ 7a: code flow — diagram generated`
 
-**If diagram generation fails** (e.g., the implementation is too abstract to diagram meaningfully), print: `**⚠ Step 7a — Code flow diagram generation failed. Proceeding without diagram.**` Log this warning to `$IMPLEMENT_TMPDIR/execution-issues.md` under the `Warnings` category.
+**If diagram generation fails** (e.g., the implementation is too abstract to diagram meaningfully), print: `**⚠ 7a: code flow — generation failed, proceeding without diagram**` Log this warning to `$IMPLEMENT_TMPDIR/execution-issues.md` under the `Warnings` category.
 
 ### Rebase onto latest main (before version bump)
 
@@ -378,8 +381,9 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/rebase-push.sh --no-push --skip-if-pushed
 If the script exits non-zero, print: `**⚠ Rebase onto main failed. Bailing to cleanup.**` and skip to Step 18.
 
 If successful:
-- If the stdout contains `SKIPPED_ALREADY_PUSHED=true` or `SKIPPED_ALREADY_FRESH=true`: if `debug_mode=true`, print the corresponding skip message. Otherwise, silently continue.
-- Otherwise, print: `✅ Rebased onto latest main.`
+- If stdout contains `SKIPPED_ALREADY_PUSHED=true`: if `debug_mode=true`, print: `⏩ 7a.r: code flow | rebase — already pushed` Otherwise, silently continue.
+- If stdout contains `SKIPPED_ALREADY_FRESH=true`: if `debug_mode=true`, print: `⏩ 7a.r: code flow | rebase — already at latest main` Otherwise, silently continue.
+- Otherwise, print: `✅ 7a.r: code flow | rebase — rebased onto latest main`
 
 ## Step 8 — Version Bump
 
@@ -995,7 +999,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/post-merged-emoji.sh --slack-ts "$SLACK_TS"
 
 ## Step 14 — Local Cleanup
 
-**If `merge=false`**: Print `⏩ 14: local cleanup — skipped (--merge not set), still on $BRANCH_NAME` and skip to Step 16.
+**If `merge=false`**: Print `⏭️ 14: local cleanup — skipped (--merge not set), still on $BRANCH_NAME` and skip to Step 16.
 
 **If the PR was successfully merged (Step 12b or force-merged externally)**:
 

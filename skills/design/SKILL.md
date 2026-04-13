@@ -33,12 +33,12 @@ Step Name Registry:
 | 0 | setup |
 | 1 | branch |
 | 1c | questions |
-| 1d | grilling r1 |
+| 1d | discussion r1 |
 | 2a | sketches |
 | 2a.5 | dialectic |
 | 2b | full plan |
 | 3 | plan review |
-| 3.5 | grilling r2 |
+| 3.5 | discussion r2 |
 | 3a | confirmation |
 | 3b | arch diagram |
 | 4 | rejected findings |
@@ -130,15 +130,15 @@ Consider asking about:
 **Guidelines**:
 - Only ask questions when there is genuine ambiguity — do NOT ask trivially answerable questions or re-confirm what is already clear.
 - Batch questions into a single `AskUserQuestion` call with 1-4 questions rather than multiple sequential calls.
-- If the feature description is clear and unambiguous, print `✅ Step 1c — No clarifying questions needed.` and proceed to Step 1d.
+- If the feature description is clear and unambiguous, print `✅ 1c: questions — no clarifying questions needed` and proceed to Step 1d.
 
 After the user responds, incorporate their answers into your understanding of the feature for all subsequent steps.
 
 ## Step 1d — Design Discussion (Round 1)
 
-Print: `▸ 1d: grilling r1`
+Print: `▸ 1d: discussion r1`
 
-**If `auto_mode=true`**: Print `⏩ 1d: grilling r1 — skipped (auto mode)` and proceed to Step 2a.
+**If `auto_mode=true`**: Print `⏩ 1d: discussion r1 — skipped (auto mode)` and proceed to Step 2a.
 
 **If `auto_mode=false`**: Before launching the expensive collaborative sketch phase, stress-test the feature's scope and requirements by walking through the decision tree one question at a time. This is a deeper, sequential interrogation that resolves dependencies between decisions — each answer may reshape subsequent questions.
 
@@ -156,7 +156,7 @@ Then walk each branch one question at a time via sequential `AskUserQuestion` ca
 
 ### Short-circuit
 
-If the feature is straightforward with fewer than 2 scope decision branches, print `⏩ 1d: grilling r1 — no scope decisions require grilling` and proceed to Step 2a.
+If the feature is straightforward with fewer than 2 scope decision branches, print `⏩ 1d: discussion r1 — no scope decisions require discussion` and proceed to Step 2a.
 
 ### Output
 
@@ -179,7 +179,7 @@ At most **7 `AskUserQuestion` calls** in this step. If more than 7 decision bran
 
 If the user gives a terse or non-responsive answer (e.g., "I don't know", "your recommendation is fine", "sure"), accept the recommended answer and move on without re-asking.
 
-Print: `✅ 1d: grilling r1 — <N> decisions resolved`
+Print: `✅ 1d: discussion r1 — <N> decisions resolved`
 
 ## Step 2a — Collaborative Approach Sketches
 
@@ -507,9 +507,9 @@ If no findings were rejected, do not create the file yet.
 
 ## Step 3.5 — Design Discussion (Round 2)
 
-Print: `▸ 3.5: grilling r2`
+Print: `▸ 3.5: discussion r2`
 
-**If `auto_mode=true`**: Print `⏩ 3.5: grilling r2 — skipped (auto mode)` and proceed to Step 3a.
+**If `auto_mode=true`**: Print `⏩ 3.5: discussion r2 — skipped (auto mode)` and proceed to Step 3a.
 
 **If `auto_mode=false`**: After the plan has been reviewed and revised, stress-test the remaining design decisions that were either (a) not covered in Round 1, or (b) deemed suboptimal by reviewers, or (c) introduced by the plan itself (decisions that didn't exist at the feature-description stage).
 
@@ -536,7 +536,7 @@ Unlike Round 1, Round 2 MAY ask about architectural decisions and implementation
 
 ### Short-circuit
 
-If all plan decisions are already covered by Round 1, no reviewer findings challenged them, and no decisions from `contested-decisions.md` have a close or inconclusive dialectic resolution, print `⏩ 3.5: grilling r2 — no additional decisions require grilling` and proceed to Step 3a.
+If all plan decisions are already covered by Round 1, no reviewer findings challenged them, and no decisions from `contested-decisions.md` have a close or inconclusive dialectic resolution, print `⏩ 3.5: discussion r2 — no additional decisions require discussion` and proceed to Step 3a.
 
 ### Output
 
@@ -559,7 +559,7 @@ At most **7 `AskUserQuestion` calls** in this step. If more than 7 decision bran
 
 If the user gives a terse or non-responsive answer, accept the recommended answer and move on without re-asking.
 
-Print: `✅ 3.5: grilling r2 — <N> decisions resolved`
+Print: `✅ 3.5: discussion r2 — <N> decisions resolved`
 
 ## Step 3a — Post-Review Confirmation
 
@@ -624,7 +624,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-tmpdir.sh --dir "$DESIGN_TMPDIR"
 - `**⚠ Cursor review failed: <reason>**`
 - `**⚠ Cursor sketch timed out / produced empty output**`
 - `**⚠ Codex sketch timed out / produced empty output**`
-- `**⚠ Step 3b — Architecture diagram generation failed. Proceeding without diagram.**`
+- `**⚠ 3b: arch diagram — generation failed, proceeding without diagram**`
 
 If `STEP_NUM_PREFIX` is empty (standalone mode): Print: `✅ 5: cleanup — design complete!`
 If `STEP_NUM_PREFIX` is non-empty (orchestrated mode): skip this final print — the parent orchestrator handles overall progress.
