@@ -1,6 +1,6 @@
 ---
 name: loop-review
-description: "Use when a comprehensive quality sweep or systematic code review is needed. Partitions the repo into slices, reviews each with specialized subagents, and logs deferred suggestions."
+description: "Use when a comprehensive quality sweep or systematic code review is needed. Partitions the repo into slices, reviews each with subagents, implements fixes via /implement, and logs deferred suggestions."
 argument-hint: "[--debug] [partition criteria]"
 allowed-tools: Bash, Read, Edit, Write, Grep, Glob, Agent, Task, WebFetch, WebSearch, Skill
 ---
