@@ -19,19 +19,19 @@ The research question is described by `RESEARCH_QUESTION` (not raw `$ARGUMENTS`)
 
 ## Progress Reporting
 
-**Every step MUST print clearly visible status lines** so the user can instantly see where execution is at. Use distinct emoji prefixes:
+**Every step MUST print clearly visible breadcrumb status lines** so the user can instantly see where execution is. Follow the formatting rules in `${CLAUDE_PLUGIN_ROOT}/skills/shared/progress-reporting.md`.
 
-- Print a **start line** when entering a step: e.g., `🔬 Step 1 — Launching research perspectives...`
-- Print a **completion line** when done: e.g., `✅ Step 1 — Research synthesis complete (5 agents).`
+- Print a **start line** when entering a step: e.g., `▸ 1: research`
+- Print a **completion line** when done: e.g., `✅ 1: research — synthesis complete (5 agents)`
 
-Suggested emoji palette (use consistently):
-| Step | Emoji | Description |
-|------|-------|-------------|
-| 0 | 🔧 | Session setup |
-| 1 | 🔬 | Collaborative research perspectives |
-| 2 | 🔍 | Findings validation |
-| 3 | 📊 | Final research report |
-| 4 | 🏁 | Cleanup |
+Step Name Registry:
+| Step | Short Name |
+|------|------------|
+| 0 | setup |
+| 1 | research |
+| 2 | validation |
+| 3 | report |
+| 4 | cleanup |
 
 ### Verbosity Control
 
@@ -39,7 +39,7 @@ Suggested emoji palette (use consistently):
 
 - Use empty string for the `description` parameter on all Bash tool calls.
 - Use terse 3-5 word descriptions for Agent tool calls.
-- Do not produce explanatory prose between tool call outputs — only print: step start/completion emoji lines, all warning/error lines (`**⚠ ...`), structured summaries (findings, risk assessments, research report sections), and the compact agent status table (see below).
+- Do not produce explanatory prose between tool call outputs — only print: step breadcrumb lines (start `▸`, completion `✅`, skip `⏩`), all warning/error lines (`**⚠ ...`), structured summaries (findings, risk assessments, research report sections), and the compact agent status table (see below).
 
 **Compact agent status table**: After launching research agents (Step 1) or validation reviewers (Step 2), maintain a mental tracker of each agent's status. Print a compact table after EACH status change:
 
@@ -85,7 +85,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/git-branch-info.sh
 
 Parse the output for `HEAD_SHA` and `CURRENT_BRANCH`. If `CURRENT_BRANCH` is empty (detached HEAD), use `"(detached HEAD)"` in the report.
 
-Print: `🔧 Step 0 — Setup complete. Researching on branch <CURRENT_BRANCH> at commit <HEAD_SHA>.`
+Print: `✅ 0: setup — researching on branch <CURRENT_BRANCH> at <HEAD_SHA>`
 
 ## Step 1 — Collaborative Research Perspectives
 
@@ -178,7 +178,7 @@ Print the synthesis under a `## Research Synthesis` header. Write the synthesis 
 - The branch and commit being researched
 - The synthesized findings
 
-Print: `✅ Step 1 — Research synthesis complete (5 agents).`
+Print: `✅ 1: research — synthesis complete (5 agents)`
 
 ## Step 2 — Findings Validation
 
@@ -312,7 +312,7 @@ Print the final research report under a `## Research Report` header with the fol
 
 If risk assessment, difficulty estimate, or feasibility verdict are not applicable to the nature of the research question (e.g., a pure "how does X work?" question), mark them as **N/A** with a brief explanation.
 
-Print: `📊 Step 3 — Research report complete.`
+Print: `✅ 3: report — complete`
 
 ## Step 4 — Cleanup and Final Warnings
 
@@ -328,4 +328,4 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-tmpdir.sh --dir "$RESEARCH_TMPDIR"
 - `**⚠ Cursor research timed out / produced empty output**`
 - `**⚠ Codex research timed out / produced empty output**`
 
-Print: `🏁 Step 4 — Research complete!`
+Print: `✅ 4: cleanup — research complete!`
