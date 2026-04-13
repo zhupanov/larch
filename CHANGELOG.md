@@ -56,12 +56,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Two-round design grilling steps in `/design` skill: Step 1d (pre-sketch, scope/requirements interrogation) and Step 3.5 (post-review, covers decisions not addressed in round 1 or deemed suboptimal by reviewers). Both rounds walk the decision tree one question at a time with recommended answers, explore the codebase first, and are skipped in `--auto` mode.
+- Two-round design discussion steps in `/design` skill: Step 1d (pre-sketch, scope/requirements interrogation) and Step 3.5 (post-review, covers decisions not addressed in round 1 or deemed suboptimal by reviewers). Both rounds walk the decision tree one question at a time with recommended answers, explore the codebase first, and are skipped in `--auto` mode.
 - New `accepted-plan-findings.md` artifact written during plan review finalization, bridging Step 3 and Step 3.5.
 
 ### Changed
 
-- Updated `docs/workflow-lifecycle.md` mermaid diagram to include both grilling nodes in the design phase.
+- Updated `docs/workflow-lifecycle.md` mermaid diagram to include both discussion nodes in the design phase.
 
 ## [1.1.11] - 2026-04-12
 
