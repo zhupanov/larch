@@ -80,7 +80,7 @@ gh issue list --repo "$REPO" --state open --json title,number,url --limit 500 --
 
 # Normalize a title for comparison: lowercase, strip [OOS] prefix, collapse whitespace, trim
 normalize_title() {
-    echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/^\[oos\]\s*//' | tr -s '[:space:]' ' ' | sed 's/^ *//;s/ *$//'
+    printf '%s\n' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/^\[oos\]\s*//' | tr -s '[:space:]' ' ' | sed 's/^ *//;s/ *$//'
 }
 
 # Check if a title is a duplicate of an existing open issue.
@@ -98,12 +98,6 @@ check_duplicate() {
 
         # Exact match after normalization
         if [[ "$new_norm" == "$existing_norm" ]]; then
-            printf '%s\t%s' "$num" "$url"
-            return 0
-        fi
-
-        # Substring containment (either direction)
-        if [[ "$existing_norm" == *"$new_norm"* ]] || [[ "$new_norm" == *"$existing_norm"* ]]; then
             printf '%s\t%s' "$num" "$url"
             return 0
         fi
@@ -175,6 +169,8 @@ BODY_EOF
         echo "ISSUE_${ITEM_INDEX}_NUMBER=$number"
         echo "ISSUE_${ITEM_INDEX}_URL=$issue_url"
         echo "ISSUE_${ITEM_INDEX}_TITLE=$title"
+        # Append to snapshot so later items in this batch detect intra-run duplicates
+        printf '%s\t%s\t[OOS] %s\n' "$number" "$issue_url" "$title" >> "$EXISTING_ISSUES_FILE"
     else
         ISSUES_FAILED=$((ISSUES_FAILED + 1))
         echo "ISSUE_${ITEM_INDEX}_FAILED=true" >&2
