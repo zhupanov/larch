@@ -27,13 +27,13 @@ Risk/integration:
 - Module interaction (tracing callers of modified functions)
 - CI constraints (test globs, workflow YAML syntax)
 
+**Quality gate**: For each in-scope finding, verify: (a) Is the proposed change justified by a concrete need? (b) Is it proportionate to the issue? Out-of-scope observations are exempt.
+
 **Model**: Sonnet
 
 ### Deep Analysis Reviewer
 
 **Focus**: Deep correctness analysis combined with architectural rigor — everything that could cause wrong results or violate structural integrity.
-
-**Quality gate**: Both reviewers apply a proportionality gate to in-scope findings — each finding must be justified by a concrete need and proportionate to the issue. Out-of-scope observations are exempt from this gate.
 
 **Correctness checks**:
 - Logic errors (incorrect booleans, inverted checks, wrong operators)
@@ -51,6 +51,8 @@ Risk/integration:
 - **Contract Boundaries**: Explicit cross-repo contracts, consistent types across layers, peer field consistency
 - **Invariants**: Edge case validation at boundaries, loud failures over silent defaults, proper ordering of operations
 - **Semantic Boundaries**: Domain logic in the right layer, correct import direction, explicit data shapes at system boundaries
+
+**Quality gate**: For each in-scope finding, verify: (a) Is the proposed change justified by a concrete need? (b) Is it proportionate to the issue? Out-of-scope observations are exempt.
 
 **Model**: Sonnet
 

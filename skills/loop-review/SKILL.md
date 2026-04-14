@@ -150,7 +150,7 @@ Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
 **Cursor replacement** (if `cursor_available` is false): Launch a Claude subagent (Risk/Integration) via the Agent tool instead:
 
-Prompt: `"Review EXISTING code for this project. Files: {FILE_LIST}. Read each file. Combine 4 review perspectives: (1) Quality: bugs, logic errors, dead code, duplication, missing error handling. (2) Correctness: off-by-one, nil handling, type mismatches, races, error paths. (3) Risk/Integration: broken contracts, thread safety, deployment risks, CI gaps. (4) Architecture: separation of concerns, contract boundaries, invariants, semantic boundaries. Return numbered findings: file:line, issue, specific fix. If none: 'No issues found.' Do NOT edit files."`
+Prompt: `"Review EXISTING code for this project. Files: {FILE_LIST}. Read each file. Combine 4 review perspectives: (1) Quality: bugs, logic errors, dead code, duplication, missing error handling. (2) Correctness: off-by-one, nil handling, type mismatches, races, error paths. (3) Risk/Integration: broken contracts, thread safety, deployment risks, CI gaps. (4) Architecture: separation of concerns, contract boundaries, invariants, semantic boundaries. Flag missing or insufficient test coverage. Quality gate: for each finding, verify the proposed fix is justified by a concrete need and proportionate to the issue. Return numbered findings: file:line, issue, specific fix. If none: 'No issues found.' Do NOT edit files."`
 
 **Codex-General Reviewer (if `codex_available`):**
 
@@ -180,9 +180,9 @@ Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
 **Codex replacements** (if `codex_available` is false): Launch 2 Claude subagents instead:
 
-**Claude (Codex-General replacement)**: Prompt: `"Review EXISTING code for this project. Files: {FILE_LIST}. Read each file. Focus on: quality, bugs, risk, integration, CI. Return numbered findings: file:line, issue, specific fix. If none: 'No issues found.' Do NOT edit files."`
+**Claude (Codex-General replacement)**: Prompt: `"Review EXISTING code for this project. Files: {FILE_LIST}. Read each file. Focus on: quality, bugs, risk, integration, CI, test coverage. Quality gate: for each finding, verify the proposed fix is justified by a concrete need and proportionate to the issue. Return numbered findings: file:line, issue, specific fix. If none: 'No issues found.' Do NOT edit files."`
 
-**Claude (Codex-Deep-Analysis replacement)**: Prompt: `"Review EXISTING code for correctness and architecture. Files: {FILE_LIST}. Read each file. Focus on: correctness, architecture, invariants, contracts. Return numbered findings: file:line, issue, specific fix. If none: 'No issues found.' Do NOT edit files."`
+**Claude (Codex-Deep-Analysis replacement)**: Prompt: `"Review EXISTING code for correctness and architecture. Files: {FILE_LIST}. Read each file. Focus on: correctness, architecture, invariants, contracts, untested error paths. Quality gate: for each finding, verify the proposed fix is justified by a concrete need and proportionate to the issue. Return numbered findings: file:line, issue, specific fix. If none: 'No issues found.' Do NOT edit files."`
 
 **Claude Subagents (2 reviewers, launched last — they finish fastest):**
 
