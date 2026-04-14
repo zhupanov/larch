@@ -158,7 +158,7 @@ if [[ "$PROBE" == "true" ]]; then
                 -- codex exec --full-auto -C "$PWD" $CODEX_MODEL_ARGS \
                 --output-last-message "$PROBE_DIR/codex-probe.txt" \
                 "Respond with OK" \
-                >"$PROBE_DIR/codex-wrapper.log" 2>&1 &
+                >"$PROBE_DIR/codex-wrapper-retry.log" 2>&1 &
             RETRY_SENTINELS+=("$PROBE_DIR/codex-probe.txt.done")
         fi
 
@@ -173,7 +173,7 @@ if [[ "$PROBE" == "true" ]]; then
                 --capture-stdout \
                 -- cursor agent -p --force --trust $CURSOR_MODEL_ARGS --workspace "$PWD" \
                 "Respond with OK" \
-                >"$PROBE_DIR/cursor-wrapper.log" 2>&1 &
+                >"$PROBE_DIR/cursor-wrapper-retry.log" 2>&1 &
             RETRY_SENTINELS+=("$PROBE_DIR/cursor-probe.txt.done")
         fi
 
