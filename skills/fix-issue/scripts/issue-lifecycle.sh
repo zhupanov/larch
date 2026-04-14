@@ -5,7 +5,7 @@
 #
 # Usage:
 #   issue-lifecycle.sh comment --issue NUMBER --body TEXT [--lock]
-#   issue-lifecycle.sh close   --issue NUMBER [--comment TEXT]
+#   issue-lifecycle.sh close   --issue NUMBER [--comment TEXT] [--pr-url URL]
 #   issue-lifecycle.sh update-body --issue NUMBER --pr-url URL
 #
 # Subcommands:
@@ -13,6 +13,7 @@
 #                With --lock: verify last comment is "GO" before posting,
 #                then re-read to detect concurrent duplicate locks.
 #   close      — Close an issue. Optionally post a comment first.
+#                With --pr-url: update the issue body with the PR link before closing.
 #   update-body — Append a PR link to the issue body (idempotent).
 #
 # Exit codes:
@@ -114,19 +115,29 @@ cmd_comment() {
 # Subcommand: close
 # ---------------------------------------------------------------------------
 cmd_close() {
-    local issue="" comment=""
+    local issue="" comment="" pr_url=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --issue) issue="${2:?--issue requires a value}"; shift 2 ;;
             --comment) comment="${2:?--comment requires a value}"; shift 2 ;;
+            --pr-url) pr_url="${2:?--pr-url requires a value}"; shift 2 ;;
             *) echo "Unknown option for close: $1" >&2; exit 2 ;;
         esac
     done
 
     if [[ -z "$issue" ]]; then
-        echo "Usage: issue-lifecycle.sh close --issue N [--comment TEXT]" >&2
+        echo "Usage: issue-lifecycle.sh close --issue N [--comment TEXT] [--pr-url URL]" >&2
         exit 2
+    fi
+
+    # Update body with PR link if provided (idempotent)
+    if [[ -n "$pr_url" ]]; then
+        cmd_update_body --issue "$issue" --pr-url "$pr_url" || {
+            echo "CLOSED=false"
+            echo "ERROR=Failed to update issue #$issue body with PR link"
+            exit 1
+        }
     fi
 
     # Post comment first if provided
