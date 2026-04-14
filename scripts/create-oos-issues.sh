@@ -195,6 +195,7 @@ flush_item() {
     CURRENT_REVIEWER=""
     CURRENT_VOTE=""
     CURRENT_PHASE=""
+    IN_DESCRIPTION=false
 }
 
 while IFS= read -r line; do
@@ -214,8 +215,8 @@ while IFS= read -r line; do
     elif [[ "$line" =~ ^-\ \*\*Phase\*\*:\ (.+)$ ]]; then
         CURRENT_PHASE="${BASH_REMATCH[1]}"
         IN_DESCRIPTION=false
-    elif [[ "$IN_DESCRIPTION" == true ]]; then
-        # Accumulate continuation lines for multi-line descriptions
+    elif [[ "$IN_DESCRIPTION" == true ]] && [[ -n "${line// }" ]]; then
+        # Accumulate non-blank continuation lines for multi-line descriptions
         CURRENT_DESCRIPTION+=$'\n'"$line"
     fi
 done < "$INPUT_FILE"
