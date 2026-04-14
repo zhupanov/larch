@@ -312,7 +312,7 @@ You are challenging this architectural decision for the feature: {FEATURE_DESCRI
 
 The synthesis of 5 independent sketches chose {CHOSEN} over {ALTERNATIVE}.
 
-Your role: argue why {ALTERNATIVE} would be better, surface risks in {CHOSEN}, poke at hidden assumptions, and present the most compelling case for switching. Reference specific evidence from the synthesis and the codebase (via Read/Grep/Glob tools, focusing on: {AFFECTED_FILES}). Write 1-2 focused paragraphs.
+Your role: argue why {ALTERNATIVE} would be better, surface risks in {CHOSEN}, poke at hidden assumptions, and present the most compelling case for switching. In particular, challenge whether the chosen approach is justified by concrete current requirements or is speculative, and whether a simpler alternative would achieve the same goal with less complexity. These proportionality questions should be your primary weapon for making the case for {ALTERNATIVE}. Reference specific evidence from the synthesis and the codebase (via Read/Grep/Glob tools, focusing on: {AFFECTED_FILES}). Write 1-2 focused paragraphs.
 
 ## Synthesis
 {SYNTHESIS_TEXT}
@@ -462,11 +462,11 @@ If **all reviewers** report no in-scope issues and no out-of-scope observations,
 
 After deduplication, submit both in-scope findings and out-of-scope observations to a 3-agent voting panel per the **Voting Protocol** in `${CLAUDE_PLUGIN_ROOT}/skills/shared/voting-protocol.md`. Include OOS items on the ballot with `[OUT_OF_SCOPE]` prefix per the protocol's OOS section — voters can promote OOS items to in-scope by voting YES. For plan review:
 
-- **Voter 1**: Claude Deep Analysis reviewer subagent — fresh Agent tool invocation with the voting prompt. Instruct: `"You are a senior architect and correctness specialist on a voting panel. You will vote YES, NO, or EXONERATE on proposed modifications to an implementation plan. Be scrupulous — only vote YES for findings that are correct, important, and worth revising the plan for. Vote EXONERATE if the concern is legitimate but not worth implementing in this PR."`
+- **Voter 1**: Claude Deep Analysis reviewer subagent — fresh Agent tool invocation with the voting prompt. Instruct: `"You are a senior architect and correctness specialist on a voting panel. You will vote YES, NO, or EXONERATE on proposed modifications to an implementation plan. Be scrupulous — only vote YES for findings that are correct, important, and worth revising the plan for. Vote EXONERATE if the concern is legitimate but not worth implementing in this PR. When voting, also consider proportionality: vote NO if the finding's proposed change would introduce more complexity than the issue warrants, or if it addresses a speculative rather than concrete concern."`
 - **Voter 2**: Codex — via `run-external-reviewer.sh` with the ballot. If `codex_available` is false, launch a Claude subagent voter instead per the Voting Protocol.
 - **Voter 3**: Cursor — via `run-external-reviewer.sh` with the ballot. If `cursor_available` is false, launch a Claude subagent voter instead per the Voting Protocol.
 
-For Codex, Cursor, and their Claude replacement voters, instruct each: `"You are a senior engineer on a voting panel deciding which proposed plan modifications should be accepted."`
+For Codex, Cursor, and their Claude replacement voters, instruct each: `"You are a senior engineer on a voting panel deciding which proposed plan modifications should be accepted. When voting, also consider proportionality: vote NO if the finding's proposed change would introduce more complexity than the issue warrants, or if it addresses a speculative rather than concrete concern."`
 
 **Ballot file handling**: Use the Write tool (not `cat` with heredoc or Bash) to write the ballot to `$DESIGN_TMPDIR/ballot.txt`. For Codex and Cursor voter prompts, reference the ballot file path (e.g., "Read the ballot from $DESIGN_TMPDIR/ballot.txt") instead of inlining the ballot content. This avoids permission prompts from `cat > file << 'EOF'` or `BALLOT=$(cat file)` patterns.
 
