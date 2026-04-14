@@ -19,7 +19,7 @@ Every progress line follows:
 
 | Icon | Line type | When to use |
 |------|-----------|-------------|
-| `▶` | Step start | Entering a new step |
+| `🔶` | Step start | Entering a new step |
 | `✅` | Completion | Step completed with informational payload |
 | `⏩` | Sub-step skip | Optimization or workflow-conditional skip (quick mode, no changes, etc.) |
 | `⏭️` | Precondition skip | Entire step skipped due to missing precondition (repo unavailable, Slack not configured, merge not set) |
@@ -32,17 +32,18 @@ Every progress line follows:
 
 ## Step Start Formatting
 
-Step start lines (`▶`) get special visual treatment to make them easy to spot:
+Step start lines (`🔶`) get special visual treatment to make them easy to spot:
 
 1. **Separator line**: Print a line of 80 `━` characters immediately before every step start line.
 2. **Bold text**: Render the entire step start line in bold using `**...**` markdown.
+3. **Blockquote**: Wrap the bold line in a markdown blockquote (`>`) for color differentiation.
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-**▶ 2: implementation**
+> **🔶 2: implementation**
 ```
 
-Only `▶` step start lines get the separator and bold treatment. Completion (`✅`), skip (`⏩`/`⏭️`), warning (`⚠`), and other lines do NOT get separators or bold.
+Only `🔶` step start lines get the separator, blockquote, and bold treatment. Completion (`✅`), skip (`⏩`/`⏭️`), warning (`⚠`), and other lines do NOT get separators, blockquotes, or bold.
 
 ## Elapsed Time
 
@@ -52,7 +53,7 @@ Every line that marks the **end** of a step or work item must include elapsed ti
 
 ### Step progress lines
 
-Append the elapsed time in parentheses at the end of the line, using short form. The timer starts when the step logically began (its `▶` start line, or entry into the step if no `▶` line exists).
+Append the elapsed time in parentheses at the end of the line, using short form. The timer starts when the step logically began (its `🔶` start line, or entry into the step if no `🔶` line exists).
 
 ```
 ✅ 2a.5: dialectic — 3 decisions resolved (1m42s)
@@ -110,27 +111,27 @@ When outputting a step:
 Standalone `/design` (no `--step-prefix`):
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-**▶ 2a: sketches**
+> **🔶 2a: sketches**
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-**▶ 2a.5: dialectic**
+> **🔶 2a.5: dialectic**
 ✅ 2a.5: dialectic — 3 decisions resolved (1m42s)
 ```
 
 `/design` called from `/implement` with `--step-prefix "1.::design plan"`:
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-**▶ 1.2a: design plan | sketches**
+> **🔶 1.2a: design plan | sketches**
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-**▶ 1.2a.5: design plan | dialectic**
+> **🔶 1.2a.5: design plan | dialectic**
 ✅ 1.2a.5: design plan | dialectic — 3 decisions resolved (1m42s)
 ```
 
 `/review` called from `/implement` with `--step-prefix "5.::code review"`:
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-**▶ 5.2: code review | launch reviewers**
+> **🔶 5.2: code review | launch reviewers**
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-**▶ 5.3: code review | review cycle**
+> **🔶 5.3: code review | review cycle**
 ```
 
 ## Section headers and structured output
