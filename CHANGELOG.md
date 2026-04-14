@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.5] - 2026-04-13
+
+### Changed
+
+- Added deduplication to `create-oos-issues.sh` — fetches open issues before creating new ones and skips creation when a normalized-title match already exists
+- Updated SKILL.md Step 9a.1 to document new `ISSUES_DEDUPLICATED` output field and dedup reporting in PR body
+
 ## [2.0.4] - 2026-04-13
 
 ### Changed
