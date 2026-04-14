@@ -28,8 +28,19 @@ ISSUE_ARG=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --issue) ISSUE_ARG="${2:?--issue requires a value}"; shift 2 ;;
-        *) echo "Unknown option: $1" >&2; exit 2 ;;
+        --issue)
+            if [[ $# -lt 2 ]]; then
+                echo "ELIGIBLE=false"
+                echo "ERROR=--issue requires a value"
+                exit 2
+            fi
+            ISSUE_ARG="$2"; shift 2
+            ;;
+        *)
+            echo "ELIGIBLE=false"
+            echo "ERROR=Unknown option: $1"
+            exit 2
+            ;;
     esac
 done
 
@@ -47,16 +58,37 @@ REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null) || {
 # ---------------------------------------------------------------------------
 if [[ -n "$ISSUE_ARG" ]]; then
     # gh issue view accepts both bare numbers and full GitHub URLs natively.
-    # It validates the repo context — a cross-repo URL will fail.
-    ISSUE_JSON=$(gh issue view "$ISSUE_ARG" --json number,state,title 2>/dev/null) || {
+    # For URLs, it resolves the repo from the URL — we must verify it matches
+    # the current repo to prevent cross-repo misoperation.
+    ISSUE_JSON=$(gh issue view "$ISSUE_ARG" --json number,state,title,url 2>/dev/null) || {
         echo "ELIGIBLE=false"
-        echo "ERROR=Failed to fetch issue (invalid number, URL, or cross-repo reference): $ISSUE_ARG"
+        echo "ERROR=Failed to fetch issue (invalid number, URL, or inaccessible): $ISSUE_ARG"
         exit 2
     }
 
     ISSUE_NUM=$(echo "$ISSUE_JSON" | jq -r '.number')
     ISSUE_STATE=$(echo "$ISSUE_JSON" | jq -r '.state')
     ISSUE_TITLE=$(echo "$ISSUE_JSON" | jq -r '.title')
+    ISSUE_URL=$(echo "$ISSUE_JSON" | jq -r '.url // empty')
+
+    # Verify issue belongs to the current repo by parsing owner/repo from the
+    # issue URL (format: https://github.com/OWNER/REPO/issues/N).
+    if [[ -z "$ISSUE_URL" ]]; then
+        echo "ELIGIBLE=false"
+        echo "ERROR=Cannot verify repository ownership for issue: $ISSUE_ARG"
+        exit 2
+    fi
+    ISSUE_REPO=$(echo "$ISSUE_URL" | sed -n 's|https://github.com/\([^/]*/[^/]*\)/issues/.*|\1|p')
+    if [[ -z "$ISSUE_REPO" ]]; then
+        echo "ELIGIBLE=false"
+        echo "ERROR=Cannot parse repository from issue URL: $ISSUE_URL"
+        exit 2
+    fi
+    if [[ "$ISSUE_REPO" != "$REPO" ]]; then
+        echo "ELIGIBLE=false"
+        echo "ERROR=Issue belongs to $ISSUE_REPO, not the current repo ($REPO)"
+        exit 2
+    fi
 
     # Verify issue is open
     if [ "$ISSUE_STATE" != "OPEN" ]; then
