@@ -4,6 +4,7 @@
 # Checks if codex and cursor binaries are installed. With --probe, also sends a
 # trivial prompt to each available tool with a 60-second timeout to verify it is
 # actually responding (catches auth failures, network issues, outages).
+# Failed probes are retried once to tolerate transient timeouts.
 #
 # Usage:
 #   check-reviewers.sh [--probe] [--skip-codex-probe] [--skip-cursor-probe]
@@ -124,6 +125,78 @@ if [[ "$PROBE" == "true" ]]; then
             CURSOR_EXIT=$(cat "$PROBE_DIR/cursor-probe.txt.done")
             if [[ "$CURSOR_EXIT" == "0" ]]; then
                 if [[ -s "$PROBE_DIR/cursor-probe.txt" ]]; then
+                    CURSOR_HEALTHY="true"
+                fi
+            fi
+        fi
+    fi
+
+    # --- Retry once for failed probes (transient timeout recovery) ---
+    RETRY_CODEX=false
+    RETRY_CURSOR=false
+
+    if [[ "$CODEX_AVAILABLE" == "true" && "$SKIP_CODEX_PROBE" == "false" && "$CODEX_HEALTHY" == "false" ]]; then
+        RETRY_CODEX=true
+    fi
+    if [[ "$CURSOR_AVAILABLE" == "true" && "$SKIP_CURSOR_PROBE" == "false" && "$CURSOR_HEALTHY" == "false" ]]; then
+        RETRY_CURSOR=true
+    fi
+
+    if [[ "$RETRY_CODEX" == "true" || "$RETRY_CURSOR" == "true" ]]; then
+        echo "Retrying failed health probes..." >&2
+
+        RETRY_SENTINELS=()
+
+        if [[ "$RETRY_CODEX" == "true" ]]; then
+            rm -f "$PROBE_DIR/codex-probe.txt" "$PROBE_DIR/codex-probe.txt.done" "$PROBE_DIR/codex-probe.txt.meta"
+            CODEX_MODEL_ARGS=$("$SCRIPT_DIR/reviewer-model-args.sh" --tool codex)
+            # shellcheck disable=SC2086
+            "$SCRIPT_DIR/run-external-reviewer.sh" \
+                --tool codex \
+                --output "$PROBE_DIR/codex-probe.txt" \
+                --timeout 60 \
+                -- codex exec --full-auto -C "$PWD" $CODEX_MODEL_ARGS \
+                --output-last-message "$PROBE_DIR/codex-probe.txt" \
+                "Respond with OK" \
+                >"$PROBE_DIR/codex-wrapper.log" 2>&1 &
+            RETRY_SENTINELS+=("$PROBE_DIR/codex-probe.txt.done")
+        fi
+
+        if [[ "$RETRY_CURSOR" == "true" ]]; then
+            rm -f "$PROBE_DIR/cursor-probe.txt" "$PROBE_DIR/cursor-probe.txt.done" "$PROBE_DIR/cursor-probe.txt.meta"
+            CURSOR_MODEL_ARGS=$("$SCRIPT_DIR/reviewer-model-args.sh" --tool cursor)
+            # shellcheck disable=SC2086
+            "$SCRIPT_DIR/run-external-reviewer.sh" \
+                --tool cursor \
+                --output "$PROBE_DIR/cursor-probe.txt" \
+                --timeout 60 \
+                --capture-stdout \
+                -- cursor agent -p --force --trust $CURSOR_MODEL_ARGS --workspace "$PWD" \
+                "Respond with OK" \
+                >"$PROBE_DIR/cursor-wrapper.log" 2>&1 &
+            RETRY_SENTINELS+=("$PROBE_DIR/cursor-probe.txt.done")
+        fi
+
+        if [[ ${#RETRY_SENTINELS[@]} -gt 0 ]]; then
+            "$SCRIPT_DIR/wait-for-reviewers.sh" --timeout 120 "${RETRY_SENTINELS[@]}" \
+                >"$PROBE_DIR/wait-retry.log" 2>&1 || true
+        fi
+
+        # Re-check codex retry result
+        if [[ "$RETRY_CODEX" == "true" ]]; then
+            if [[ -f "$PROBE_DIR/codex-probe.txt.done" ]]; then
+                CODEX_EXIT=$(cat "$PROBE_DIR/codex-probe.txt.done")
+                if [[ "$CODEX_EXIT" == "0" && -s "$PROBE_DIR/codex-probe.txt" ]]; then
+                    CODEX_HEALTHY="true"
+                fi
+            fi
+        fi
+
+        # Re-check cursor retry result
+        if [[ "$RETRY_CURSOR" == "true" ]]; then
+            if [[ -f "$PROBE_DIR/cursor-probe.txt.done" ]]; then
+                CURSOR_EXIT=$(cat "$PROBE_DIR/cursor-probe.txt.done")
+                if [[ "$CURSOR_EXIT" == "0" && -s "$PROBE_DIR/cursor-probe.txt" ]]; then
                     CURSOR_HEALTHY="true"
                 fi
             fi
