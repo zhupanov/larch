@@ -59,7 +59,7 @@ LABELS=$(echo "$ISSUE_JSON" | jq -r '[.labels[].name] | join(", ") // "none"')
 CREATED=$(echo "$ISSUE_JSON" | jq -r '.createdAt // "unknown"')
 
 # Fetch all comments (paginated)
-COMMENTS=$(gh api --paginate "repos/${REPO}/issues/${ISSUE_NUMBER}/comments" 2>/dev/null) || {
+COMMENTS=$(gh api --paginate --slurp "repos/${REPO}/issues/${ISSUE_NUMBER}/comments" 2>/dev/null | jq 'add // []') || {
     echo "ERROR=Failed to fetch comments for issue #$ISSUE_NUMBER" >&2
     exit 1
 }

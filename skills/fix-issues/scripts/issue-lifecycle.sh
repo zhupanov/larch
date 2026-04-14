@@ -83,7 +83,7 @@ cmd_comment() {
         sleep 1
 
         local comments_json
-        comments_json=$(gh api --paginate "repos/${REPO}/issues/${issue}/comments" 2>/dev/null) || {
+        comments_json=$(gh api --paginate --slurp "repos/${REPO}/issues/${issue}/comments" 2>/dev/null | jq 'add // []') || {
             echo "LOCK_ACQUIRED=false"
             echo "ERROR=Failed to re-read comments for duplicate check"
             exit 1
@@ -91,7 +91,12 @@ cmd_comment() {
 
         # Count IN PROGRESS comments posted after the last GO comment
         local lock_count
-        lock_count=$(echo "$comments_json" | jq '[.[] | select(.body == "IN PROGRESS")] | length')
+        lock_count=$(echo "$comments_json" | jq '
+            [to_entries
+             | (map(select(.value.body == "GO")) | last.key // -1) as $last_go
+             | .[]
+             | select(.key > $last_go and .value.body == "IN PROGRESS")
+            ] | length')
 
         if [ "$lock_count" -gt 1 ]; then
             echo "LOCK_ACQUIRED=false"

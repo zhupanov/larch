@@ -51,7 +51,11 @@ while IFS= read -r issue_row; do
 
     # Get the last comment body (paginated to ensure we see all comments)
     LAST_COMMENT=$(gh api --paginate "repos/${REPO}/issues/${ISSUE_NUM}/comments" \
-        --jq '.[-1].body // empty' 2>/dev/null | tail -1) || continue
+        --jq '.[-1].body // empty' 2>/dev/null | tail -1) || {
+        echo "ELIGIBLE=false"
+        echo "ERROR=Failed to fetch comments for issue #$ISSUE_NUM"
+        exit 2
+    }
 
     # Trim whitespace for strict comparison
     TRIMMED=$(echo "$LAST_COMMENT" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
