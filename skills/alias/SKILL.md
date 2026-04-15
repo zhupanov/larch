@@ -1,24 +1,30 @@
 ---
 name: alias
 description: "Use when creating shortcut aliases for existing larch skills with preset flags. Generates a project-level skill in .claude/skills/ that forwards to the target skill."
-argument-hint: "<alias-name> <target-skill> [preset-flags...]"
-allowed-tools: Bash, Read, Write, Grep, Glob
+argument-hint: "[--merge] <alias-name> <target-skill> [preset-flags...]"
+allowed-tools: Bash, Skill
 ---
 
 # Alias Skill
 
-Create a project-level alias skill in `.claude/skills/` that forwards to an existing larch skill with preset flags.
+Create a project-level alias skill in `.claude/skills/` that forwards to an existing larch skill with preset flags. Delegates to `/implement --quick --auto` for the full pipeline (implementation, code review, version bump, PR).
 
-Example: `/alias i implement --merge` creates `/.claude/skills/i/SKILL.md` so that `/i <feature>` is equivalent to `/implement --merge <feature>`.
+Example: `/alias i implement --merge` creates `.claude/skills/i/SKILL.md` so that `/i <feature>` is equivalent to `/implement --merge <feature>`.
+
+Example with merge: `/alias --merge i implement --merge` creates the same alias AND merges the PR after CI passes.
 
 ## Step 1 — Parse Arguments
 
-Parse `$ARGUMENTS`:
+Parse flags from the start of `$ARGUMENTS` before treating the remainder as positional arguments. Stop at the first non-flag token (a token not starting with `--`). Only `--merge` appearing before the first positional argument is consumed as a flag for `/alias` itself; any `--merge` in the preset-flags remainder is passed through verbatim to the alias.
+
+- `--merge`: Set `alias_merge=true`. Default: `alias_merge=false`. When true, `--merge` is forwarded to the `/implement` invocation so the resulting PR is also merged.
+
+After flag stripping, parse the remaining positional arguments:
 - First token = **alias name**
 - Second token = **target skill name** (without `/` prefix)
 - Remainder = **preset flags** (may be empty — a pure rename shortcut is valid)
 
-If fewer than 2 tokens are provided, print: `**ERROR: Usage: /alias <alias-name> <target-skill> [preset-flags...]**` and abort.
+If fewer than 2 positional tokens are provided, print: `**ERROR: Usage: /alias [--merge] <alias-name> <target-skill> [preset-flags...]**` and abort.
 
 ## Step 2 — Validate
 
@@ -52,51 +58,26 @@ All validation uses Bash since `${CLAUDE_PLUGIN_ROOT}` is a shell variable not r
    ```
    - If it exists, print: `**ERROR: '.claude/skills/<alias-name>/' already exists. Remove it first or choose a different name.**` and abort.
 
-## Step 3 — Resolve Skill Invocation
+## Step 3 — Delegate to /implement
 
-The generated alias SKILL.md instructs the agent to invoke the target skill via the Skill tool. It tries the bare skill name first (e.g., `"implement"`), then falls back to `"larch:<name>"` (fully-qualified plugin name) if the bare name does not match an available skill. This avoids hardcoding a namespace assumption.
+Construct a concise feature description for `/implement`:
 
-## Step 4 — Generate SKILL.md Content
-
-Read the current plugin version:
-```bash
-grep '"version"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" | sed 's/.*"version": *"\([^"]*\)".*/\1/'
+If `<preset-flags>` is non-empty:
+```
+Add /<alias-name> alias for /<target-skill> <preset-flags>
 ```
 
-Generate the SKILL.md content via the helper script:
-```bash
-${CLAUDE_PLUGIN_ROOT}/skills/alias/scripts/generate-alias.sh \
-  --name <alias-name> \
-  --target <target-skill> \
-  --flags "<preset-flags>" \
-  --version <current-version>
+If `<preset-flags>` is empty:
+```
+Add /<alias-name> alias for /<target-skill>
 ```
 
-Capture the script's stdout as the generated SKILL.md content.
+Print: `**Alias /<alias-name> -> /<target-skill> <preset-flags> — delegating to /implement --quick --auto [--merge]**` (omit `<preset-flags>` and `--merge` parts if empty/false respectively).
 
-## Step 5 — Write the File
+Invoke the Skill tool:
+- Try skill: `"implement"` first (bare name). If no skill matches, try skill: `"larch:implement"` (fully-qualified plugin name).
+- args: `"--quick --auto [--merge] <feature-description>"`
 
-Create the directory and write the file:
-```bash
-mkdir -p ".claude/skills/<alias-name>"
-```
+Only include `--merge` in the args if `alias_merge=true`.
 
-Write the generated content to `.claude/skills/<alias-name>/SKILL.md` using the Write tool.
-
-## Step 6 — Stage and Commit
-
-Stage and commit using the wrapper script:
-
-```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/git-commit.sh \
-  -m "Add /<alias-name> alias for /<target-skill> <preset-flags>" \
-  ".claude/skills/<alias-name>/SKILL.md"
-```
-
-If `<preset-flags>` is empty (a pure rename alias), omit the trailing flags from the commit message: `"Add /<alias-name> alias for /<target-skill>"`.
-
-## Step 7 — Confirm
-
-If `<preset-flags>` is non-empty, print: `Alias /<alias-name> created -> /<target-skill> <preset-flags>. Committed on current branch.`
-
-If `<preset-flags>` is empty, print: `Alias /<alias-name> created -> /<target-skill>. Committed on current branch.`
+The implementing agent will research the codebase, discover `generate-alias.sh` in the larch plugin, and use it to generate the SKILL.md content.
