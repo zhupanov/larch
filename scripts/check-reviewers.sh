@@ -106,6 +106,9 @@ if [[ "$PROBE" == "true" ]]; then
             >"$PROBE_DIR/wait.log" 2>&1 || true
     fi
 
+    CODEX_PROBE_ERROR=""
+    CURSOR_PROBE_ERROR=""
+
     # Check codex probe result (skip if probe was not launched)
     if [[ "$CODEX_AVAILABLE" == "true" && "$SKIP_CODEX_PROBE" == "false" ]]; then
         if [[ -f "$PROBE_DIR/codex-probe.txt.done" ]]; then
@@ -114,8 +117,21 @@ if [[ "$PROBE" == "true" ]]; then
                 # Verify output is non-empty
                 if [[ -s "$PROBE_DIR/codex-probe.txt" ]]; then
                     CODEX_HEALTHY="true"
+                elif [[ -f "$PROBE_DIR/codex-probe.txt.diag" ]]; then
+                    CODEX_PROBE_ERROR=$(cat "$PROBE_DIR/codex-probe.txt.diag")
+                else
+                    CODEX_PROBE_ERROR="Probe exited successfully but produced no output"
+                fi
+            else
+                # Read .diag file if available, fall back to exit code
+                if [[ -f "$PROBE_DIR/codex-probe.txt.diag" ]]; then
+                    CODEX_PROBE_ERROR=$(cat "$PROBE_DIR/codex-probe.txt.diag")
+                else
+                    CODEX_PROBE_ERROR="Probe failed with exit code $CODEX_EXIT"
                 fi
             fi
+        else
+            CODEX_PROBE_ERROR="Probe process did not complete (sentinel file missing — possible crash or system kill)"
         fi
     fi
 
@@ -126,8 +142,20 @@ if [[ "$PROBE" == "true" ]]; then
             if [[ "$CURSOR_EXIT" == "0" ]]; then
                 if [[ -s "$PROBE_DIR/cursor-probe.txt" ]]; then
                     CURSOR_HEALTHY="true"
+                elif [[ -f "$PROBE_DIR/cursor-probe.txt.diag" ]]; then
+                    CURSOR_PROBE_ERROR=$(cat "$PROBE_DIR/cursor-probe.txt.diag")
+                else
+                    CURSOR_PROBE_ERROR="Probe exited successfully but produced no output"
+                fi
+            else
+                if [[ -f "$PROBE_DIR/cursor-probe.txt.diag" ]]; then
+                    CURSOR_PROBE_ERROR=$(cat "$PROBE_DIR/cursor-probe.txt.diag")
+                else
+                    CURSOR_PROBE_ERROR="Probe failed with exit code $CURSOR_EXIT"
                 fi
             fi
+        else
+            CURSOR_PROBE_ERROR="Probe process did not complete (sentinel file missing — possible crash or system kill)"
         fi
     fi
 
@@ -148,7 +176,7 @@ if [[ "$PROBE" == "true" ]]; then
         RETRY_SENTINELS=()
 
         if [[ "$RETRY_CODEX" == "true" ]]; then
-            rm -f "$PROBE_DIR/codex-probe.txt" "$PROBE_DIR/codex-probe.txt.done" "$PROBE_DIR/codex-probe.txt.meta"
+            rm -f "$PROBE_DIR/codex-probe.txt" "$PROBE_DIR/codex-probe.txt.done" "$PROBE_DIR/codex-probe.txt.meta" "$PROBE_DIR/codex-probe.txt.diag"
             CODEX_MODEL_ARGS=$("$SCRIPT_DIR/reviewer-model-args.sh" --tool codex)
             # shellcheck disable=SC2086
             "$SCRIPT_DIR/run-external-reviewer.sh" \
@@ -163,7 +191,7 @@ if [[ "$PROBE" == "true" ]]; then
         fi
 
         if [[ "$RETRY_CURSOR" == "true" ]]; then
-            rm -f "$PROBE_DIR/cursor-probe.txt" "$PROBE_DIR/cursor-probe.txt.done" "$PROBE_DIR/cursor-probe.txt.meta"
+            rm -f "$PROBE_DIR/cursor-probe.txt" "$PROBE_DIR/cursor-probe.txt.done" "$PROBE_DIR/cursor-probe.txt.meta" "$PROBE_DIR/cursor-probe.txt.diag"
             CURSOR_MODEL_ARGS=$("$SCRIPT_DIR/reviewer-model-args.sh" --tool cursor)
             # shellcheck disable=SC2086
             "$SCRIPT_DIR/run-external-reviewer.sh" \
@@ -188,7 +216,19 @@ if [[ "$PROBE" == "true" ]]; then
                 CODEX_EXIT=$(cat "$PROBE_DIR/codex-probe.txt.done")
                 if [[ "$CODEX_EXIT" == "0" && -s "$PROBE_DIR/codex-probe.txt" ]]; then
                     CODEX_HEALTHY="true"
+                    CODEX_PROBE_ERROR=""  # retry succeeded, clear error
+                else
+                    # Update error with retry failure info
+                    if [[ -f "$PROBE_DIR/codex-probe.txt.diag" ]]; then
+                        CODEX_PROBE_ERROR="Retry also failed: $(cat "$PROBE_DIR/codex-probe.txt.diag")"
+                    elif [[ "$CODEX_EXIT" == "0" ]]; then
+                        CODEX_PROBE_ERROR="Retry also produced no output"
+                    else
+                        CODEX_PROBE_ERROR="Retry also failed with exit code $CODEX_EXIT"
+                    fi
                 fi
+            else
+                CODEX_PROBE_ERROR="Retry process did not complete (sentinel file missing)"
             fi
         fi
 
@@ -198,7 +238,18 @@ if [[ "$PROBE" == "true" ]]; then
                 CURSOR_EXIT=$(cat "$PROBE_DIR/cursor-probe.txt.done")
                 if [[ "$CURSOR_EXIT" == "0" && -s "$PROBE_DIR/cursor-probe.txt" ]]; then
                     CURSOR_HEALTHY="true"
+                    CURSOR_PROBE_ERROR=""  # retry succeeded, clear error
+                else
+                    if [[ -f "$PROBE_DIR/cursor-probe.txt.diag" ]]; then
+                        CURSOR_PROBE_ERROR="Retry also failed: $(cat "$PROBE_DIR/cursor-probe.txt.diag")"
+                    elif [[ "$CURSOR_EXIT" == "0" ]]; then
+                        CURSOR_PROBE_ERROR="Retry also produced no output"
+                    else
+                        CURSOR_PROBE_ERROR="Retry also failed with exit code $CURSOR_EXIT"
+                    fi
                 fi
+            else
+                CURSOR_PROBE_ERROR="Retry process did not complete (sentinel file missing)"
             fi
         fi
     fi
@@ -208,9 +259,15 @@ if [[ "$PROBE" == "true" ]]; then
     # misleading *_HEALTHY=false into session-env.
     if [[ "$CODEX_AVAILABLE" == "true" ]]; then
         echo "CODEX_HEALTHY=$CODEX_HEALTHY"
+        if [[ -n "$CODEX_PROBE_ERROR" ]]; then
+            echo "CODEX_PROBE_ERROR=$CODEX_PROBE_ERROR"
+        fi
     fi
     if [[ "$CURSOR_AVAILABLE" == "true" ]]; then
         echo "CURSOR_HEALTHY=$CURSOR_HEALTHY"
+        if [[ -n "$CURSOR_PROBE_ERROR" ]]; then
+            echo "CURSOR_PROBE_ERROR=$CURSOR_PROBE_ERROR"
+        fi
     fi
 
 fi
