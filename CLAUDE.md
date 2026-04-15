@@ -91,7 +91,7 @@ Use the bare form (matches `README.md`; see each `SKILL.md` for full argument de
 - `/research [--debug] <topic>` — read-only research; 5 researchers + 5 validators, no repo modifications
 - `/loop-review [--debug] [partition]` — systematic repo-wide review, partitioned into slices
 - `/relevant-checks` — pre-commit linters + agent-lint, scoped to changed files
-- `/fix-issue [--debug] [--issue <number-or-url>]` — process one approved GitHub issue: triage, classify, delegate to `/implement`
+- `/fix-issue [--debug] [<number-or-url>]` — process one approved GitHub issue: triage, classify, delegate to `/implement`
 - `/alias [--merge] <name> <skill> [flags...]` — create a project-level alias skill in `.claude/skills/` via `/implement --quick --auto`; `--merge` also merges the PR
 - `/bump-version` — classify and apply the semver bump (invoked by `/implement` Step 8 and after each rebase in Steps 10/12)
 
