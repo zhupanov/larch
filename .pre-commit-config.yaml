@@ -26,6 +26,12 @@ repos:
         language: system
         types: [json]
 
+  - repo: https://github.com/zhupanov/agent-lint
+    rev: v2.2.4
+    hooks:
+      - id: agent-lint
+        args: [--pedantic]
+
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.7
     hooks:
