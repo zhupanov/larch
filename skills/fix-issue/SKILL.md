@@ -61,10 +61,10 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/write-session-env.sh --output "$FIX_ISSUE_TMPDIR/s
 ## Step 1 — Fetch Eligible Issue
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/fix-issue/scripts/fetch-eligible-issue.sh [--issue "$ISSUE_ARG"]
+${CLAUDE_PLUGIN_ROOT}/skills/fix-issue/scripts/fetch-eligible-issue.sh ["$ISSUE_ARG"]
 ```
 
-Only include `--issue "$ISSUE_ARG"` if `ISSUE_ARG` is non-empty (the user provided an issue number/URL via positional argument or the deprecated `--issue` flag).
+Only include `"$ISSUE_ARG"` as a positional argument if `ISSUE_ARG` is non-empty (the user provided an issue number/URL via positional argument or the deprecated `--issue` flag).
 
 Handle exit codes:
 

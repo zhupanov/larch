@@ -30,6 +30,7 @@ ISSUE_ARG=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --issue)
+            echo "WARNING: --issue is deprecated; pass the issue number or URL as a positional argument instead." >&2
             if [[ $# -lt 2 ]]; then
                 echo "ELIGIBLE=false"
                 echo "ERROR=--issue requires a value"
@@ -44,6 +45,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             # Positional argument: issue number or URL
+            if [[ -n "$ISSUE_ARG" ]]; then
+                echo "ELIGIBLE=false"
+                echo "ERROR=Unexpected extra argument: $1 (issue already set to $ISSUE_ARG)"
+                exit 2
+            fi
             ISSUE_ARG="$1"; shift
             ;;
     esac
