@@ -58,8 +58,8 @@ if [[ $# -eq 0 ]]; then
     usage; exit 1
 fi
 
-# Clear stale output, sentinel, and metadata files
-rm -f "$OUTPUT_FILE" "${OUTPUT_FILE}.done" "${OUTPUT_FILE}.meta"
+# Clear stale output, sentinel, metadata, and diagnostic files
+rm -f "$OUTPUT_FILE" "${OUTPUT_FILE}.done" "${OUTPUT_FILE}.meta" "${OUTPUT_FILE}.diag"
 
 # Write sentinel file on ANY exit — the reliable completion signal for callers.
 # Callers poll for <output-file>.done instead of waiting for runtime notifications.
@@ -130,7 +130,7 @@ if [ "$EXIT_CODE" -ne 0 ]; then
         echo "--- ${TOOL_NAME} output (last 5 lines) ---"
         tail -5 "$OUTPUT_FILE"
         echo "--- end ---"
-        DIAG_DETAIL=" Last output: $(tail -1 "$OUTPUT_FILE" | head -c 200)"
+        DIAG_DETAIL=" Last output: $(tail -1 "$OUTPUT_FILE" | head -c 200 | tr '|' ' ')"
     fi
     # Write diagnostic file for callers
     echo "Failed with exit code ${EXIT_CODE} after ${SECONDS}s. Output size: ${OUTPUT_SIZE} bytes.${DIAG_DETAIL}" > "${OUTPUT_FILE}.diag"

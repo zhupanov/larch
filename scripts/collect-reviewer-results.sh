@@ -319,7 +319,14 @@ if [[ ${#RETRY_FILES[@]} -gt 0 ]]; then
                 else
                     # Retry also failed — NOW mark tool unhealthy
                     set_tool_unhealthy "$TOOL"
-                    RETRY_REASON=$(build_failure_reason "$RETRY_OUTPUT" "EMPTY_OUTPUT" "$RETRY_EXIT")
+                    if [[ "$RETRY_EXIT" == "124" ]]; then
+                        RETRY_STATUS="TIMED_OUT"
+                    elif [[ "$RETRY_EXIT" != "0" ]]; then
+                        RETRY_STATUS="FAILED"
+                    else
+                        RETRY_STATUS="EMPTY_OUTPUT"
+                    fi
+                    RETRY_REASON=$(build_failure_reason "$RETRY_OUTPUT" "$RETRY_STATUS" "$RETRY_EXIT")
                     RESULTS[IDX]="REVIEWER_FILE=$ORIG_OUTPUT|TOOL=$TOOL|STATUS=EMPTY_OUTPUT|EXIT_CODE=0|HEALTHY=false|FAILURE_REASON=Retry also failed: $RETRY_REASON"
                 fi
             else

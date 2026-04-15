@@ -65,7 +65,7 @@ FAILURE_REASON=<explanation>
 
 Parse each reviewer's `STATUS`, `REVIEWER_FILE`, and `FAILURE_REASON`:
 - `STATUS=OK`: Read the output file — it is non-empty and validated. `FAILURE_REASON` is empty.
-- Any other status: The reviewer failed. `FAILURE_REASON` explains why (e.g., "Timed out after 1800s (limit: 1800s). Process was killed after exceeding the timeout." or "Failed with exit code 1 after 5s. Last output: error message here"). Follow the **Runtime Timeout Fallback** procedure below, including `FAILURE_REASON` in the message.
+- Any other status: The reviewer failed. `FAILURE_REASON` explains why (e.g., "Timed out after 1800s (limit: 1800s). Process was killed after exceeding the timeout." or "Failed with exit code 1 after 5s. Last output: error message here"). Follow the **Runtime Timeout Fallback** procedure above, including `FAILURE_REASON` in the message.
 
 **Important**: Do NOT read output files before calling `collect-reviewer-results.sh`. Cursor buffers all stdout until exit — its output file is empty until the process finishes. The collection script handles all sentinel polling and validation internally.
 

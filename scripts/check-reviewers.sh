@@ -117,6 +117,8 @@ if [[ "$PROBE" == "true" ]]; then
                 # Verify output is non-empty
                 if [[ -s "$PROBE_DIR/codex-probe.txt" ]]; then
                     CODEX_HEALTHY="true"
+                elif [[ -f "$PROBE_DIR/codex-probe.txt.diag" ]]; then
+                    CODEX_PROBE_ERROR=$(cat "$PROBE_DIR/codex-probe.txt.diag")
                 else
                     CODEX_PROBE_ERROR="Probe exited successfully but produced no output"
                 fi
@@ -140,6 +142,8 @@ if [[ "$PROBE" == "true" ]]; then
             if [[ "$CURSOR_EXIT" == "0" ]]; then
                 if [[ -s "$PROBE_DIR/cursor-probe.txt" ]]; then
                     CURSOR_HEALTHY="true"
+                elif [[ -f "$PROBE_DIR/cursor-probe.txt.diag" ]]; then
+                    CURSOR_PROBE_ERROR=$(cat "$PROBE_DIR/cursor-probe.txt.diag")
                 else
                     CURSOR_PROBE_ERROR="Probe exited successfully but produced no output"
                 fi
@@ -172,7 +176,7 @@ if [[ "$PROBE" == "true" ]]; then
         RETRY_SENTINELS=()
 
         if [[ "$RETRY_CODEX" == "true" ]]; then
-            rm -f "$PROBE_DIR/codex-probe.txt" "$PROBE_DIR/codex-probe.txt.done" "$PROBE_DIR/codex-probe.txt.meta"
+            rm -f "$PROBE_DIR/codex-probe.txt" "$PROBE_DIR/codex-probe.txt.done" "$PROBE_DIR/codex-probe.txt.meta" "$PROBE_DIR/codex-probe.txt.diag"
             CODEX_MODEL_ARGS=$("$SCRIPT_DIR/reviewer-model-args.sh" --tool codex)
             # shellcheck disable=SC2086
             "$SCRIPT_DIR/run-external-reviewer.sh" \
@@ -187,7 +191,7 @@ if [[ "$PROBE" == "true" ]]; then
         fi
 
         if [[ "$RETRY_CURSOR" == "true" ]]; then
-            rm -f "$PROBE_DIR/cursor-probe.txt" "$PROBE_DIR/cursor-probe.txt.done" "$PROBE_DIR/cursor-probe.txt.meta"
+            rm -f "$PROBE_DIR/cursor-probe.txt" "$PROBE_DIR/cursor-probe.txt.done" "$PROBE_DIR/cursor-probe.txt.meta" "$PROBE_DIR/cursor-probe.txt.diag"
             CURSOR_MODEL_ARGS=$("$SCRIPT_DIR/reviewer-model-args.sh" --tool cursor)
             # shellcheck disable=SC2086
             "$SCRIPT_DIR/run-external-reviewer.sh" \
