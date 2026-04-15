@@ -18,17 +18,17 @@ REPO_ROOT="$(git rev-parse --show-toplevel)" || { echo "ERROR: not inside a git 
 cd "$REPO_ROOT" || exit 1
 
 # ---------------------------------------------------------------------------
-# Shared post-check function: claude-lint
+# Shared post-check function: agent-lint
 # ---------------------------------------------------------------------------
 run_post_checks() {
-    if command -v claude-lint >/dev/null 2>&1; then
+    if command -v agent-lint >/dev/null 2>&1; then
         echo ""
-        echo "=== Running claude-lint ==="
-        claude-lint "$REPO_ROOT"
+        echo "=== Running agent-lint ==="
+        agent-lint "$REPO_ROOT"
         return $?
     else
         echo ""
-        echo "WARNING: claude-lint not found on PATH — skipping"
+        echo "WARNING: agent-lint not found on PATH — skipping"
     fi
 }
 
@@ -78,9 +78,9 @@ done <<< "$MODIFIED_FILES"
 
 # ---------------------------------------------------------------------------
 # If all changes are deletions (files[] empty but MODIFIED_FILES non-empty),
-# pre-commit has nothing to lint, but claude-lint is exactly what we want —
+# pre-commit has nothing to lint, but agent-lint is exactly what we want —
 # deletions are the most likely cause of structural regressions (deleted
-# referenced scripts, removed SKILL.md, etc.). Run claude-lint before exiting.
+# referenced scripts, removed SKILL.md, etc.). Run agent-lint before exiting.
 # ---------------------------------------------------------------------------
 if [ ${#files[@]} -eq 0 ]; then
     echo "No existing modified files to check (all changes are deletions)."
@@ -101,10 +101,10 @@ if [ "$PRE_COMMIT_EXIT" -ne 0 ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Pre-commit succeeded — run claude-lint on the full repo.
+# Pre-commit succeeded — run agent-lint on the full repo.
 # This catches structural regressions (frontmatter, references, dead scripts,
 # etc.) that pre-commit's file-type linters cannot detect. Mirrors the same
-# linter invoked by CI's claude-lint job, so developers can catch regressions
+# linter invoked by CI's agent-lint job, so developers can catch regressions
 # locally before pushing.
 # ---------------------------------------------------------------------------
 run_post_checks

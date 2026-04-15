@@ -49,7 +49,7 @@ These invariants are what an editing agent will otherwise get wrong.
 
 ### Path conventions
 
-- Public `skills/*/SKILL.md` **MUST** use `${CLAUDE_PLUGIN_ROOT}/…` — never `$PWD`, `${PWD}`, or hardcoded absolute paths. Enforced by claude-lint.
+- Public `skills/*/SKILL.md` **MUST** use `${CLAUDE_PLUGIN_ROOT}/…` — never `$PWD`, `${PWD}`, or hardcoded absolute paths. Enforced by agent-lint.
 - `hooks/hooks.json` SHOULD also use `${CLAUDE_PLUGIN_ROOT}/…`.
 - Development-only `.claude/skills/*/SKILL.md` intentionally use `$PWD/…` and are exempt from the hygiene check by design.
 
@@ -59,7 +59,7 @@ These invariants are what an editing agent will otherwise get wrong.
 
 ### Scripts and references
 
-- **Dead-script invariant**: every `scripts/*.sh` must have a structured reference somewhere in the repo (SKILL.md files, `hooks/hooks.json`, `.claude/settings.json`, workflow `run:` blocks, inter-script `$SCRIPT_DIR/` references, and fenced code blocks in `skills/shared/*.md`). Enforced by claude-lint.
+- **Dead-script invariant**: every `scripts/*.sh` must have a structured reference somewhere in the repo (SKILL.md files, `hooks/hooks.json`, `.claude/settings.json`, workflow `run:` blocks, inter-script `$SCRIPT_DIR/` references, and fenced code blocks in `skills/shared/*.md`). Enforced by agent-lint.
 - **Script reference integrity**: any script path referenced from a `SKILL.md` or `skills/shared/*.md` must exist on disk.
 - **Executability**: every `.sh` file under `scripts/`, `skills/*/scripts/`, and `.claude/skills/*/scripts/` must be `chmod +x`.
 
@@ -75,7 +75,7 @@ These invariants are what an editing agent will otherwise get wrong.
 
 ### Validation gate
 
-- After any change, run `/relevant-checks`. It runs `pre-commit run --files <changed>` on branch-modified files; if pre-commit passes, it additionally runs `claude-lint`. This is a fast local gate — CI's `lint` job runs repo-wide `make lint`, so a local pass does not guarantee CI passes.
+- After any change, run `/relevant-checks`. It runs `pre-commit run --files <changed>` on branch-modified files; if pre-commit passes, it additionally runs `agent-lint`. This is a fast local gate — CI's `lint` job runs repo-wide `make lint`, so a local pass does not guarantee CI passes.
 
 ### Hooks
 
@@ -90,7 +90,7 @@ Use the bare form (matches `README.md`; see each `SKILL.md` for full argument de
 - `/review [--debug]` — code review of current branch with 2 Claude + 2 Codex + Cursor reviewers
 - `/research [--debug] <topic>` — read-only research; 5 researchers + 5 validators, no repo modifications
 - `/loop-review [--debug] [partition]` — systematic repo-wide review, partitioned into slices
-- `/relevant-checks` — pre-commit linters + claude-lint, scoped to changed files
+- `/relevant-checks` — pre-commit linters + agent-lint, scoped to changed files
 - `/fix-issue [--debug] [--issue <number-or-url>]` — process one approved GitHub issue: triage, classify, delegate to `/implement`
 - `/alias [--merge] <name> <skill> [flags...]` — create a project-level alias skill in `.claude/skills/` via `/implement --quick --auto`; `--merge` also merges the PR
 - `/bump-version` — classify and apply the semver bump (invoked by `/implement` Step 8 and after each rebase in Steps 10/12)
@@ -123,4 +123,4 @@ Read these directly when you need depth — CLAUDE.md deliberately does not dupl
 - Follow recent history style for commit messages. The string `Bump version to X.Y.Z` is reserved for `/bump-version`.
 - PR creation, Slack posting, and CI polling are automated inside `/implement`. Do not run `gh pr create` manually from inside a workflow — drive it through the skill.
 - Slack env vars (`LARCH_SLACK_BOT_TOKEN`, `LARCH_SLACK_CHANNEL_ID`, `LARCH_SLACK_USER_ID`) are optional; skills degrade gracefully with a warning at session setup when absent. Plugin `userConfig` values (`CLAUDE_PLUGIN_OPTION_SLACK_BOT_TOKEN`, etc.) are also accepted as fallbacks — env vars take precedence.
-- **`SECURITY.md` must not be deleted** — enforced by claude-lint. Update it when security-relevant behavior changes (e.g., external tool delegation, token handling).
+- **`SECURITY.md` must not be deleted** — enforced by agent-lint. Update it when security-relevant behavior changes (e.g., external tool delegation, token handling).
