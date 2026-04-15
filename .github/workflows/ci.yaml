@@ -29,11 +29,11 @@ jobs:
       - name: Run all linters
         run: make lint
 
-  claude-lint:
+  agent-lint:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: zhupanov/claude-lint@v1
+      - uses: zhupanov/agent-lint@v2
         with:
           github-token: ${{ github.token }}
