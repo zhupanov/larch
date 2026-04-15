@@ -92,7 +92,7 @@ Use the bare form (matches `README.md`; see each `SKILL.md` for full argument de
 - `/loop-review [--debug] [partition]` — systematic repo-wide review, partitioned into slices
 - `/relevant-checks` — pre-commit linters + claude-lint, scoped to changed files
 - `/fix-issue [--debug] [--issue <number-or-url>]` — process one approved GitHub issue: triage, classify, delegate to `/implement`
-- `/alias <name> <skill> [flags...]` — create a project-level alias skill in `.claude/skills/` that forwards to a larch skill with preset flags
+- `/alias [--merge] <name> <skill> [flags...]` — create a project-level alias skill in `.claude/skills/` via `/implement --quick --auto`; `--merge` also merges the PR
 - `/bump-version` — classify and apply the semver bump (invoked by `/implement` Step 8 and after each rebase in Steps 10/12)
 
 Full lifecycle: `docs/workflow-lifecycle.md`.

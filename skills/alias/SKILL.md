@@ -15,7 +15,7 @@ Example with merge: `/alias --merge i implement --merge` creates the same alias 
 
 ## Step 1 — Parse Arguments
 
-Parse flags from the start of `$ARGUMENTS` before treating the remainder as positional arguments. Flags may appear in any order; stop at the first non-flag token.
+Parse flags from the start of `$ARGUMENTS` before treating the remainder as positional arguments. Stop at the first non-flag token (a token not starting with `--`). Only `--merge` appearing before the first positional argument is consumed as a flag for `/alias` itself; any `--merge` in the preset-flags remainder is passed through verbatim to the alias.
 
 - `--merge`: Set `alias_merge=true`. Default: `alias_merge=false`. When true, `--merge` is forwarded to the `/implement` invocation so the resulting PR is also merged.
 
@@ -60,20 +60,24 @@ All validation uses Bash since `${CLAUDE_PLUGIN_ROOT}` is a shell variable not r
 
 ## Step 3 — Delegate to /implement
 
-Construct a feature description for `/implement`. The description must contain all the information the implementing agent needs to create the alias:
+Construct a concise feature description for `/implement`:
 
 If `<preset-flags>` is non-empty:
 ```
-Create alias skill /<alias-name> for /<target-skill> with preset flags: <preset-flags>. Run: mkdir -p .claude/skills/<alias-name> && ${CLAUDE_PLUGIN_ROOT}/skills/alias/scripts/generate-alias.sh --name <alias-name> --target <target-skill> --flags "<preset-flags>" --version "$(grep '"version"' ${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json | sed 's/.*"version": *"\([^"]*\)".*/\1/')" > .claude/skills/<alias-name>/SKILL.md
+Add /<alias-name> alias for /<target-skill> <preset-flags>
 ```
 
 If `<preset-flags>` is empty:
 ```
-Create alias skill /<alias-name> for /<target-skill> (pure rename, no preset flags). Run: mkdir -p .claude/skills/<alias-name> && ${CLAUDE_PLUGIN_ROOT}/skills/alias/scripts/generate-alias.sh --name <alias-name> --target <target-skill> --flags "" --version "$(grep '"version"' ${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json | sed 's/.*"version": *"\([^"]*\)".*/\1/')" > .claude/skills/<alias-name>/SKILL.md
+Add /<alias-name> alias for /<target-skill>
 ```
+
+Print: `**Alias /<alias-name> -> /<target-skill> <preset-flags> — delegating to /implement --quick --auto [--merge]**` (omit `<preset-flags>` and `--merge` parts if empty/false respectively).
 
 Invoke the Skill tool:
 - Try skill: `"implement"` first (bare name). If no skill matches, try skill: `"larch:implement"` (fully-qualified plugin name).
 - args: `"--quick --auto [--merge] <feature-description>"`
 
 Only include `--merge` in the args if `alias_merge=true`.
+
+The implementing agent will research the codebase, discover `generate-alias.sh` in the larch plugin, and use it to generate the SKILL.md content.
