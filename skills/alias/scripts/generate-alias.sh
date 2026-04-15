@@ -61,6 +61,7 @@ HEREDOC_START
 
 echo "name: ${NAME}"
 echo "description: \"${DESC}\""
+echo "argument-hint: \"<feature-description>\""
 echo "allowed-tools: Skill"
 
 cat <<'HEREDOC_MID'
