@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-04-14
+
+### Changed
+
+- `/alias` now delegates to `/implement --quick --auto` for the full pipeline (code review, version bump, PR) instead of writing files directly
+- Added `--merge` flag to `/alias` to optionally merge the PR after CI passes
+- Renamed `claude-lint` CI job to `agent-lint` and upgraded to `zhupanov/agent-lint@v2`
+- Renamed `claude-lint.toml` to `agent-lint.toml` and updated all references across codebase
+
 ## [2.0.10] - 2026-04-13
 
 ### Changed
