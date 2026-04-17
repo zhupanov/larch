@@ -47,3 +47,4 @@ jobs:
       - uses: agent-sh/agnix@v0
         with:
           target: 'claude-code'
+          config: '.agnix.toml'

@@ -50,6 +50,7 @@ repos:
             .*SKILL\.md|
             .*CLAUDE\.md|
             .*CLAUDE\.local\.md|
+            .*AGENTS\.md|
             agents/.*\.md|
             \.claude/agents/.*\.md|
             \.claude/settings\.json|
