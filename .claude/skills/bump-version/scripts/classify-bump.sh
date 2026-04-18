@@ -20,7 +20,7 @@
 #   BUMP_TYPE=MAJOR|MINOR|PATCH|NONE
 #   REASONING_FILE=<path>
 #
-# Reasoning log: ${IMPLEMENT_TMPDIR:-$PWD/.git}/bump-version-reasoning.md
+# Reasoning log: ${IMPLEMENT_TMPDIR:-${TMPDIR:-/tmp}}/bump-version-reasoning.md
 #
 # Exit codes: 0 success, 1 validation failure
 
@@ -55,8 +55,11 @@ if [[ -z "$BASE" ]] && git rev-parse --verify origin/main >/dev/null 2>&1; then
 fi
 [[ -n "$BASE" ]] || err "could not resolve merge-base against main or origin/main"
 
-# Reasoning log path.
-REASONING_DIR="${IMPLEMENT_TMPDIR:-$PWD/.git}"
+# Reasoning log path. When IMPLEMENT_TMPDIR is set (the /implement caller),
+# the file lands in that skill-owned tmpdir. When unset (standalone /bump-version
+# invocation), fall back to the system tmp directory — never write to $PWD/.git,
+# which triggers Claude Code permission prompts on the .git directory.
+REASONING_DIR="${IMPLEMENT_TMPDIR:-${TMPDIR:-/tmp}}"
 mkdir -p "$REASONING_DIR" 2>/dev/null || true
 REASONING_FILE="$REASONING_DIR/bump-version-reasoning.md"
 

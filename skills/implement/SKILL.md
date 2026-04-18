@@ -198,13 +198,13 @@ After `/design` returns (in normal mode), follow the **Cross-Skill Health Propag
 
 ### Capture branch name (`BRANCH_NAME`)
 
-After Step 1's branch resolution (whether quick mode or normal mode, whether a new branch was created or an existing one was reused), capture the resolved branch name into a `BRANCH_NAME` variable:
+After Step 1's branch resolution (whether quick mode or normal mode, whether a new branch was created or an existing one was reused), capture the resolved branch name into a `BRANCH_NAME` variable using the wrapper script:
 
 ```bash
-git symbolic-ref --short HEAD
+${CLAUDE_PLUGIN_ROOT}/scripts/git-current-branch.sh
 ```
 
-Save the output as `BRANCH_NAME`. This variable is referenced later by Step 14 (`local-cleanup.sh --branch $BRANCH_NAME`) and by Steps 4, 14, and 18 status messages that mention the development branch. **It is the responsibility of Step 1 to ensure `BRANCH_NAME` accurately reflects the branch where implementation will happen** — re-run `git symbolic-ref --short HEAD` after `/design` returns (in normal mode) since `/design` may have switched branches.
+Parse the output for `BRANCH=<name>` and save it as `BRANCH_NAME`. This variable is referenced later by Step 14 (`local-cleanup.sh --branch $BRANCH_NAME`) and by Steps 4, 14, and 18 status messages that mention the development branch. **It is the responsibility of Step 1 to ensure `BRANCH_NAME` accurately reflects the branch where implementation will happen** — re-run `git-current-branch.sh` after `/design` returns (in normal mode) since `/design` may have switched branches.
 
 ### Rebase onto latest main (before implementation)
 
@@ -408,6 +408,8 @@ Parse the output for `HAS_BUMP` and `COMMITS_BEFORE`.
    ```
    Parse for `VERIFIED`, `COMMITS_AFTER`, `EXPECTED`. If `VERIFIED=false`, print: `**⚠ /bump-version did not create exactly one commit. Expected $EXPECTED, got $COMMITS_AFTER.**`
 
+3. **Capture the reasoning file path**: when `/bump-version` is invoked via the Skill tool, the `IMPLEMENT_TMPDIR` environment variable does not always propagate to the skill's bash environment, so `classify-bump.sh` may write `bump-version-reasoning.md` to its default location (`${TMPDIR:-/tmp}`) rather than to `$IMPLEMENT_TMPDIR`. The authoritative path is always emitted on stdout as `REASONING_FILE=<path>`. Parse that value and save it as `BUMP_REASONING_FILE` for use by Step 9a (PR body template) and the Rebase + Re-bump Sub-procedure step 6 (PR body refresh).
+
 **Important**: At PR creation time there must be exactly ONE version bump commit as HEAD. Proceed immediately to Step 8a after `/bump-version` returns. No additional commits may occur between Step 8a and Step 9. Note: after PR creation, Steps 10 and 12's rebase handlers may repeatedly drop and recreate this bump commit as main advances (via the shared **Rebase + Re-bump Sub-procedure** — see before Step 10). The branch history between PR creation and merge may therefore temporarily contain zero or multiple bump commits; the invariant that matters is "the terminal bump commit on HEAD must be based on latest `origin/main` at merge time", enforced strictly by Step 12 and best-effort by Step 10.
 
 ## Step 8a — CHANGELOG Update
@@ -434,11 +436,10 @@ Parse the output for `HAS_BUMP` and `COMMITS_BEFORE`.
    Use the appropriate Keep a Changelog category header (`Added`, `Changed`, `Fixed`, `Removed`) based on the nature of the changes. Multiple categories are fine if the PR spans them.
 
 4. Insert the new section immediately after the file's header block (after the `and this project adheres to [Semantic Versioning]` line, before the first existing `## [` section). If there is an `## [Unreleased]` section, insert after it.
-5. Stage `CHANGELOG.md` and amend the bump commit:
+5. Stage `CHANGELOG.md` and amend the bump commit via the wrapper script:
 
    ```bash
-   git add CHANGELOG.md
-   git commit --amend --no-edit
+   ${CLAUDE_PLUGIN_ROOT}/scripts/git-amend-add.sh CHANGELOG.md
    ```
 
    This keeps the bump commit as the single HEAD commit containing both the version bump and the changelog update.
@@ -487,7 +488,7 @@ Write the PR body to a temp file at `$IMPLEMENT_TMPDIR/pr-body.md`. The PR body 
 
 <details><summary>Version Bump Reasoning</summary>
 
-<content of $IMPLEMENT_TMPDIR/bump-version-reasoning.md if it exists and is non-empty, otherwise "No version bump reasoning available (skill may have skipped via BUMP_TYPE=NONE, or /bump-version was not invoked).">
+<content of $BUMP_REASONING_FILE (the path captured from classify-bump.sh's REASONING_FILE=<path> output in Step 8) if it exists and is non-empty, otherwise "No version bump reasoning available (skill may have skipped via BUMP_TYPE=NONE, or /bump-version was not invoked).">
 
 </details>
 
@@ -562,7 +563,7 @@ Populate Run Statistics from conversation context: count accepted/rejected findi
 - **Architecture Diagram**: Write "Quick mode — architecture diagram skipped."
 - **Code Flow Diagram**: Write "Quick mode — code flow diagram skipped."
 - **Final Design**: Use the inline implementation plan produced in Step 1 (not from `/design`).
-- **Version Bump Reasoning**: Populate from `$IMPLEMENT_TMPDIR/bump-version-reasoning.md` as in normal mode (the `/bump-version` skill writes this file when Step 8 runs, and this is mode-agnostic).
+- **Version Bump Reasoning**: Populate from `$BUMP_REASONING_FILE` (the absolute path parsed from `classify-bump.sh`'s `REASONING_FILE=<path>` stdout line in Step 8, identical to normal mode) if it exists and is non-empty, otherwise the standard fallback text from the normal-mode template.
 - **Rejected Plan Review Suggestions**: Write "Quick mode — no plan review was conducted."
 - **Plan Review Voting Tally**: Write "Quick mode — no plan review voting."
 - **Code Review Voting Tally (Round 1)**: Write "Quick mode — no voting panel. Main agent reviewed findings from 1 Claude Code Reviewer subagent."
@@ -660,11 +661,9 @@ After the initial version bump in Step 8, every subsequent rebase of the feature
 3. **Fast-forward local `main` to `origin/main`**:
    `rebase-push.sh` refreshes `origin/main` via `git fetch`, but local `main` is not automatically updated. `classify-bump.sh` prefers local `main` for its `merge-base` computation, so without this step `BASE` could point to an older commit than the one the branch was just rebased onto, causing the classifier's diff to include commits that belong to main (not the feature).
    ```bash
-   if git rev-parse --verify main >/dev/null 2>&1; then
-     git branch -f main origin/main
-   fi
+   ${CLAUDE_PLUGIN_ROOT}/scripts/git-sync-local-main.sh
    ```
-   This is safe because Step 10 and Step 12's rebase loops always run on a feature branch, never on `main`. If the local `main` ref does not exist, silently skip — `classify-bump.sh` has an `origin/main` fallback.
+   The wrapper silently no-ops when the local `main` ref does not exist (expected in that case — `classify-bump.sh` has an `origin/main` fallback). It refuses to run if the caller is accidentally on `main` (exit 1) — defense against accidental self-update. Parse `RESULT=updated|absent|already_current` from stdout for telemetry.
 
 4. **Re-bump**:
    Follow the same sequence as Step 8, with caller-family-specific error handling:
@@ -697,36 +696,27 @@ After the initial version bump in Step 8, every subsequent rebase of the feature
    **Rationale**: Step 8's permissive warnings are safe because Step 8 is pre-PR — no merge can happen based on a missing bump. Step 12 is pre-merge — missing bump means stale merge. Step 10 is post-PR but pre-merge (Step 12 does the merge) — any bump failure in Step 10 is recoverable by Step 12's mandatory re-bump, so Step 10 can afford to be permissive. **Step 12 is the last-chance enforcement point; Step 10 is best-effort optimization that improves freshness during the Slack-wait phase.**
 
 4a. **Re-apply CHANGELOG update** (mirrors Step 8a):
-   If `CHANGELOG.md` exists in the project root (check via Read tool) and a new bump commit was created (`VERIFIED=true` from step 4), update the CHANGELOG entry to reflect the new version from the re-bump. Follow the same logic as Step 8a: read `CHANGELOG.md`, compose an entry with the `NEW_VERSION` from the re-bump and the same Summary bullets, insert it (or replace the existing entry for the prior version if present), stage, and amend the bump commit via `git add CHANGELOG.md && git commit --amend --no-edit`. If CHANGELOG.md does not exist or the bump was skipped, skip this sub-step silently. **This is best-effort and non-blocking** — failure to update CHANGELOG does not affect the bump or push.
+   If `CHANGELOG.md` exists in the project root (check via Read tool) and a new bump commit was created (`VERIFIED=true` from step 4), update the CHANGELOG entry to reflect the new version from the re-bump. Follow the same logic as Step 8a: read `CHANGELOG.md`, compose an entry with the `NEW_VERSION` from the re-bump and the same Summary bullets, insert it (or replace the existing entry for the prior version if present), stage, and amend the bump commit via `${CLAUDE_PLUGIN_ROOT}/scripts/git-amend-add.sh CHANGELOG.md`. If CHANGELOG.md does not exist or the bump was skipped, skip this sub-step silently. **This is best-effort and non-blocking** — failure to update CHANGELOG does not affect the bump or push.
 
 5. **Push with recovery**:
    ```bash
-   git push --force-with-lease
+   ${CLAUDE_PLUGIN_ROOT}/scripts/git-force-push.sh
    ```
-   If push exits 0: proceed to step 6. If push fails:
-   a. Refresh the local tracking ref for the feature branch:
-      ```bash
-      BRANCH=$(git symbolic-ref --short HEAD)
-      git fetch origin "$BRANCH"
-      ```
-   b. Compare `git rev-parse HEAD` with `git rev-parse "origin/$BRANCH"`. If equal, the push actually landed (rare race where the remote accepted but the client did not recognize it). Proceed to step 6.
-   c. If they differ, the remote feature branch has something we don't. Log to `$IMPLEMENT_TMPDIR/execution-issues.md` under `CI Issues`: `Step <N> — force-with-lease push failed; local and remote feature branches diverge after re-bump.` Sleep 5s and retry the push ONCE:
-      ```bash
-      ${CLAUDE_PLUGIN_ROOT}/scripts/sleep-seconds.sh 5
-      git push --force-with-lease
-      ```
-      If the retry succeeds, proceed to step 6. If it fails again:
-      - **step12 family**: bail to 12d with error `12: CI+merge loop — re-bump push failed twice, remote diverged. Manual intervention required.`
-      - **step10 family**: print `**⚠ 10: CI monitor — re-bump push failed twice. Proceeding to Step 11 (may be stale).**` Log to `CI Issues`. Break to Step 11.
+   The wrapper performs `git push --force-with-lease` with the full recovery logic internally: on failure, it refreshes the local tracking ref, compares local HEAD vs `origin/<branch>`, returns success if they match (race landed), otherwise sleeps 5s and retries the push once. Parse stdout for `PUSHED=true|false` and `STATUS=pushed|noop_same_ref|diverged_retry_failed`. Exit code 0 on success (PUSHED=true), exit code 1 on `diverged_retry_failed`.
+
+   - **On `STATUS=pushed` or `STATUS=noop_same_ref`** (PUSHED=true): proceed to step 6.
+   - **On `STATUS=diverged_retry_failed`** (PUSHED=false): log to `$IMPLEMENT_TMPDIR/execution-issues.md` under `CI Issues`: `Step <N> — force-with-lease push failed twice; local and remote feature branches diverge after re-bump.` Then:
+     - **step12 family**: bail to 12d with error `12: CI+merge loop — re-bump push failed twice, remote diverged. Manual intervention required.`
+     - **step10 family**: print `**⚠ 10: CI monitor — re-bump push failed twice. Proceeding to Step 11 (may be stale).**` Break to Step 11.
 
    **Critical (step12 family only)**: Do NOT simply "log and return to caller" on push failure. That would let the merge loop proceed to `ACTION=merge` on a remote branch that does NOT contain the fresh bump commit, violating the feature's core invariant. `ci-wait.sh` and `merge-pr.sh` operate on remote PR state only; they cannot see unpushed local commits.
 
 6. **Refresh PR body Version Bump Reasoning block**:
-   If `$IMPLEMENT_TMPDIR/bump-version-reasoning.md` exists and is non-empty:
+   After `/bump-version` runs in step 4 above, capture the new reasoning-file path from its `REASONING_FILE=<path>` output line and use it as `$BUMP_REASONING_FILE` (same semantics as Step 8 — see that step for details on why the path must be parsed from stdout rather than constructed from `$IMPLEMENT_TMPDIR`). If `$BUMP_REASONING_FILE` exists and is non-empty:
    ```bash
    ${CLAUDE_PLUGIN_ROOT}/scripts/gh-pr-body-read.sh --pr <PR_NUMBER> --output "$IMPLEMENT_TMPDIR/live-body.md"
    ```
-   Read `$IMPLEMENT_TMPDIR/live-body.md`, replace the entire inner content of the `<details><summary>Version Bump Reasoning</summary>...</details>` block with the current contents of `$IMPLEMENT_TMPDIR/bump-version-reasoning.md` (preserving blank lines after the opening tag and before the closing `</details>` for GitHub Markdown rendering). Write the result to `$IMPLEMENT_TMPDIR/pr-body.md` (same file Step 11 writes to, so subsequent refreshes operate on the fresh canonical copy). Then:
+   Read `$IMPLEMENT_TMPDIR/live-body.md`, replace the entire inner content of the `<details><summary>Version Bump Reasoning</summary>...</details>` block with the current contents of `$BUMP_REASONING_FILE` (preserving blank lines after the opening tag and before the closing `</details>` for GitHub Markdown rendering). Write the result to `$IMPLEMENT_TMPDIR/pr-body.md` (same file Step 11 writes to, so subsequent refreshes operate on the fresh canonical copy). Then:
    ```bash
    ${CLAUDE_PLUGIN_ROOT}/scripts/gh-pr-body-update.sh --pr <PR_NUMBER> --body-file "$IMPLEMENT_TMPDIR/pr-body.md"
    ```
@@ -780,7 +770,7 @@ Parse the output for: `ACTION`, `CI_STATUS`, `BEHIND_COUNT`, `FAILED_RUN_ID`, `B
 
    - **`ACTION=evaluate_failure`**: Use `FAILED_RUN_ID` to evaluate:
      1. **Transient failure** (runner provisioning, Docker pull rate limit, "hosted runner lost communication", etc.): If `transient_retries < 2`, run `${CLAUDE_PLUGIN_ROOT}/scripts/sleep-seconds.sh 60`, then run `${CLAUDE_PLUGIN_ROOT}/scripts/ci-rerun-failed.sh --run-id <FAILED_RUN_ID> --repo $REPO`. Parse output for `RERUN_SUBMITTED` and `ERROR`. If `RERUN_SUBMITTED=false`, print the `ERROR` and treat as a real CI failure (fall through to diagnosis). Otherwise increment `transient_retries`, re-invoke `ci-wait.sh`. If `transient_retries >= 2`, treat as real failure.
-     2. **Real CI failure**: Run `${CLAUDE_PLUGIN_ROOT}/scripts/gh-run-logs.sh --run-id <FAILED_RUN_ID> --repo $REPO`. Diagnose the issue, fix it, run `/relevant-checks`, stage and commit using `${CLAUDE_PLUGIN_ROOT}/scripts/git-commit.sh -m "Fix CI failure" <fixed-files>`, push. Increment `fix_attempts`. Re-invoke `ci-wait.sh`.
+     2. **Real CI failure**: Run `${CLAUDE_PLUGIN_ROOT}/scripts/gh-run-logs.sh --run-id <FAILED_RUN_ID> --repo $REPO`. Diagnose the issue, fix it, run `/relevant-checks`, stage and commit using `${CLAUDE_PLUGIN_ROOT}/scripts/git-commit.sh -m "Fix CI failure" <fixed-files>`, then push via `${CLAUDE_PLUGIN_ROOT}/scripts/git-push.sh`. Increment `fix_attempts`. Re-invoke `ci-wait.sh`.
 
    - **`ACTION=bail`**: Print `BAIL_REASON`. Print `**⚠ 10: CI monitor — bailed, PR may have failing CI (<elapsed>)**` and proceed to Step 11.
 
@@ -883,18 +873,18 @@ When `rebase-push.sh` exits with code 1, the rebase is paused with conflicts. Th
 
 For each file in `CONFLICT_FILES`:
 
-1. Run `git ls-files -u` to determine the conflict type per file (check which index stages 1/2/3 exist).
-2. **Unsupported conflict types** — If any stage is missing (modify/delete, rename/delete conflicts) or the file is binary (check via `file --mime-type` or absence of text markers), classify as **uncertain**. Do not attempt auto-resolution.
-3. **Trivial files** — If the file is `version.go`, `go.sum`, `.claude-plugin/plugin.json`, or auto-generated, classify as **trivial** and auto-resolve immediately. Stage with `git add`. For `.claude-plugin/plugin.json` specifically, resolve to the **upstream (main) version** (run `git checkout --ours -- .claude-plugin/plugin.json` — during rebase, `--ours` refers to the base being rebased onto, i.e., upstream main), because the Rebase + Re-bump Sub-procedure will overwrite `plugin.json` with a fresh bump in its step 4 after the rebase completes. See the note below.
-4. **Text conflicts with both sides available** — Read both sides using explicit labels:
-   - `git show :2:<file>` → **upstream (main)** version. If this command fails, classify as uncertain.
-   - `git show :3:<file>` → **feature branch commit** version. If this command fails, classify as uncertain.
+1. Run `${CLAUDE_PLUGIN_ROOT}/scripts/git-conflict-files.sh` to determine the conflict type per file. Parse the output — each file is a block of `FILE=<path>`, `STAGE_1=<bool>`, `STAGE_2=<bool>`, `STAGE_3=<bool>` lines separated by blank lines.
+2. **Unsupported conflict types** — If any stage is missing (modify/delete, rename/delete conflicts — indicated by one of `STAGE_1`/`STAGE_2`/`STAGE_3` being `false` when the conflict type requires that stage) or the file is binary (check via `file --mime-type` or absence of text markers), classify as **uncertain**. Do not attempt auto-resolution.
+3. **Trivial files** — If the file is `version.go`, `go.sum`, `.claude-plugin/plugin.json`, or auto-generated, classify as **trivial** and auto-resolve immediately. Stage with `${CLAUDE_PLUGIN_ROOT}/scripts/git-stage.sh <file>`. For `.claude-plugin/plugin.json` specifically, resolve to the **upstream (main) version** via `${CLAUDE_PLUGIN_ROOT}/scripts/git-checkout-ours.sh .claude-plugin/plugin.json` — during rebase, `--ours` refers to the base being rebased onto, i.e., upstream main, because the Rebase + Re-bump Sub-procedure will overwrite `plugin.json` with a fresh bump in its step 4 after the rebase completes. See the note below.
+4. **Text conflicts with both sides available** — Read both sides using explicit labels via the wrapper:
+   - `${CLAUDE_PLUGIN_ROOT}/scripts/git-show-stage.sh --stage 2 --file <file>` → **upstream (main)** version. If this command fails (exit 1), classify as uncertain.
+   - `${CLAUDE_PLUGIN_ROOT}/scripts/git-show-stage.sh --stage 3 --file <file>` → **feature branch commit** version. If this command fails, classify as uncertain.
    - Also read the conflict markers in the working tree file for context.
 5. **Classify confidence**:
    - **Trivial**: `version.go`, `go.sum`, `.claude-plugin/plugin.json`, auto-generated files.
    - **High-confidence**: Changes are in non-overlapping regions (both sides added content in different locations), or the conflict markers show only whitespace, import-order, or formatting differences. Both sides' intent is clear and composable.
-   - **Uncertain**: Overlapping semantic changes to the same function/block, any file where correctness cannot be verified without domain knowledge, any file where `:2:` or `:3:` reads failed, any non-text/binary conflict.
-6. Auto-resolve trivial and high-confidence files. Stage resolved files with `git add`.
+   - **Uncertain**: Overlapping semantic changes to the same function/block, any file where correctness cannot be verified without domain knowledge, any file where stage 2 or stage 3 reads failed, any non-text/binary conflict.
+6. Auto-resolve trivial and high-confidence files. Stage resolved files with `${CLAUDE_PLUGIN_ROOT}/scripts/git-stage.sh <file>`.
 7. **IMPORTANT**: Always use "upstream (main)" and "feature branch commit" labels when describing the two sides of a conflict — never use "ours"/"theirs" which have inverted semantics during rebase and will cause confusion.
 
 **Note on `.claude-plugin/plugin.json` conflicts**: Under normal operation, the Rebase + Re-bump Sub-procedure drops the bump commit before rebasing, so `.claude-plugin/plugin.json` should not appear in `CONFLICT_FILES`. However, when `drop-bump-commit.sh` reported `DROPPED=false` (a CI fix commit landed on top of the bump, the worktree was dirty, or the commit touched more than `plugin.json`), the stale bump remains mid-stack and WILL conflict on `plugin.json` during rebase. The trivial-files rule above handles this case by auto-resolving to the upstream (main) version — safe because sub-procedure step 4 will overwrite `plugin.json` with a fresh `/bump-version` commit after the rebase completes.
@@ -903,8 +893,8 @@ For each file in `CONFLICT_FILES`:
 
 **If there are no uncertain conflicts**, skip to Phase 3.
 
-- **If `auto_mode=false`**: Call `AskUserQuestion` with the upstream (main) version, the feature branch commit version, and a proposed resolution for each uncertain file, batched into a single call. Use explicit "upstream (main)" and "feature branch commit" labels. Incorporate the user's answer, write the resolved file, and stage with `git add`. If the user indicates the conflict cannot be resolved or asks to abort, run `git rebase --abort` and **bail out** (Step 12d).
-- **If `auto_mode=true`**: Attempt best-effort resolution for uncertain conflicts. If confidence is too low for any file (e.g., modify/delete conflict, conflicting business logic with no composable path, one side deleted code the other modified), run `git rebase --abort` and **bail out** (Step 12d).
+- **If `auto_mode=false`**: Call `AskUserQuestion` with the upstream (main) version, the feature branch commit version, and a proposed resolution for each uncertain file, batched into a single call. Use explicit "upstream (main)" and "feature branch commit" labels. Incorporate the user's answer, write the resolved file, and stage with `${CLAUDE_PLUGIN_ROOT}/scripts/git-stage.sh <file>`. If the user indicates the conflict cannot be resolved or asks to abort, run `${CLAUDE_PLUGIN_ROOT}/scripts/git-rebase-abort.sh` and **bail out** (Step 12d).
+- **If `auto_mode=true`**: Attempt best-effort resolution for uncertain conflicts. If confidence is too low for any file (e.g., modify/delete conflict, conflicting business logic with no composable path, one side deleted code the other modified), run `${CLAUDE_PLUGIN_ROOT}/scripts/git-rebase-abort.sh` and **bail out** (Step 12d).
 
 #### Phase 3 — Reviewer Panel on Conflict Resolution
 
@@ -921,10 +911,10 @@ For each file in `CONFLICT_FILES`:
 ### <file-path>
 **Conflict type**: <text overlap / import reorder / etc.>
 **Upstream (main) version** (relevant section):
-<content from git show :2:<file>, focused on the conflicting region>
+<content from `git-show-stage.sh --stage 2 --file <file>`, focused on the conflicting region>
 
 **Feature branch commit version** (relevant section):
-<content from git show :3:<file>, focused on the conflicting region>
+<content from `git-show-stage.sh --stage 3 --file <file>`, focused on the conflicting region>
 
 **Proposed resolution**:
 <the resolved content that was staged>
@@ -932,11 +922,11 @@ For each file in `CONFLICT_FILES`:
 **Intent**: <one-line description of what each side was trying to do>
 ```
 
-Also capture `git diff --cached` as supplementary context showing the full staged state.
+The per-file conflict context blocks above are sufficient for reviewer evaluation; no additional staged-diff capture is required. (Historically the procedure appended `git diff --cached` output as supplementary context, but the per-file blocks carry the same information with clearer structure.)
 
 **3d. Launch reviewers**: Launch 1 Claude Code Reviewer subagent + Codex + Cursor (if available), 3 reviewers total, using the unified Code Reviewer archetype from `${CLAUDE_PLUGIN_ROOT}/skills/shared/reviewer-templates.md` with:
 - `{REVIEW_TARGET}` = `"merge conflict resolution"`
-- `{CONTEXT_BLOCK}` = the per-file conflict context blocks from 3c + supplementary `git diff --cached`
+- `{CONTEXT_BLOCK}` = the per-file conflict context blocks from 3c + supplementary staged diff
 - `{OUTPUT_INSTRUCTION}` = `"File path and line number(s)"` + `"What the issue is with the resolution"` + `"Suggested correction"`
 
 Follow `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md` for launch order (Cursor first, Codex, then the Claude subagent), background execution, sentinel polling via `wait-for-reviewers.sh`, and output validation. Use `$IMPLEMENT_TMPDIR/conflict-review/` as the tmpdir for all reviewer output files, sentinel files, and ballot files.
@@ -954,7 +944,7 @@ If fewer than 2 voters are available: skip voting, accept all reviewer findings 
 
 If voting **accepts findings** (2+ YES votes): re-resolve the affected files incorporating the accepted suggestions, re-stage, and re-run review (3c through 3e). Allow up to **2 total resolution-review rounds**.
 
-After 2 rounds with unresolved findings still being raised: run `git rebase --abort` and **bail out** (Step 12d).
+After 2 rounds with unresolved findings still being raised: run `${CLAUDE_PLUGIN_ROOT}/scripts/git-rebase-abort.sh` and **bail out** (Step 12d).
 
 If the reviewer panel finds no issues or all findings are addressed: proceed to Phase 4.
 
@@ -965,8 +955,8 @@ If the reviewer panel finds no issues or all findings are addressed: proceed to 
 Run `${CLAUDE_PLUGIN_ROOT}/scripts/rebase-push.sh --continue` and handle exit codes:
 - **Exit 0**: Rebase and push succeeded. Invoke the **Rebase + Re-bump Sub-procedure** (defined before Step 10) with `rebase_already_done=true`, `caller_kind=step12_phase4`. The sub-procedure performs fast-forward of local main, re-bump via `/bump-version` (with step12 hard-failure semantics), push of the new bump commit with recovery, and PR body refresh. Counter updates and `ci-wait.sh` re-invocation are handled inside the sub-procedure's step 7. If the sub-procedure bails to 12d on hard failure, Phase 4's exit-0 handler also bails to 12d.
 - **Exit 1**: A later commit in the rebase conflicted. Loop back to **Phase 1** for the new conflict (the Conflict Resolution Procedure starts again for the new set of `CONFLICT_FILES`).
-- **Exit 2**: Push `--force-with-lease` failed. Retry `rebase-push.sh --continue` once. If it fails twice, **bail out** (Step 12d — call `git rebase --abort` first if the rebase is still in progress).
-- **Exit 3**: Check the `REBASE_ERROR` output. If it indicates an empty or already-applied commit (e.g., "nothing to commit", "No changes"), run `git rebase --skip` (if `git rebase --skip` itself exits non-zero, run `${CLAUDE_PLUGIN_ROOT}/scripts/git-rebase-abort.sh` and **bail out** — Step 12d) and then `${CLAUDE_PLUGIN_ROOT}/scripts/rebase-push.sh --continue` again (handle the same exit codes). Otherwise, **bail out** (Step 12d).
+- **Exit 2**: Push `--force-with-lease` failed. Retry `rebase-push.sh --continue` once. If it fails twice, **bail out** (Step 12d — run `${CLAUDE_PLUGIN_ROOT}/scripts/git-rebase-abort.sh` first if the rebase is still in progress).
+- **Exit 3**: Check the `REBASE_ERROR` output. If it indicates an empty or already-applied commit (e.g., "nothing to commit", "No changes"), run `${CLAUDE_PLUGIN_ROOT}/scripts/git-rebase-skip.sh` (if it exits non-zero, run `${CLAUDE_PLUGIN_ROOT}/scripts/git-rebase-abort.sh` and **bail out** — Step 12d) and then `${CLAUDE_PLUGIN_ROOT}/scripts/rebase-push.sh --continue` again (handle the same exit codes). Otherwise, **bail out** (Step 12d).
 
 ### 12b — Merge
 
@@ -1004,7 +994,7 @@ Use `FAILED_RUN_ID` from the `ci-status.sh` output. If `FAILED_RUN_ID` is empty,
    ```bash
    ${CLAUDE_PLUGIN_ROOT}/scripts/gh-run-logs.sh --run-id <FAILED_RUN_ID> --repo $REPO
    ```
-   Analyze the logs. Fix the issue, run `/relevant-checks`, commit, push. Go back to **12a**.
+   Analyze the logs. Fix the issue, run `/relevant-checks`, commit via `${CLAUDE_PLUGIN_ROOT}/scripts/git-commit.sh -m "Fix CI failure" <fixed-files>`, then push via `${CLAUDE_PLUGIN_ROOT}/scripts/git-push.sh`. Go back to **12a**.
 
 ### 12d — Bail Out
 
