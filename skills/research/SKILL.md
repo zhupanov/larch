@@ -140,19 +140,27 @@ Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
 ### 1.3 — Wait and Validate Research Outputs
 
-Collect and validate external research outputs using the shared collection script. Only include output paths for external reviewers that were actually launched (not Claude fallbacks — those return via Agent tool).
+Collect and validate external research outputs using the shared collection script. Build the argument list from only the externals that were actually launched (not Claude fallbacks — those return via Agent tool):
 
-**Zero-externals branch**: If BOTH Cursor and Codex are unavailable (both fell back to Claude subagents), **skip `collect-reviewer-results.sh` entirely** — the script exits non-zero when called with an empty path list. In that case, proceed directly to Step 1.4 with the 3 Claude outputs (inline + 2 fallback subagents).
-
-Otherwise:
-
-```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/collect-reviewer-results.sh --timeout 1860 "$RESEARCH_TMPDIR/cursor-research-output.txt" "$RESEARCH_TMPDIR/codex-research-output.txt"
+```
+COLLECT_ARGS=()
+[[ "$cursor_available" == true ]] && COLLECT_ARGS+=("$RESEARCH_TMPDIR/cursor-research-output.txt")
+[[ "$codex_available" == true ]] && COLLECT_ARGS+=("$RESEARCH_TMPDIR/codex-research-output.txt")
 ```
 
-Use `timeout: 1860000` on the Bash tool call. **Do NOT** set `run_in_background: true` — this call must block. Only include output paths for external reviewers that were actually launched.
+**Zero-externals branch**: If BOTH Cursor and Codex are unavailable (`COLLECT_ARGS` is empty), **skip `collect-reviewer-results.sh` entirely** — the script exits non-zero when called with an empty path list. Proceed directly to Step 1.4 with the 3 Claude outputs (inline + 2 fallback subagents).
 
-Parse the structured output for each reviewer's `STATUS` and `REVIEWER_FILE`. For any reviewer with `STATUS` not `OK`, follow the **Runtime Timeout Fallback** procedure in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`. For research outputs, additionally check that valid output contains at least one paragraph of substantive prose (the script validates non-empty; content validation is the caller's responsibility).
+Otherwise, invoke the script with only the launched paths:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collect-reviewer-results.sh --timeout 1860 "${COLLECT_ARGS[@]}"
+```
+
+Use `timeout: 1860000` on the Bash tool call. **Do NOT** set `run_in_background: true` — this call must block.
+
+Parse the structured output for each reviewer's `STATUS` and `REVIEWER_FILE`. For research outputs, additionally check that valid output contains at least one paragraph of substantive prose (the script validates non-empty; content validation is the caller's responsibility).
+
+**Runtime-timeout replacement**: For any reviewer with `STATUS` not `OK`, follow the **Runtime Timeout Fallback** procedure in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md` to flip the corresponding availability flag, then **immediately launch a Claude subagent fallback via the Agent tool** (no `subagent_type`, carrying `RESEARCH_PROMPT` verbatim — same as the pre-launch fallback in Step 1.2) and wait for it before synthesis. This preserves the 3-lane invariant at synthesis time; without it, a mid-run external timeout silently reduces the synthesis input from 3 perspectives to 2.
 
 ### 1.4 — Synthesis
 
@@ -248,18 +256,27 @@ Use the unified Code Reviewer archetype from `${CLAUDE_PLUGIN_ROOT}/skills/share
 
 ### 2.4 — Collect and Validate External Reviewers
 
-**Zero-externals branch**: If BOTH Cursor and Codex are unavailable (all 3 lanes are Claude fallbacks), **skip `collect-reviewer-results.sh` entirely** (the script exits non-zero with an empty path list) and **skip all external negotiation** below. Merge the 3 Claude fallback findings and proceed to Finalize Validation.
+Build the argument list from only the externals that were actually launched:
 
-Otherwise, after processing any Claude fallback findings, collect and validate external reviewer outputs using the shared collection script. Only include output paths for reviewers that were actually launched:
+```
+COLLECT_ARGS=()
+[[ "$cursor_available" == true ]] && COLLECT_ARGS+=("$RESEARCH_TMPDIR/cursor-validation-output.txt")
+[[ "$codex_available" == true ]] && COLLECT_ARGS+=("$RESEARCH_TMPDIR/codex-general-validation-output.txt" "$RESEARCH_TMPDIR/codex-deep-validation-output.txt")
+```
+
+**Zero-externals branch**: If BOTH Cursor and Codex are unavailable (`COLLECT_ARGS` is empty — all 3 lanes are Claude fallbacks), **skip `collect-reviewer-results.sh` entirely** and **skip all external negotiation** below. Merge the 3 Claude fallback findings and proceed to Finalize Validation.
+
+Otherwise, after processing any Claude fallback findings, invoke the script with only the launched paths:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/collect-reviewer-results.sh --timeout 1860 "$RESEARCH_TMPDIR/cursor-validation-output.txt" "$RESEARCH_TMPDIR/codex-general-validation-output.txt" "$RESEARCH_TMPDIR/codex-deep-validation-output.txt"
+${CLAUDE_PLUGIN_ROOT}/scripts/collect-reviewer-results.sh --timeout 1860 "${COLLECT_ARGS[@]}"
 ```
 
 Use `timeout: 1860000` on the Bash tool call. **Do NOT** set `run_in_background: true` — this call must block.
 
-1. Parse the structured output for each reviewer's `STATUS` and `REVIEWER_FILE`. For any reviewer with `STATUS` not `OK`, follow the **Runtime Timeout Fallback** procedure in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`. Read valid output files.
-2. Merge external reviewer findings into any already-processed Claude fallback findings.
+1. Parse the structured output for each reviewer's `STATUS` and `REVIEWER_FILE`. Read valid output files.
+2. **Runtime-timeout replacement**: For any reviewer with `STATUS` not `OK`, follow the **Runtime Timeout Fallback** procedure in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md` to flip the availability flag, then **immediately launch the matching Claude Code Reviewer subagent fallback(s)** and wait for them before negotiation — a Cursor-generic replacement, a Codex-broad replacement, a Codex-deep replacement, or a pair (both Codex lanes) — using the variable bindings defined above. This preserves the 3-lane invariant at negotiation time.
+3. Merge external reviewer findings (and any runtime-fallback Claude findings) into any pre-launch Claude fallback findings.
 
 ### Codex and Cursor Negotiation (in parallel)
 
