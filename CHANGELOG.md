@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.6] - 2026-04-18
+
+### Changed
+
+- Code Reviewer archetype (`agents/code-reviewer.md` and `skills/shared/reviewer-templates.md`) tuned with severity tags (`**Important**` / `**Nit**` / `**Latent**`, with a PR-introduced-defect tiebreaker), a conservatism header ("when in doubt, say nothing"), an explicit "Do NOT report" exclusion list, a context-sensitive proof-before-report clause for `**Important**` findings (failing scenario or concrete breakage path), a Nit cap of 5 with a required "count plus categories" overflow summary, a tightened Quality gate that applies uniformly to In-Scope and Out-of-Scope findings with review-mode-appropriate evidence (file:line for code review; plan/validation anchors otherwise), Style consistency and red-green-TDD-that-should-have-happened both demoted to `**Nit**`-only, Backward compatibility and Thread safety folded into §2 Breaking changes and §3 Race conditions via cross-references that preserve legacy vocabulary, and the 5-step "Review process" softened into "Review priorities (in order, not a sequence)" to reduce premature stopping or anchoring. Phase 1 is Claude-lane-only — external Codex/Cursor reviewers still run their inline prompts from the individual skill SKILL.md files, so severity tags and the conservatism/exclusion rules reach Claude reviewers and Claude fallbacks only; external-lane alignment is deferred to a follow-up phase. Closes #91.
+
 ## [3.0.5] - 2026-04-18
 
 ### Changed
