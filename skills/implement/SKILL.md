@@ -13,7 +13,7 @@ The feature to implement is described by `$ARGUMENTS` after flag stripping.
 
 **Flags**: Parse flags from the start of `$ARGUMENTS` before treating the remainder as the feature description. Flags may appear in any order; stop at the first non-flag token. After stripping all flags, save the remainder as `FEATURE_DESCRIPTION` — use this (not raw `$ARGUMENTS`) whenever the human-readable feature description is needed (e.g., PR body, design invocation, commit messages). **All boolean flags default to `false`. Only set a flag to `true` when its `--flag` token is explicitly present in the arguments. Flags are independent — the presence of one flag must not influence the default value of any other flag.**
 
-- `--quick`: Set a mental flag `quick_mode=true`. Default: `quick_mode=false`. When `quick_mode=true`: Step 1 skips `/design` (this skill creates the branch and an inline plan directly), Step 5 skips `/review` (a simplified one-round review with 1 Claude Code Reviewer subagent only — no external reviewers, no voting panel), and Step 7a skips the Code Flow Diagram. All other steps (CI wait, Slack, cleanup) run normally. The `--merge` opt-in is independent of `--quick`.
+- `--quick`: Set a mental flag `quick_mode=true`. Default: `quick_mode=false`. When `quick_mode=true`: Step 1 skips `/design` (this skill creates the branch and an inline plan directly), Step 5 skips `/review` (a single-reviewer loop of up to 5 rounds using the Cursor → Codex → Claude Code Reviewer subagent fallback chain — no voting panel), and Step 7a skips the Code Flow Diagram. All other steps (CI wait, Slack, cleanup) run normally. The `--merge` opt-in is independent of `--quick`.
 - `--auto`: Set a mental flag `auto_mode=true`. Default: `auto_mode=false`. When `auto_mode=true`: (a) forward `--auto` to `/design` invocation in Step 1, suppressing `/design`'s interactive question checkpoints; (b) suppress this skill's own opportunistic questions in Step 2; (c) in Step 12, when merge conflicts require user input for uncertain resolutions, suppress `AskUserQuestion` and use best-effort resolution instead (bailing if confidence is too low). When `--quick` is also set and `/design` is skipped, `--auto` still suppresses Step 2 questions.
 - `--merge`: Set a mental flag `merge=true`. Default: `merge=false`. When `merge=true`, Steps 12–15 run (CI+rebase+merge loop, :merged: emoji, local cleanup, and main verification). When `merge=false`, these steps are skipped — the PR is created and the workflow stops after the initial CI wait, Slack announcement, rejected findings report, final report, and temp cleanup.
 - `--no-merge`: **Deprecated** — recognized for backward compatibility but treated as a no-op (the new default already skips merge steps). When this flag is encountered, print: `**ℹ '--no-merge' is now the default and no longer needed; the flag is recognized as a no-op for backward compatibility.**`
@@ -269,21 +269,75 @@ If successful:
 
 ### Quick mode (`quick_mode=true`)
 
-Skip `/review`. Instead, run a simplified one-round review:
+Print: `> **🔶 5: code review — quick mode (single reviewer, Cursor → Codex → Claude fallback, up to 5 rounds)**`
 
-1. Gather the diff using the context script:
-   ```bash
-   ${CLAUDE_PLUGIN_ROOT}/scripts/gather-branch-context.sh --output-dir "$IMPLEMENT_TMPDIR"
-   ```
-   Parse the output for `DIFF_FILE`, `FILE_LIST_FILE`, and `COMMIT_LOG_FILE`. Read these files to get the full diff, file list, and commit log.
-2. Launch **1 Claude Code Reviewer subagent** (subagent_type: `code-reviewer`) using the unified reviewer archetype from `${CLAUDE_PLUGIN_ROOT}/skills/shared/reviewer-templates.md` with these variable bindings: `{REVIEW_TARGET}` = `"code changes"`, `{CONTEXT_BLOCK}` = the commit log + file list + full diff, `{OUTPUT_INSTRUCTION}` = `"File path and line number(s)"` + `"What the issue is"` + `"Suggested fix"`. **No Codex, no Cursor, no external reviewers. No competition notice** (there is no voting panel in quick mode).
-3. Collect findings from the Code Reviewer subagent.
-4. **Main agent decides**: Evaluate each finding and unilaterally accept or reject it. No voting panel. Accept findings that identify genuine bugs, logic errors, or important improvements. Reject trivial style nits or speculative concerns. Also reject findings whose proposed fix would introduce more complexity than the issue warrants (disproportionate fix).
-5. Implement accepted fixes. Run `/relevant-checks` if files changed.
-6. **One round only** — no re-review loop.
-7. For rejected findings, write them to `$IMPLEMENT_TMPDIR/rejected-findings.md` using the same format as normal mode (see below), so Step 16 and PR body sections work unchanged.
+Skip `/review`. Instead, run a single-reviewer loop with up to **5 rounds** of review + fix. There is no voting panel — one reviewer per round, main agent unilaterally accepts/rejects each finding.
 
-Print: `> **🔶 5: code review — quick mode (1 Claude Code Reviewer subagent, 1 round, no voting)**`
+**Reviewer selection**: At the start of each round, pick ONE reviewer from the following priority chain (re-evaluated each round so runtime failures cascade to the next tier per the **Runtime Timeout Fallback** procedure in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`):
+
+1. **Cursor** if `cursor_available=true`
+2. Else **Codex** if `codex_available=true`
+3. Else **Claude Code Reviewer subagent** (subagent_type: `code-reviewer`)
+
+Track `round_num` starting at 1. For each round:
+
+**5.1 — Gather context**:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/gather-branch-context.sh --output-dir "$IMPLEMENT_TMPDIR"
+```
+
+Parse the output for `DIFF_FILE`, `FILE_LIST_FILE`, and `COMMIT_LOG_FILE`. Read these files to get the current cumulative diff (main...HEAD), file list, and commit log.
+
+**5.2 — Select the round's reviewer** per the priority chain above. Print: `⏳ 5: code review — round $round_num using <Cursor|Codex|Claude>`
+
+**5.3 — Launch the selected reviewer**:
+
+- **Cursor** — invoke via the shared monitored wrapper (Cursor has full repo access — no need to inline the diff):
+  ```bash
+  ${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "$IMPLEMENT_TMPDIR/quick-review-round${round_num}.txt" --timeout 1800 --capture-stdout -- \
+    cursor agent -p --force --trust $("${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-model-args.sh" --tool cursor --with-effort) --workspace "$PWD" \
+      "Review all code changes on the current branch vs main. Run git diff main...HEAD to see changes and git log main...HEAD --oneline for commits. For each changed file, read the full file for context. Walk four focus areas: (1) Code Quality: bugs, logic, reuse, tests, backward compat, style. (2) Risk/Integration: breaking changes, side effects, thread safety, deployment risks, regressions, CI. (3) Correctness: logic errors, off-by-one, nil handling, type mismatches, races, error paths. (4) Architecture: separation of concerns, contract boundaries, invariants, semantic boundaries. Tag each finding with its focus area. Return numbered findings with focus-area tag, file:line, issue, and suggested fix. If NO issues, output exactly NO_ISSUES_FOUND. Do NOT modify files. Work at your maximum reasoning effort level."
+  ```
+  Use `run_in_background: true` and `timeout: 1860000`. Then collect via:
+  ```bash
+  ${CLAUDE_PLUGIN_ROOT}/scripts/collect-reviewer-results.sh --timeout 1860 [--write-health "${SESSION_ENV_PATH}.health"] "$IMPLEMENT_TMPDIR/quick-review-round${round_num}.txt"
+  ```
+  Include `--write-health` only if `SESSION_ENV_PATH` is non-empty.
+
+- **Codex** — same pattern (no `--capture-stdout` — Codex uses its own output flag):
+  ```bash
+  ${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$IMPLEMENT_TMPDIR/quick-review-round${round_num}.txt" --timeout 1800 -- \
+    codex exec --full-auto -C "$PWD" $("${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-model-args.sh" --tool codex --with-effort) \
+      --output-last-message "$IMPLEMENT_TMPDIR/quick-review-round${round_num}.txt" \
+      "Review all code changes on the current branch vs main. Run git diff main...HEAD to see changes and git log main...HEAD --oneline for commits. For each changed file, read the full file for context. Walk four focus areas: (1) Code Quality: bugs, logic, reuse, tests, backward compat, style. (2) Risk/Integration: breaking changes, side effects, thread safety, deployment risks, regressions, CI. (3) Correctness: logic errors, off-by-one, nil handling, type mismatches, races, error paths. (4) Architecture: separation of concerns, contract boundaries, invariants, semantic boundaries. Tag each finding with its focus area. Return numbered findings with focus-area tag, file:line, issue, and suggested fix. If NO issues, output exactly NO_ISSUES_FOUND. Do NOT modify files. Work at your maximum reasoning effort level."
+  ```
+  Collect via the same `collect-reviewer-results.sh` call.
+
+- **Claude Code Reviewer subagent** — launch via the Agent tool (subagent_type: `code-reviewer`) using the unified reviewer archetype from `${CLAUDE_PLUGIN_ROOT}/skills/shared/reviewer-templates.md` with: `{REVIEW_TARGET}` = `"code changes"`, `{CONTEXT_BLOCK}` = the commit log + file list + full diff, `{OUTPUT_INSTRUCTION}` = `"File path and line number(s)"` + `"What the issue is"` + `"Suggested fix"`. **No competition notice** (no voting panel).
+
+**5.3.a — Runtime failure handling** (Cursor/Codex only): If `collect-reviewer-results.sh` reports `STATUS` not `OK`, follow the **Runtime Timeout Fallback** procedure in `external-reviewers.md`: flip the corresponding `cursor_available` / `codex_available` flag to `false` for the remainder of the session, log to `$IMPLEMENT_TMPDIR/execution-issues.md` under `External Reviewer Issues`, and **retry this round** (jump back to 5.2 to re-select the reviewer). Do NOT increment `round_num` — a failed external reviewer is not a counted round.
+
+**5.4 — Check for no findings**: If the reviewer reports no findings (`NO_ISSUES_FOUND`, "No issues found.", or a Claude subagent dual-list output with zero in-scope findings), the loop is done — proceed to Step 6. Claude subagent OOS observations are discarded in quick mode (Step 9a.1 is skipped in quick mode).
+
+**5.5 — Main agent evaluates findings**: For each reviewer finding, unilaterally accept or reject:
+- **Accept** findings that identify genuine bugs, logic errors, security issues, or clearly important improvements.
+- **Reject** trivial style nits, subjective preferences, or speculative concerns.
+- **Reject** findings whose proposed fix would introduce more complexity than the issue warrants (disproportionate fix).
+
+Append rejected findings to `$IMPLEMENT_TMPDIR/rejected-findings.md` using the standard format (see "Track Rejected Code Review Findings" below). Use the round number and reviewer tool in the reviewer name field (e.g., `[Code Review] Cursor (round 2)`).
+
+**5.6 — Short-circuit if no accepted findings**: If zero findings were accepted in this round, no fixes will be applied — no significant changes will be made. The loop is done — proceed to Step 6.
+
+**5.7 — Implement accepted fixes**: Edit the affected files. Then invoke `/relevant-checks`. If checks fail, diagnose and fix, then re-invoke `/relevant-checks` until clean.
+
+**5.8 — Re-review gate**: If `/relevant-checks` reported no files modified in this round (accepted findings turned out to be no-ops after re-reading code), the loop is done — proceed to Step 6. Otherwise, significant changes were made: increment `round_num`. If `round_num <= 5`, loop back to 5.1. If `round_num > 5`, print:
+
+```
+**⚠ 5: code review — quick mode hit 5-round cap without converging. Remaining findings from the last round are listed above. Proceeding.**
+```
+
+Log to `$IMPLEMENT_TMPDIR/execution-issues.md` under `Warnings`: `Step 5 — quick-mode review loop did not converge after 5 rounds.` Then proceed to Step 6.
 
 ### Normal mode (`quick_mode=false`)
 
@@ -566,7 +620,7 @@ Populate Run Statistics from conversation context: count accepted/rejected findi
 - **Version Bump Reasoning**: Populate from `$BUMP_REASONING_FILE` (the absolute path parsed from `classify-bump.sh`'s `REASONING_FILE=<path>` stdout line in Step 8, identical to normal mode) if it exists and is non-empty, otherwise the standard fallback text from the normal-mode template.
 - **Rejected Plan Review Suggestions**: Write "Quick mode — no plan review was conducted."
 - **Plan Review Voting Tally**: Write "Quick mode — no plan review voting."
-- **Code Review Voting Tally (Round 1)**: Write "Quick mode — no voting panel. Main agent reviewed findings from 1 Claude Code Reviewer subagent."
+- **Code Review Voting Tally (Round 1)**: Write "Quick mode — no voting panel. Main agent reviewed findings across up to 5 single-reviewer rounds (Cursor → Codex → Claude fallback chain)."
 - **Implementation Deviations**: Compare implementation to the inline plan (same as normal mode).
 - **Out-of-Scope Observations**: Write "Quick mode — no out-of-scope observations collected."
 - **Run Statistics**: Set "Plan review findings" to "N/A (quick mode)", "External reviewers" to "N/A (quick mode)", "OOS issues filed" to "N/A (quick mode)". Code review findings should reflect the quick review results.
@@ -1076,7 +1130,7 @@ Print a report of all code review suggestions that were **not** implemented.
 
 ## Step 17 — Final Report
 
-**If `quick_mode=true`**: Print: `✅ 17: final report — quick mode, /design skipped, 1 subagent review (<elapsed>)`
+**If `quick_mode=true`**: Print: `✅ 17: final report — quick mode, /design skipped, single-reviewer loop (<elapsed>)`
 
 **If `quick_mode=false`**: Print a summary noting that:
 - Plan review findings were reported by the `/design` phase (visible in conversation above)
@@ -1092,7 +1146,7 @@ Remove the session temp directory and all files within it:
 ${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-tmpdir.sh --dir "$IMPLEMENT_TMPDIR"
 ```
 
-**Repeat any external reviewer warnings** from earlier in the workflow (from `/design` or `/review` phases) so they are visible at the end. **If `quick_mode=true`**, there are no external reviewer warnings to repeat (no external reviewers were used). For example:
+**Repeat any external reviewer warnings** from earlier in the workflow (from `/design` or `/review` phases, or from Step 5 runtime-fallback flips in quick mode). For example:
 - `**⚠ Codex not available: <reason>**`
 - `**⚠ Cursor review failed: <reason>**`
 
