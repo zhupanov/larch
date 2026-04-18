@@ -53,8 +53,8 @@ Your job is to review the material provided in your invocation prompt and report
 
 ## Do NOT report
 
-Exclude the following from your findings (do not surface them as In-Scope or Out-of-Scope):
-- Pre-existing issues not introduced or amplified by this PR.
+Exclude the following from your In-Scope findings (surface pre-existing issues only under Out-of-Scope Observations, never as In-Scope):
+- Pre-existing issues not introduced or amplified by this PR — if worth surfacing at all, report them under Out-of-Scope Observations, never as In-Scope.
 - Pedantic nitpicks with no user impact.
 - Lint-territory concerns that a linter would catch.
 - Concerns in code explicitly lint-ignored (e.g., `// nolint`, `# noqa`, or equivalent).
@@ -76,9 +76,10 @@ Treat these as priority ordering, not a required sequence. You may stop early on
 
 ## Quality gate
 
-For every finding you raise — whether In-Scope or Out-of-Scope — verify: (a) the concern is justified by the stated goal or a concrete current need; (b) the proposed change or action is proportionate (it does not introduce more complexity than the issue warrants); and (c) the finding carries concrete evidence:
-- **In-Scope Findings**: `file:line` reference AND the per-severity proof requirement in `## Output format`.
-- **Out-of-Scope Observations**: `file:line` evidence (use `<expected-path>:1` for absent-artifact observations) AND a concrete failure mode or breakage path. Pure architectural preference is rejected.
+For every finding you raise — whether In-Scope or Out-of-Scope — verify: (a) the concern is justified by the stated goal or a concrete current need; (b) the proposed change or action is proportionate (it does not introduce more complexity than the issue warrants); and (c) the finding carries concrete evidence appropriate to what is being reviewed:
+- **Code review** (reviewing code changes): `file:line` reference AND the per-severity proof requirement in `## Output format`. For Out-of-Scope observations about absent artifacts, use `<expected-path>:1`.
+- **Plan / validation review** (reviewing an implementation plan, a research finding, or a conflict resolution): a specific anchor — plan section heading, proposed file path, ballot item, or quoted claim — AND the per-severity proof requirement. A line number is not required when the subject has no file yet.
+- **Out-of-Scope Observations**: same evidence shape as the review mode above, plus a concrete failure mode or breakage path. Pure architectural preference is rejected.
 
 ## Output format
 
@@ -89,7 +90,9 @@ Return findings in two separate sections.
 Prefix each finding with one of:
 - `**Important**` — a real bug or correctness/risk issue introduced or amplified by this PR.
 - `**Nit**` — a minor, subjective, or low-impact concern; always optional to address.
-- `**Latent**` — a real issue that exists in the codebase but is not currently exploited or user-visible.
+- `**Latent**` — a real issue that predates this PR or is not caused by this change.
+
+If the PR introduced or amplified a defect, use `**Important**` even when the defect is not yet exploited; reserve `**Latent**` for issues that predate the PR or are clearly unrelated to the change under review.
 
 Severity tags (`**Important**`, `**Nit**`, `**Latent**`) are labels within a finding's content; they are unrelated to the ballot's `[OUT_OF_SCOPE]` marker used by the voting protocol. Scope is determined by section placement (In-Scope vs Out-of-Scope), not by severity.
 
@@ -110,7 +113,7 @@ A numbered list of issues that should be fixed in this PR. For each finding:
 - Suggested fix (be specific)
 
 ### Out-of-Scope Observations
-A numbered list of pre-existing architecture or correctness concerns beyond the scope of this PR that are still worth surfacing. For each observation:
+A numbered list of pre-existing issues or concerns beyond the scope of this PR that are still worth surfacing for future attention. For each observation:
 - **Severity**: same three-option tag
 - **Focus area**: same four-option tag
 - File path and line number(s) or the specific concern (use `<expected-path>:1` for absent-artifact observations)
