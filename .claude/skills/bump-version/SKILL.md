@@ -47,7 +47,7 @@ If you escalate, append a paragraph to the reasoning log file explaining why.
    - Detects an **already-bumped branch** by checking whether HEAD itself is a commit with subject `^Bump version to [0-9]+\.[0-9]+\.[0-9]+$`. If HEAD is such a commit, emits `BUMP_TYPE=NONE` and exits 0 (no-op). If a bump exists earlier in the branch but additional commits have landed on top, a fresh bump is required.
    - Computes `git diff -M --name-status $BASE HEAD -- skills agents` for file-level classification (added/deleted/renamed SKILL.md and agent files)
    - For each modified SKILL.md, reads the old and new full file contents via `git show "$BASE:<path>"` and `git show "HEAD:<path>"`, extracts the first YAML frontmatter block between `---` markers, and compares the `name:` and `argument-hint:` fields. The `argument-hint:` comparison uses token sets: a `--<flag>` present in both old and new is treated as unchanged; only genuine additions or removals contribute to classification.
-   - Writes evidence to `${IMPLEMENT_TMPDIR:-$PWD/.git}/bump-version-reasoning.md`
+   - Writes evidence to `${IMPLEMENT_TMPDIR:-${TMPDIR:-/tmp}}/bump-version-reasoning.md` (absolute path also emitted as `REASONING_FILE=<path>` on stdout)
    - Emits `KEY=VALUE` lines on stdout: `CURRENT_VERSION`, `NEW_VERSION`, `BUMP_TYPE`, `REASONING_FILE`
 3. You (main agent) parse the output, read the reasoning log, review the diff, and apply the **escalation-only** caveat review. If you escalate, update `NEW_VERSION` accordingly and append reasoning to the log.
 4. You invoke `apply-bump.sh --new-version <NEW_VERSION>`, which:
@@ -78,7 +78,7 @@ $PWD/.claude/skills/bump-version/scripts/apply-bump.sh --new-version <NEW_VERSIO
 
 ## Output contract
 
-The reasoning log at `${IMPLEMENT_TMPDIR:-$PWD/.git}/bump-version-reasoning.md` is read by `/implement` Step 9a and embedded into the PR body under `<details><summary>Version Bump Reasoning</summary>`.
+The reasoning log at `${IMPLEMENT_TMPDIR:-${TMPDIR:-/tmp}}/bump-version-reasoning.md` is read by `/implement` Step 9a and embedded into the PR body under `<details><summary>Version Bump Reasoning</summary>`. The absolute path is also emitted on stdout by `classify-bump.sh` as `REASONING_FILE=<path>` — callers should prefer that structured output over reconstructing the path from env vars.
 
 ## Exit codes
 - `classify-bump.sh` — 0 on success (including `BUMP_TYPE=NONE`), non-zero on parse/validation failure
