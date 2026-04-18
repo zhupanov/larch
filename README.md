@@ -42,7 +42,7 @@ claude plugin install larch@larch-local
 | Component | Description |
 |---|---|
 | Skills | `/design`, `/implement`, `/review`, `/research`, `/loop-review`, `/fix-issue`, `/alias`, `/im`, `/imaq` |
-| Agents | `general-reviewer`, `deep-analysis-reviewer` |
+| Agents | `code-reviewer` (unified archetype covering code quality, risk/integration, correctness, architecture) |
 | PreToolUse hook | `block-submodule-edit.sh` — blocks `Edit`/`Write` on files inside any checked-out git submodule of the consuming project |
 
 ### `/relevant-checks` — required consumer dependency
@@ -101,7 +101,7 @@ These tools enhance the workflow but are not required. When unavailable, Claude 
 
 ## Features
 
-- **Multi-agent design planning** — 5 agents independently propose architectural approaches before a full implementation plan is written, preventing anchoring bias
+- **Multi-agent design planning** — 5 sketch agents (1 Claude + 2 Cursor + 2 Codex) independently propose architectural approaches before a full implementation plan is written, preventing anchoring bias
 - **Voting-based review resolution** — A 3-agent voting panel (YES/NO/EXONERATE) adjudicates review findings for both plan review and code review
 - **Reviewer competition scoring** — Reviewers earn points based on finding quality, with a scoreboard tracking accepted, neutral, exonerated, and rejected findings
 - **End-to-end automation** — From feature design through PR creation, initial CI wait, and Slack announcement in a single command. With `--merge`, also runs the CI+rebase+merge loop, :merged: emoji, local branch cleanup, and main verification
@@ -114,11 +114,11 @@ Slash commands available in Claude Code sessions. They automate multi-step workf
 
 | Command | Arguments | Description |
 |---|---|---|
-| [`/design`](skills/design/SKILL.md) | `[--auto] [--debug] <feature description>` | Design an implementation plan with collaborative multi-reviewer review. 5 agents (3 Claude + Cursor + Codex) independently propose architectural approaches, then 5 reviewers (2 Claude + 2 Codex + Cursor) validate the plan. `--auto` suppresses all interactive question checkpoints. `--debug` enables verbose output with detailed tool descriptions and explanatory prose (default is compact output). [(Diagram).](skills/design/diagram.svg) |
-| [`/research`](skills/research/SKILL.md) | `[--debug] <research question or topic>` | Collaborative read-only research using 5 research agents (3 Claude + Cursor + Codex) then 5 validation reviewers (2 Claude + 2 Codex + Cursor). Produces a structured report with findings, risk assessment, difficulty estimates, and feasibility verdict. Does not modify the repo. [(Diagram).](skills/research/diagram.svg) |
-| [`/review`](skills/review/SKILL.md) | `[--debug]` | Code review current branch changes with specialized subagents (2 Claude + 2 Codex + Cursor, if available), implementing accepted suggestions in a recursive loop (up to 5 rounds). Reviews the diff between main and HEAD. [(Diagram).](skills/review/diagram.svg) |
-| [`/implement`](skills/implement/SKILL.md) | `[--quick] [--auto] [--merge] [--debug] <feature description>` | Full end-to-end feature workflow — design, implement, PR, and Slack announce. `--quick` skips `/design` and uses simplified code review (2 Claude subagents, 1 round). `--auto` suppresses all interactive question checkpoints. `--merge` additionally runs the CI+rebase+merge loop, :merged: emoji, local branch cleanup, and main verification (without `--merge`, the PR is created and the workflow stops after the initial CI wait, Slack announcement, and reports). `--debug` enables verbose output with detailed tool descriptions and explanatory prose (default is compact output). [(Diagram).](skills/implement/diagram.svg) |
-| [`/loop-review`](skills/loop-review/SKILL.md) | `[--debug] [partition criteria]` | Systematic code review of entire repository by partitioning into slices, reviewing each with specialized subagents (2 Claude + 2 Codex + Cursor, if available), implementing improvements via `/implement`, and logging deferred suggestions. The optional argument specifies how to partition the codebase (e.g., by directory, by file type). [(Diagram).](skills/loop-review/diagram.svg) |
+| [`/design`](skills/design/SKILL.md) | `[--auto] [--debug] <feature description>` | Design an implementation plan with collaborative multi-reviewer review. 5 sketch agents (1 Claude + 2 Cursor + 2 Codex) independently propose architectural approaches, then a 3-reviewer panel (1 Claude Code Reviewer + 1 Codex + 1 Cursor) validates the plan. `--auto` suppresses all interactive question checkpoints. `--debug` enables verbose output with detailed tool descriptions and explanatory prose (default is compact output). [(Diagram).](skills/design/diagram.svg) |
+| [`/research`](skills/research/SKILL.md) | `[--debug] <research question or topic>` | Collaborative read-only research using 5 research agents (3 Claude + Cursor + Codex) then 5 validation reviewer lanes (2 Claude Code Reviewer subagent lanes with broad + deep perspectives + 2 Codex + Cursor). Produces a structured report with findings, risk assessment, difficulty estimates, and feasibility verdict. Does not modify the repo. [(Diagram).](skills/research/diagram.svg) |
+| [`/review`](skills/review/SKILL.md) | `[--debug]` | Code review current branch changes with a 3-reviewer panel (1 Claude Code Reviewer + 1 Codex + 1 Cursor, if available), implementing accepted suggestions in a recursive loop (up to 5 rounds). Reviews the diff between main and HEAD. [(Diagram).](skills/review/diagram.svg) |
+| [`/implement`](skills/implement/SKILL.md) | `[--quick] [--auto] [--merge] [--debug] <feature description>` | Full end-to-end feature workflow — design, implement, PR, and Slack announce. `--quick` skips `/design` and uses simplified code review (1 Claude Code Reviewer subagent, 1 round). `--auto` suppresses all interactive question checkpoints. `--merge` additionally runs the CI+rebase+merge loop, :merged: emoji, local branch cleanup, and main verification (without `--merge`, the PR is created and the workflow stops after the initial CI wait, Slack announcement, and reports). `--debug` enables verbose output with detailed tool descriptions and explanatory prose (default is compact output). [(Diagram).](skills/implement/diagram.svg) |
+| [`/loop-review`](skills/loop-review/SKILL.md) | `[--debug] [partition criteria]` | Systematic code review of entire repository by partitioning into slices, reviewing each with 2 Claude Code Reviewer subagent lanes (broad + deep perspectives) + 2 Codex (broad + deep) + Cursor (5 total, if available), implementing improvements via `/implement`, and logging deferred suggestions. Uses the Negotiation Protocol. The optional argument specifies how to partition the codebase (e.g., by directory, by file type). [(Diagram).](skills/loop-review/diagram.svg) |
 | [`/fix-issue`](skills/fix-issue/SKILL.md) | `[--debug] [<number-or-url>]` | Process one approved GitHub issue per invocation. Fetches open issues with a `GO` sentinel comment, triages against the codebase, classifies complexity (SIMPLE/HARD), and delegates to `/implement`. With a number or URL argument, targets a specific issue instead of auto-picking. Single-iteration design — the caller handles repetition. |
 | [`/alias`](skills/alias/SKILL.md) | `[--merge] <alias-name> <target-skill> [preset-flags...]` | Create a project-level alias for a larch skill with preset flags. Delegates to `/implement --quick --auto` for the full pipeline (code review, version bump, PR). `--merge` also merges the PR. Example: `/alias i implement --merge` creates `/i` as a shortcut for `/implement --merge`. |
 | [`/relevant-checks`](.claude/skills/relevant-checks/SKILL.md) | *(none)* | Run pre-commit linters (shellcheck, markdownlint, jsonlint, actionlint) scoped to files modified on the current branch. Invoked automatically by `/implement` and `/review` after code changes. **Not part of the plugin surface; each consuming repo provides its own.** |
@@ -138,8 +138,11 @@ Internal agent definitions used by skills like `/design`, `/review`, and `/loop-
 
 | Agent | Description |
 |---|---|
-| [`general-reviewer`](agents/general-reviewer.md) | General-purpose code reviewer covering bugs, logic, quality, tests, backward compatibility, style consistency, breaking changes, deployment risks, regressions, and CI impact. |
-| [`deep-analysis-reviewer`](agents/deep-analysis-reviewer.md) | Deep analysis reviewer combining correctness (logic errors, off-by-one bugs, nil handling, type mismatches, race conditions) with architectural rigor (separation of concerns, contract boundaries, invariants, semantic boundaries). |
+| [`code-reviewer`](agents/code-reviewer.md) | Unified code reviewer combining code quality (bugs, reuse, tests, backward compat, style), risk/integration (breaking changes, thread safety, deployment, regressions, CI), correctness (logic errors, off-by-one, nil, types, races, errors, math), and architecture (separation of concerns, contract boundaries, invariants, semantic boundaries). Findings are tagged with their focus area. |
+
+### Migration note
+
+The previous two archetypes `general-reviewer` and `deep-analysis-reviewer` have been replaced by the single unified `code-reviewer`. Consumers that invoked those older agent slugs directly (via `--agents` or subagent_type references in downstream docs/scripts) must switch to `code-reviewer`.
 
 ## Linting
 
@@ -248,6 +251,19 @@ The model name to pass to Codex's `-m` flag (e.g., `o3`, `o4-mini`).
 **When not set:**
 - Codex runs without an explicit `-m` flag, using its own configured default
 
+### `LARCH_CODEX_EFFORT`
+
+Codex reasoning effort for reviewer launches. Accepted values: `minimal`, `low`, `medium`, `high`. Default `high` (matches the plugin's `codex_effort` userConfig default).
+
+**When set at reviewer launch sites (design sketches, plan review, code review, conflict-resolution review, voting panel):**
+- `scripts/reviewer-model-args.sh --with-effort` emits `-c model_reasoning_effort="$LARCH_CODEX_EFFORT"`, raising Codex reasoning to the configured level.
+
+**When not set (or set to empty string):**
+- `--with-effort` falls back to the plugin userConfig value (`codex_effort`, default `high`).
+- Setting `LARCH_CODEX_EFFORT=""` explicitly does NOT disable emission; to suppress effort flags entirely, the callers already omit the `--with-effort` flag (e.g., `check-reviewers.sh` health probes do not use max effort regardless of env var setting).
+
+**Scope**: Claude and Cursor reviewers run at their defaults. Only Codex is bumped to `high` by default. This is deliberate — Claude's sonnet default is already well-suited to review work, and Cursor has no dedicated reasoning-effort CLI flag today.
+
 ## Detailed Documentation
 
 - [Workflow Lifecycle](docs/workflow-lifecycle.md) — How skills compose to form the end-to-end development workflow
@@ -255,5 +271,5 @@ The model name to pass to Codex's `-m` flag (e.g., `o3`, `o4-mini`).
 - [Point Competition](docs/point-competition.md) — Reviewer scoring system and competition mechanics
 - [Collaborative Sketches](docs/collaborative-sketches.md) — The diverge-then-converge design phase
 - [External Reviewers](docs/external-reviewers.md) — Codex and Cursor integration procedures
-- [Review Agents](docs/review-agents.md) — The 2 specialized Claude reviewer archetypes
+- [Review Agents](docs/review-agents.md) — The unified Code Reviewer archetype
 - [Agent System](docs/agents.md) — How skills orchestrate parallel subagents

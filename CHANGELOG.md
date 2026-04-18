@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Reviewer consolidation: `/design` plan review, `/review` code review, and `/implement` Phase 3 conflict-review now run a unified 3-reviewer panel (1 Claude Code Reviewer subagent + 1 Codex + 1 Cursor) instead of the previous 5-reviewer panel (2 Claude + 2 Codex + 1 Cursor). `/implement` quick-mode drops from 2 Claude subagents to 1.
+- Sketch phase composition changed from 3 Claude + 1 Cursor + 1 Codex to 1 Claude General + 2 Cursor + 2 Codex. The four non-general personalities (Architecture/Standards, Edge-cases/Failure-modes, Innovation/Exploration, Pragmatism/Safety) now live on the external slots (Cursor: Arch + Edge; Codex: Innovation + Pragmatism), with per-slot Claude fallbacks preserving the 5-agent invariant when a tool is unavailable.
+- Unified Code Reviewer archetype in `skills/shared/reviewer-templates.md` replaces the previous Reviewer A (General) and Reviewer B (Deep Analysis) archetypes. The new archetype covers code quality, risk/integration, correctness, and architecture in one prompt with mandatory per-finding focus-area tagging.
+- Voter 1 canonical label is now `Claude Code Reviewer subagent` in both `/design` and `/review` (previously split between Deep Analysis and General names).
+- Attribution strings in round summaries and reviewer competition scoreboards collapse from `General / Deep-Analysis / Codex-General / Codex-Deep-Analysis / Cursor` to `Code / Codex / Cursor`.
+- Output file paths for the single Codex review launch are now `codex-plan-output.txt` (design) and `codex-output.txt` (review); the old `codex-general-*` / `codex-deep-*` names are no longer emitted by these skills.
+- `skills/research/SKILL.md` and `skills/loop-review/SKILL.md` continue to use a 5-reviewer composition under the Negotiation Protocol; their two Claude lanes are now attributed as `Code Reviewer (broad perspective)` and `Code Reviewer (deep perspective)`, both invoking the unified archetype.
+- `scripts/reviewer-model-args.sh` gained a `--with-effort` opt-in flag. When passed, it emits `-c model_reasoning_effort="$EFFORT"` for Codex, where EFFORT resolves from `LARCH_CODEX_EFFORT` → `CLAUDE_PLUGIN_OPTION_CODEX_EFFORT` → default `high`. Default (no flag) behavior is unchanged — health probes and negotiation callers do not pass `--with-effort` and therefore remain at Codex's default effort.
+- `.claude-plugin/plugin.json` adds `codex_effort` userConfig (default `high`). The plugin-level description is updated to reflect the new reviewer composition.
+
+### Added
+
+- New `agents/code-reviewer.md` agent definition (unified Code Reviewer archetype, model: sonnet, Read/Grep/Glob tools).
+- New `LARCH_CODEX_EFFORT` environment variable and `codex_effort` plugin userConfig knob.
+
+### Removed
+
+- `agents/general-reviewer.md` and `agents/deep-analysis-reviewer.md` — replaced by the unified `code-reviewer` agent. **Migration note**: consumers that referenced `general-reviewer` or `deep-analysis-reviewer` directly (via `--agents` or subagent_type references in downstream docs/scripts) must switch to `code-reviewer`.
+
 ## [2.3.5] - 2026-04-17
 
 ### Added

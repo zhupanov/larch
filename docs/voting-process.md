@@ -25,12 +25,12 @@ The number of YES votes required depends on how many voters are available:
 
 ## Voter Panel Composition
 
-When all tools are available, the panel has 3 voters. The **Claude voter role differs by skill**:
+When all tools are available, the panel has 3 voters. The Claude voter is the same unified Code Reviewer subagent for both skills:
 
 | Skill | Voter 1 (Claude) | Voter 2 | Voter 3 |
 |---|---|---|---|
-| `/design` (plan review) | Deep Analysis reviewer subagent | Codex | Cursor |
-| `/review` (code review) | General reviewer subagent | Codex | Cursor |
+| `/design` (plan review) | Claude Code Reviewer subagent | Codex | Cursor |
+| `/review` (code review) | Claude Code Reviewer subagent | Codex | Cursor |
 
 All voters vote on all findings — there is no self-voting exclusion. Voters evaluate each finding on its merits regardless of who proposed it.
 
@@ -46,7 +46,7 @@ FINDING_2: <reviewer attribution> — <finding description>
 Out-of-scope observations are included on the same ballot with an `[OUT_OF_SCOPE]` prefix:
 
 ```text
-OOS_1: [OUT_OF_SCOPE] General — <description of pre-existing issue>
+OOS_1: [OUT_OF_SCOPE] Code — <description of pre-existing issue>
 ```
 
 ## Voter Output Format
@@ -63,7 +63,7 @@ FINDING_3: EXONERATE — <one-line rationale>
 
 ```mermaid
 flowchart TD
-    REVIEW[5 reviewers submit findings] --> DEDUP[Deduplicate findings]
+    REVIEW[3 reviewers submit findings] --> DEDUP[Deduplicate findings]
     DEDUP --> BALLOT[Format ballot with IDs]
     BALLOT --> LAUNCH[Launch 3 voters in parallel]
     LAUNCH --> COLLECT[Collect votes]

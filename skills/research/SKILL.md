@@ -7,7 +7,7 @@ allowed-tools: Bash, Read, Grep, Glob, Agent, Task, WebFetch, WebSearch
 
 # Research Skill
 
-Collaborative read-only research task using 5 research agents (3 Claude subagents + Codex + Cursor) and 5 validation reviewers (2 Claude subagents + 2 Codex + Cursor). Produces a structured research report without modifying the repository.
+Collaborative read-only research task using 5 research agents (3 Claude subagents + Codex + Cursor) and 5 validation reviewer lanes (2 Claude Code Reviewer subagent lanes with broad + deep perspectives, 2 Codex instances with broad + deep perspectives, and Cursor). Produces a structured research report without modifying the repository.
 
 **Flags**: Parse flags from the start of `$ARGUMENTS` before treating the remainder as the research question. Flags may appear in any order; stop at the first non-flag token. After stripping all flags, save the remainder as `RESEARCH_QUESTION`. **All boolean flags default to `false`. Only set a flag to `true` when its `--flag` token is explicitly present in the arguments. Flags are independent — the presence of one flag must not influence the default value of any other flag.**
 
@@ -184,7 +184,7 @@ Print: `✅ 1: research — synthesis complete, 5 agents (<elapsed>)`
 
 Print: `> **🔶 2: validation**`
 
-**IMPORTANT: Findings validation MUST ALWAYS run with all available reviewers (2 Claude subagents + 2 Codex instances and Cursor if available). Never skip or abbreviate this step regardless of how straightforward the findings appear. Reviewers validate against the actual codebase state, catching inaccuracies or omissions that the research phase may have missed.**
+**IMPORTANT: Findings validation MUST ALWAYS run with all available reviewer lanes (2 Claude Code Reviewer subagent lanes — broad + deep perspectives — plus 2 Codex instances and Cursor if available). Never skip or abbreviate this step regardless of how straightforward the findings appear. Reviewers validate against the actual codebase state, catching inaccuracies or omissions that the research phase may have missed.**
 
 Launch **all reviewers in parallel** (in a single message). **Spawn order matters for parallelism** — launch the slowest reviewers first: Cursor (slowest), then both Codex instances, then Claude subagents (fastest). Each reviewer receives the research report and the original question. Each must **only report findings** — never edit files.
 
@@ -204,9 +204,9 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "$
 
 Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
-### Codex-General Reviewer (if `codex_available`)
+### Codex (broad perspective) Reviewer (if `codex_available`)
 
-Run Codex-General **second** in the parallel message:
+Run Codex (broad perspective) **second** in the parallel message (output file name `codex-general-validation-output.txt` is kept for backward compatibility with existing call sites and collect scripts):
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$RESEARCH_TMPDIR/codex-general-validation-output.txt" --timeout 1800 -- \
@@ -217,9 +217,9 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$R
 
 Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
-### Codex-Deep-Analysis Reviewer (if `codex_available`)
+### Codex (deep perspective) Reviewer (if `codex_available`)
 
-Run Codex-Deep-Analysis **third** in the parallel message:
+Run Codex (deep perspective) **third** in the parallel message (output file name `codex-deep-validation-output.txt` is kept for backward compatibility):
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$RESEARCH_TMPDIR/codex-deep-validation-output.txt" --timeout 1800 -- \
@@ -230,11 +230,11 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$R
 
 Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
-### Claude Subagents (2 reviewers)
+### Claude Code Reviewer Subagent Lanes (2 reviewers)
 
-Launch both Claude subagents **last** in the same message (they finish fastest).
+Launch both Claude Code Reviewer subagent lanes (subagent_type: `code-reviewer`) **last** in the same message (they finish fastest). The two lanes use the same unified Code Reviewer archetype but are attributed distinctly — `Code Reviewer (broad perspective)` and `Code Reviewer (deep perspective)` — so their outputs remain independent streams under the Negotiation Protocol. Add a per-lane instruction in the prompt: for the broad lane, `"Emphasize code quality + risk/integration concerns in your findings."`; for the deep lane, `"Emphasize correctness + architecture concerns in your findings."`
 
-Use the two reviewer archetypes from `${CLAUDE_PLUGIN_ROOT}/skills/shared/reviewer-templates.md`, filling in the variables for **research validation**:
+Use the unified Code Reviewer archetype from `${CLAUDE_PLUGIN_ROOT}/skills/shared/reviewer-templates.md`, filling in the variables for **research validation**:
 
 - **`{REVIEW_TARGET}`** = `"research findings"`
 - **`{CONTEXT_BLOCK}`**:
@@ -253,7 +253,7 @@ Use the two reviewer archetypes from `${CLAUDE_PLUGIN_ROOT}/skills/shared/review
 
 **Process Claude findings immediately** — do not wait for external reviewers before starting:
 
-1. Collect and deduplicate findings from the two Claude subagents right away.
+1. Collect and deduplicate findings from both Claude Code Reviewer subagent lanes (broad + deep perspectives) right away.
 
 ### 2.4 — Collect and Validate External Reviewers
 
@@ -270,7 +270,7 @@ Use `timeout: 1860000` on the Bash tool call. **Do NOT** set `run_in_background:
 
 ### Codex and Cursor Negotiation (in parallel)
 
-If any external reviewers produced findings, negotiate with each independently. With 2 Codex instances (Codex-General and Codex-Deep-Analysis), negotiate with each separately using distinct prompt/output file paths (e.g., `codex-general-negotiation-prompt.txt` / `codex-general-negotiation-output.txt` and `codex-deep-negotiation-prompt.txt` / `codex-deep-negotiation-output.txt`). Run all negotiations **in parallel** when multiple external reviewers produced findings. Use the **Negotiation Protocol** in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`, using `$RESEARCH_TMPDIR` as the tmpdir. Merge accepted/rejected outcomes after all complete.
+If any external reviewers produced findings, negotiate with each independently. With 2 Codex instances (broad + deep perspectives), negotiate with each separately using distinct prompt/output file paths (e.g., `codex-general-negotiation-prompt.txt` / `codex-general-negotiation-output.txt` and `codex-deep-negotiation-prompt.txt` / `codex-deep-negotiation-output.txt`). Run all negotiations **in parallel** when multiple external reviewers produced findings. Use the **Negotiation Protocol** in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`, using `$RESEARCH_TMPDIR` as the tmpdir. Merge accepted/rejected outcomes after all complete.
 
 ### Finalize Validation
 

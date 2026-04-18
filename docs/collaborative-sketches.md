@@ -8,30 +8,23 @@ Without the sketch phase, the first idea considered tends to dominate the plan. 
 
 ## The 5 Sketch Agents
 
-The sketch phase always uses exactly 5 agents. Three are Claude subagents with fixed roles, and two are external tools (or Claude replacements when unavailable):
+The sketch phase always uses exactly 5 agents: 1 Claude subagent (the orchestrator's inline sketch) plus 4 external slots (2 Cursor + 2 Codex) that carry the four non-general personalities. Each external slot has a Claude subagent fallback that activates when the respective tool is unavailable.
 
-| Agent | Role | Focus |
-|---|---|---|
-| **Claude (General)** | The orchestrating agent's own sketch | Key decisions, files to modify, tradeoffs |
-| **Claude (Architecture/Standards)** | Maintainability architect | Clean design, proper layering, reuse of existing libraries |
-| **Claude (Pragmatism/Safety)** | Minimal-change advocate | Smallest change set, avoid regressions, protect existing features |
-| **Cursor** (or Claude replacement) | External perspective | Explores the codebase independently |
-| **Codex** (or Claude replacement) | External perspective | Explores the codebase independently |
+| Agent | Harness | Role | Focus |
+|---|---|---|---|
+| **Claude (General)** | Inline (orchestrator) | Orchestrator's own sketch | Key decisions, files to modify, tradeoffs |
+| **Cursor slot 1** (fallback: Claude) | Cursor | Architecture/Standards | Clean design, proper layering, reuse of existing libraries |
+| **Cursor slot 2** (fallback: Claude) | Cursor | Edge-cases/Failure-modes | Boundary conditions, error handling, failure recovery |
+| **Codex slot 1** (fallback: Claude) | Codex | Innovation/Exploration | Creative alternatives, unconventional solutions, questioned assumptions |
+| **Codex slot 2** (fallback: Claude) | Codex | Pragmatism/Safety | Smallest change set, avoid regressions, protect existing features |
 
 ### Important Distinction
 
-The 5 sketch agents are **completely separate** from the 5 plan-review agents that evaluate the plan later in `/design` Step 3. The sketch agents explore the design space; the plan reviewers validate the resulting plan. They have different roles, different prompts, and serve different purposes.
+The 5 sketch agents are **completely separate** from the 3 plan-review agents that evaluate the plan later in `/design` Step 3. The sketch agents explore the design space (5 perspectives); the plan reviewers validate the resulting plan (3-reviewer panel: 1 Claude Code Reviewer subagent + 1 Codex + 1 Cursor). They have different roles, different prompts, and serve different purposes.
 
-## Claude Replacement Roles
+## Per-Slot Fallback
 
-When Cursor or Codex are unavailable, they are replaced by Claude subagents with specialized roles. The replacement names differ by skill:
-
-| Unavailable Tool | `/design` Replacement | `/research` Replacement |
-|---|---|---|
-| Cursor | Claude (Innovation/Exploration) — questions assumptions, suggests creative alternatives | Claude (Alternative Perspectives) |
-| Codex | Claude (Edge-cases/Failure-modes) — focuses on what can go wrong, boundary conditions | Claude (Edge-cases/Gaps) |
-
-This ensures the always-5-agents invariant holds regardless of external tool availability.
+When Cursor or Codex is unavailable, each affected slot falls back to a Claude subagent carrying the **same personality prompt** as the original external slot. This preserves the always-5-agents invariant and the always-5-personalities invariant regardless of external tool availability.
 
 ## Fallback Behavior by Phase
 
@@ -39,9 +32,9 @@ The handling of unavailable external tools differs across workflow phases:
 
 | Phase | Unavailable Tool Handling |
 |---|---|
-| **Sketch phase** (`/design`, `/research`) | Claude replacement agents are used — always 5 agents |
-| **Plan review** (`/design`) | Claude replacement agents used — always 5 reviewers |
-| **Code review** (`/review`) | Claude replacement agents used — always 5 reviewers |
+| **Sketch phase** (`/design`, `/research`) | Per-slot Claude fallbacks with matching personality — always 5 agents |
+| **Plan review** (`/design`) | Claude Code Reviewer subagent fallbacks — always 3 reviewers |
+| **Code review** (`/review`) | Claude Code Reviewer subagent fallbacks — always 3 reviewers |
 | **Voting** | Claude replacement voters used — always 3 voters. 3 voters: 2+ YES to accept; 2 voters: unanimous YES; <2 voters: voting skipped, all findings accepted |
 
 ## How It Works
@@ -52,12 +45,12 @@ flowchart TD
 
     subgraph LAUNCH["Launch in parallel (slowest first)"]
         direction LR
-        CURSOR[Cursor / Replacement] ~~~ CODEX[Codex / Replacement]
-        CODEX ~~~ ARCH_STD[Architecture/Standards]
-        ARCH_STD ~~~ PRAG[Pragmatism/Safety]
+        CURSOR1[Cursor: Arch/Standards] ~~~ CURSOR2[Cursor: Edge-cases/Failure-modes]
+        CURSOR2 ~~~ CODEX1[Codex: Innovation/Exploration]
+        CODEX1 ~~~ CODEX2[Codex: Pragmatism/Safety]
     end
 
-    LAUNCH --> GENERAL[Claude General sketch]
+    LAUNCH --> GENERAL[Claude General inline sketch]
     GENERAL --> WAIT[Wait for all 5 sketches]
     WAIT --> SYNTHESIS[Synthesis]
 
@@ -77,16 +70,16 @@ flowchart TD
 
     DIALECTIC --> PLAN
 
-    style CURSOR fill:#1a4a6e,color:#fff
-    style CODEX fill:#1a4a6e,color:#fff
-    style ARCH_STD fill:#4a3a6e,color:#fff
-    style PRAG fill:#4a3a6e,color:#fff
+    style CURSOR1 fill:#1a4a6e,color:#fff
+    style CURSOR2 fill:#1a4a6e,color:#fff
+    style CODEX1 fill:#4a3a6e,color:#fff
+    style CODEX2 fill:#4a3a6e,color:#fff
     style GENERAL fill:#2d5a27,color:#fff
     style DIALECTIC fill:#5a3a2e,color:#fff
     style CHECK fill:#f6ad55,color:#000
 ```
 
-1. **Parallel launch** — All external and Claude subagent sketches are launched simultaneously. Cursor is launched first (slowest), then Codex, then Claude subagents. The orchestrating agent writes its own sketch last, before reading any others, to preserve independence.
+1. **Parallel launch** — All external and per-slot Claude fallback sketches are launched simultaneously. Both Cursor slots first (slowest), then both Codex slots, then any Claude fallback sketches. The orchestrating agent writes its own General sketch last, before reading any others, to preserve independence.
 
 2. **Each agent produces** a 2-3 paragraph sketch covering:
    - Key architectural decisions and approach
@@ -97,12 +90,15 @@ flowchart TD
    - Identifies where approaches agree (likely the majority)
    - Identifies divergence points and makes reasoned calls with justification
    - Notes which ideas from each sketch are incorporated
-   - Highlights Architecture/Standards concerns and Pragmatism/Safety warnings
+   - Highlights **Architecture/Standards** concerns sourced from Cursor slot 1
+   - Highlights **Pragmatism/Safety** warnings sourced from Codex slot 2
+   - Surfaces **Edge-case/Failure-mode** risks sourced from Cursor slot 2
+   - Notes **Innovation/Exploration** alternatives sourced from Codex slot 1 that are worth preserving as options
    - Lists contested decisions in a structured format for the dialectic debate phase
 
 4. **Dialectic debate** (`/design` only) — If the synthesis identifies contested decisions (points where sketches genuinely diverged), the top 2-3 are submitted to structured thesis/antithesis debates. For each contested decision, a thesis agent defends the synthesis choice and an antithesis agent argues for the strongest alternative. Both run in parallel with codebase access. The orchestrator then writes binding resolutions that must explicitly address the antithesis arguments. This step is skipped when all sketches agree. See [Dialectic Debate](#dialectic-debate-design-only) below for details.
 
-5. **Full plan** — The synthesis and any dialectic resolutions inform the complete implementation plan, which is then submitted to 5 reviewers for validation.
+5. **Full plan** — The synthesis and any dialectic resolutions inform the complete implementation plan, which is then submitted to the 3-reviewer panel (1 Claude Code Reviewer subagent + 1 Codex + 1 Cursor) for validation.
 
 ## Dialectic Debate (/design only)
 

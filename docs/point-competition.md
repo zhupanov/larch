@@ -31,7 +31,7 @@ Out-of-scope (OOS) observations use the **same symmetric scoring** as in-scope f
 Out-of-scope items go on the same voting ballot as in-scope findings, labeled with `[OUT_OF_SCOPE]`:
 
 ```text
-OOS_1: [OUT_OF_SCOPE] General — <description>
+OOS_1: [OUT_OF_SCOPE] Code — <description>
 ```
 
 Voters decide whether each OOS item deserves a GitHub issue:
@@ -47,10 +47,8 @@ After voting completes, a scoreboard is printed showing each reviewer's performa
 
 | Reviewer | Findings | Accepted | Neutral (1 YES) | Exonerated (0 YES, 1+ EXON.) | Rejected (0 YES, 0 EXON.) | OOS Proposed | OOS Accepted | Score |
 |----------|----------|----------|-----------------|-------------------------------|---------------------------|--------------|--------------|-------|
-| General | 3 | 2 | 1 | 0 | 0 | 1 | 0 | +2 |
-| Deep-Analysis | 2 | 1 | 0 | 1 | 0 | 0 | 0 | +1 |
-| Codex-General | 1 | 0 | 0 | 0 | 1 | 0 | 0 | -1 |
-| Codex-Deep-Analysis | 1 | 1 | 0 | 0 | 0 | 0 | 0 | +1 |
+| Code | 3 | 2 | 1 | 0 | 0 | 1 | 0 | +2 |
+| Codex | 2 | 1 | 0 | 1 | 0 | 0 | 0 | +1 |
 | Cursor | 2 | 1 | 1 | 0 | 0 | 1 | 1 | +2 |
 
 ## Future Plans

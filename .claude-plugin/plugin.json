@@ -1,7 +1,7 @@
 {
   "name": "larch",
   "version": "2.3.5",
-  "description": "Multi-agent workflow automation for Claude Code: design, code review, implementation, and PR automation with collaborative reviewers (Claude subagents + Codex + Cursor).",
+  "description": "Multi-agent workflow automation for Claude Code: design, code review, implementation, and PR automation. Plan and code review run a 3-reviewer panel (Claude Code Reviewer + Codex + Cursor); design sketches run a 5-agent diverge-then-converge phase (1 Claude + 2 Cursor + 2 Codex).",
   "author": {
     "name": "Sergey Zhupanov",
     "email": "zhupanov@yahoo.com"
@@ -50,6 +50,12 @@
       "title": "Codex Model",
       "type": "string",
       "description": "Model for Codex reviewer (e.g., o3). Also accepted via LARCH_CODEX_MODEL env var. When unset, Codex uses its own default.",
+      "sensitive": false
+    },
+    "codex_effort": {
+      "title": "Codex Reasoning Effort",
+      "type": "string",
+      "description": "Codex reasoning effort for reviewer launches: minimal, low, medium, or high. Also accepted via LARCH_CODEX_EFFORT env var. When unset, defaults to 'high' at reviewer launch sites; probe/health callers do not use effort regardless of this setting.",
       "sensitive": false
     }
   }

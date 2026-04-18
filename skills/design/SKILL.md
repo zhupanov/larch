@@ -1,13 +1,13 @@
 ---
 name: design
-description: "Use when designing an implementation plan with collaborative multi-reviewer review. 5 agents propose approaches, then 5 reviewers validate the plan."
+description: "Use when designing an implementation plan with collaborative multi-reviewer review. 5 sketch agents (1 Claude + 2 Cursor + 2 Codex) propose approaches, then 3 reviewers (1 Claude + 1 Codex + 1 Cursor) validate the plan."
 argument-hint: "[--auto] [--debug] [--session-env <path>] <feature description>"
 allowed-tools: AskUserQuestion, Bash, Read, Edit, Write, Grep, Glob, Agent, Task, WebFetch, WebSearch
 ---
 
 # Design Skill
 
-Design an implementation plan for a feature and review it with multiple specialized reviewers (2 Claude subagents + 2 Codex instances + Cursor).
+Design an implementation plan for a feature and review it with a unified 3-reviewer panel (1 Claude Code Reviewer subagent + 1 Codex + 1 Cursor). The sketch phase (Step 2a) runs 5 agents in parallel: 1 Claude General sketch (orchestrator) + 2 Cursor slots + 2 Codex slots carrying the four non-general personalities.
 
 **Flags**: Parse flags from the start of `$ARGUMENTS` before treating the remainder as the feature description. Flags may appear in any order; stop at the first non-flag token. **All boolean flags default to `false`. Only set a flag to `true` when its `--flag` token is explicitly present in the arguments. Flags are independent — the presence of one flag must not influence the default value of any other flag.**
 
@@ -55,7 +55,11 @@ Step Name Registry:
 **Compact reviewer status table**: After launching sketch agents (Step 2a) or plan reviewers (Step 3), maintain a mental tracker of each agent's status. Print a compact table after EACH status change:
 
 ```
-📊 Reviewers: | General: ✅ 2m31s | Arch: ⏳ | Pragmatic: ✅ 3m5s | Cursor: ❌ 8m3s | Codex: ⏳ |
+📊 Sketches: | General: ✅ 2m31s | Cursor-Arch: ⏳ | Cursor-Edge: ✅ 3m5s | Codex-Innovation: ❌ 8m3s | Codex-Pragmatic: ⏳ |
+
+or for Step 3 plan review (3-reviewer panel):
+
+📊 Reviewers: | Code: ✅ 2m31s | Codex: ⏳ | Cursor: ✅ 4m12s |
 ```
 
 Icons: ✅ done (with elapsed time since launch), ⏳ pending/in-progress, ❌ failed/timeout (with elapsed time since launch), ⊘ skipped (unavailable). This replaces individual per-agent completion messages in non-debug mode. See `${CLAUDE_PLUGIN_ROOT}/skills/shared/progress-reporting.md` for elapsed time and step start formatting rules.
@@ -187,88 +191,113 @@ Print: `✅ 1d: discussion r1 — <N> decisions resolved (<elapsed>)`
 
 A diverge-then-converge phase where 5 agents independently produce short architectural sketches before writing the full plan. This surfaces different perspectives early — when they can still influence architectural direction — rather than waiting for review when the plan is already anchored.
 
-The 5 sketch agents always include these 3 Claude subagents plus Cursor and Codex (or Claude replacements when unavailable):
+The 5 sketch agents are **1 Claude subagent + 2 Cursor + 2 Codex**, with per-slot Claude fallback when an external tool is unavailable:
 
-1. **Claude (General)** — the orchestrating agent's own sketch, covering key decisions, files, and tradeoffs
-2. **Claude (Architecture/Standards)** — emphasizes maintainability, engineering standards, separation of concerns, and reuse of existing libraries (including open-source)
-3. **Claude (Pragmatism/Safety)** — emphasizes minimizing changes, avoiding regressions, and not breaking existing features
+1. **Claude (General)** — the orchestrating agent's own inline sketch, covering key decisions, files, and tradeoffs.
+2. **Cursor slot 1 — Architecture/Standards** — or **Claude (Architecture/Standards)** fallback: emphasizes maintainability, engineering standards, separation of concerns, and reuse of existing libraries (including open-source).
+3. **Cursor slot 2 — Edge-cases/Failure-modes** — or **Claude (Edge-cases/Failure-modes)** fallback: focuses on what can go wrong, boundary conditions, error handling, and failure recovery.
+4. **Codex slot 1 — Innovation/Exploration** — or **Claude (Innovation/Exploration)** fallback: proposes creative alternative approaches, questions assumptions, and suggests unconventional solutions.
+5. **Codex slot 2 — Pragmatism/Safety** — or **Claude (Pragmatism/Safety)** fallback: emphasizes minimizing changes, avoiding regressions, and not breaking existing features.
 
-Plus 2 external agents (or Claude replacements):
-
-4. **Cursor** (if available) — or **Claude (Innovation/Exploration)** replacement: proposes creative alternative approaches, questions assumptions, and suggests unconventional solutions
-5. **Codex** (if available) — or **Claude (Edge-cases/Failure-modes)** replacement: focuses on what can go wrong, boundary conditions, error handling, and failure recovery
+When both Cursor slots fall back to Claude, they still invoke the two distinct Cursor-slot personality prompts (Architecture/Standards + Edge-cases/Failure-modes). Same for both Codex slots (Innovation/Exploration + Pragmatism/Safety).
 
 Print `> **🔶 2a: sketches**` and proceed to 2a.2.
 
 ### 2a.2 — Launch Sketches in Parallel
 
-**Critical sequencing**: You MUST launch all external sketch Bash tool calls (with `run_in_background: true`) AND all Claude subagent sketches BEFORE producing your own inline sketch. External reviewers take significantly longer than Claude — launching them first maximizes parallelism.
+**Critical sequencing**: You MUST launch all external sketch Bash tool calls (with `run_in_background: true`) AND any Claude subagent fallback sketches BEFORE producing your own inline sketch. External reviewers take significantly longer than Claude — launching them first maximizes parallelism.
 
-**Spawn order**: Cursor first (slowest), then Codex, then Claude subagents, then your own sketch (fastest). Issue all Bash and Agent tool calls in a single message.
+**Spawn order**: both Cursor slots first (slowest), then both Codex slots, then any Claude subagent fallbacks, then your own inline sketch (fastest). Issue all Bash and Agent tool calls in a single message.
 
-**Cursor sketch** (if `cursor_available`):
+**Personality prompts** (shared across external slots and Claude fallbacks):
+
+- `ARCH_PROMPT`: `"You are an Architecture/Standards architect. Propose a high-level implementation approach for this feature: <FEATURE_DESCRIPTION>. Your role is to emphasize maintainability, engineering standards, separation of concerns, and reuse of existing libraries (including open-source). Explore the codebase. Write 2-3 paragraphs covering: (1) Key architectural decisions — emphasize clean design, proper layering, and whether existing libraries or patterns can be reused, (2) Which files/modules to modify and why — flag any violations of single-responsibility or layer boundaries, (3) Main tradeoffs around long-term maintainability vs. short-term convenience. Do NOT modify files. Work at your maximum reasoning effort level."`
+- `EDGE_PROMPT`: `"You are an Edge-case/Failure-mode analyst. Propose a high-level implementation approach for this feature: <FEATURE_DESCRIPTION>. Your role is to focus on what can go wrong: boundary conditions, error handling, failure recovery, race conditions, and silent data corruption. Explore the codebase. Write 2-3 paragraphs covering: (1) Key architectural decisions — emphasize defensive design and failure handling, (2) Which files/modules to modify and why — call out any fragile areas, (3) Main risks and failure modes, with mitigations for each. Do NOT modify files. Work at your maximum reasoning effort level."`
+- `INNOVATION_PROMPT`: `"You are an Innovation/Exploration architect. Propose a high-level implementation approach for this feature: <FEATURE_DESCRIPTION>. Your role is to question assumptions, suggest creative alternatives, and propose unconventional solutions that others might not consider. Explore the codebase. Write 2-3 paragraphs covering: (1) Key architectural decisions — emphasize any novel approaches or alternatives to the obvious path, (2) Which files/modules to modify and why, (3) Main tradeoffs including any 'crazy but might work' ideas worth considering. Do NOT modify files. Work at your maximum reasoning effort level."`
+- `PRAGMATIC_PROMPT`: `"You are a Pragmatism/Safety engineer. Propose a high-level implementation approach for this feature: <FEATURE_DESCRIPTION>. Your role is to minimize the scope of changes, avoid unnecessary complexity, and ensure existing features are not broken. Explore the codebase. Write 2-3 paragraphs covering: (1) Key architectural decisions — emphasize the smallest possible change set that achieves the goal, (2) Which files/modules to modify and why — flag any changes that touch high-risk or widely-used code paths, (3) Main risks to existing functionality and how to mitigate regressions. Do NOT modify files. Work at your maximum reasoning effort level."`
+
+**Cursor slot 1 — Architecture/Standards** (if `cursor_available`):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "$DESIGN_TMPDIR/cursor-sketch-output.txt" --timeout 1200 --capture-stdout -- \
-  cursor agent -p --force --trust $("${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-model-args.sh" --tool cursor) --workspace "$PWD" \
-    "You are looking at a codebase and need to propose a high-level implementation approach for this feature: <FEATURE_DESCRIPTION>. Explore the codebase to understand the relevant architecture, then write 2-3 paragraphs covering: (1) Key architectural decisions and the approach you would take, (2) Which files/modules to modify and why, (3) Main tradeoffs you would consider. Do NOT modify files."
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "$DESIGN_TMPDIR/cursor-sketch-arch-output.txt" --timeout 1200 --capture-stdout -- \
+  cursor agent -p --force --trust $("${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-model-args.sh" --tool cursor --with-effort) --workspace "$PWD" \
+    "<ARCH_PROMPT>"
 ```
 
 Use `run_in_background: true` and `timeout: 1260000` on the Bash tool call.
 
-**Cursor replacement** (if `cursor_available` is false): Launch a Claude subagent (Innovation/Exploration) via the Agent tool instead:
+**Cursor slot 1 fallback** (if `cursor_available` is false): Launch a Claude subagent via the Agent tool with `<ARCH_PROMPT>` (drop the "Work at your maximum reasoning effort level" suffix — Claude uses session-default effort).
 
-Prompt: `"You are an Innovation/Exploration architect. Propose a high-level implementation approach for this feature: <FEATURE_DESCRIPTION>. Your role is to question assumptions, suggest creative alternatives, and propose unconventional solutions that others might not consider. Explore the codebase via Read/Grep/Glob tools. Write 2-3 paragraphs covering: (1) Key architectural decisions — emphasize any novel approaches or alternatives to the obvious path, (2) Which files/modules to modify and why, (3) Main tradeoffs including any 'crazy but might work' ideas worth considering. Do NOT modify files."`
-
-**Codex sketch** (if `codex_available`):
+**Cursor slot 2 — Edge-cases/Failure-modes** (if `cursor_available`):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$DESIGN_TMPDIR/codex-sketch-output.txt" --timeout 1200 -- \
-  codex exec --full-auto -C "$PWD" $("${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-model-args.sh" --tool codex) \
-    --output-last-message "$DESIGN_TMPDIR/codex-sketch-output.txt" \
-    "You are looking at a codebase and need to propose a high-level implementation approach for this feature: <FEATURE_DESCRIPTION>. Explore the codebase to understand the relevant architecture, then write 2-3 paragraphs covering: (1) Key architectural decisions and the approach you would take, (2) Which files/modules to modify and why, (3) Main tradeoffs you would consider. Do NOT modify files."
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "$DESIGN_TMPDIR/cursor-sketch-edge-output.txt" --timeout 1200 --capture-stdout -- \
+  cursor agent -p --force --trust $("${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-model-args.sh" --tool cursor --with-effort) --workspace "$PWD" \
+    "<EDGE_PROMPT>"
 ```
 
 Use `run_in_background: true` and `timeout: 1260000` on the Bash tool call.
 
-**Codex replacement** (if `codex_available` is false): Launch a Claude subagent (Edge-cases/Failure-modes) via the Agent tool instead:
+**Cursor slot 2 fallback**: Claude subagent with `<EDGE_PROMPT>` (effort suffix dropped).
 
-Prompt: `"You are an Edge-case/Failure-mode analyst. Propose a high-level implementation approach for this feature: <FEATURE_DESCRIPTION>. Your role is to focus on what can go wrong: boundary conditions, error handling, failure recovery, race conditions, and silent data corruption. Explore the codebase via Read/Grep/Glob tools. Write 2-3 paragraphs covering: (1) Key architectural decisions — emphasize defensive design and failure handling, (2) Which files/modules to modify and why — call out any fragile areas, (3) Main risks and failure modes, with mitigations for each. Do NOT modify files."`
+**Codex slot 1 — Innovation/Exploration** (if `codex_available`):
 
-**Claude subagent (Architecture/Standards)**: Launch via the Agent tool:
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$DESIGN_TMPDIR/codex-sketch-innovation-output.txt" --timeout 1200 -- \
+  codex exec --full-auto -C "$PWD" $("${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-model-args.sh" --tool codex --with-effort) \
+    --output-last-message "$DESIGN_TMPDIR/codex-sketch-innovation-output.txt" \
+    "<INNOVATION_PROMPT>"
+```
 
-Prompt: `"You are an Architecture/Standards architect. Propose a high-level implementation approach for this feature: <FEATURE_DESCRIPTION>. Your role is to emphasize maintainability, engineering standards, separation of concerns, and reuse of existing libraries (including open-source). Explore the codebase via Read/Grep/Glob tools. Write 2-3 paragraphs covering: (1) Key architectural decisions — emphasize clean design, proper layering, and whether existing libraries or patterns can be reused, (2) Which files/modules to modify and why — flag any violations of single-responsibility or layer boundaries, (3) Main tradeoffs around long-term maintainability vs. short-term convenience. Do NOT modify files."`
+Use `run_in_background: true` and `timeout: 1260000` on the Bash tool call.
 
-**Claude subagent (Pragmatism/Safety)**: Launch via the Agent tool:
+**Codex slot 1 fallback**: Claude subagent with `<INNOVATION_PROMPT>` (effort suffix dropped).
 
-Prompt: `"You are a Pragmatism/Safety engineer. Propose a high-level implementation approach for this feature: <FEATURE_DESCRIPTION>. Your role is to minimize the scope of changes, avoid unnecessary complexity, and ensure existing features are not broken. Explore the codebase via Read/Grep/Glob tools. Write 2-3 paragraphs covering: (1) Key architectural decisions — emphasize the smallest possible change set that achieves the goal, (2) Which files/modules to modify and why — flag any changes that touch high-risk or widely-used code paths, (3) Main risks to existing functionality and how to mitigate regressions. Do NOT modify files."`
+**Codex slot 2 — Pragmatism/Safety** (if `codex_available`):
 
-**Claude sketch (General)**: Only after all external and subagent launches are issued, produce your own 2-3 paragraph sketch inline covering the same three areas: (1) key architectural decisions, (2) files/modules to modify, (3) main tradeoffs. Print it under a `### Claude Sketch` header. Write this **before** reading any external or subagent outputs to preserve independence.
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$DESIGN_TMPDIR/codex-sketch-pragmatic-output.txt" --timeout 1200 -- \
+  codex exec --full-auto -C "$PWD" $("${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-model-args.sh" --tool codex --with-effort) \
+    --output-last-message "$DESIGN_TMPDIR/codex-sketch-pragmatic-output.txt" \
+    "<PRAGMATIC_PROMPT>"
+```
+
+Use `run_in_background: true` and `timeout: 1260000` on the Bash tool call.
+
+**Codex slot 2 fallback**: Claude subagent with `<PRAGMATIC_PROMPT>` (effort suffix dropped).
+
+**Claude sketch (General)**: Only after all external and fallback launches are issued, produce your own 2-3 paragraph inline sketch covering: (1) key architectural decisions, (2) files/modules to modify, (3) main tradeoffs. Print it under a `### Claude Sketch` header. Write this **before** reading any external or fallback outputs to preserve independence.
 
 ### 2a.3 — Wait and Validate Sketches
 
-Collect and validate external sketch outputs using the shared collection script. Only include output paths for external reviewers that were actually launched (not Claude replacements — those return via Agent tool):
+Collect and validate external sketch outputs using the shared collection script. Pass the output paths for whichever external slots were actually launched (omit any slot where the tool was unavailable and a Claude subagent fallback is returning via Agent tool instead):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/collect-reviewer-results.sh --timeout 1260 "$DESIGN_TMPDIR/cursor-sketch-output.txt" "$DESIGN_TMPDIR/codex-sketch-output.txt"
+${CLAUDE_PLUGIN_ROOT}/scripts/collect-reviewer-results.sh --timeout 1260 \
+  "$DESIGN_TMPDIR/cursor-sketch-arch-output.txt" \
+  "$DESIGN_TMPDIR/cursor-sketch-edge-output.txt" \
+  "$DESIGN_TMPDIR/codex-sketch-innovation-output.txt" \
+  "$DESIGN_TMPDIR/codex-sketch-pragmatic-output.txt"
 ```
 
-Use `timeout: 1260000` on the Bash tool call. **Do NOT** set `run_in_background: true` — this call must block. Only include output paths for external reviewers that were actually launched — omit any path whose reviewer was replaced by a Claude subagent.
+Use `timeout: 1260000` on the Bash tool call. **Do NOT** set `run_in_background: true` — this call must block. Only include output paths for slots that were actually launched as external reviewers — omit any slot whose tool was unavailable (its fallback comes back via the Agent tool).
 
-Note: This is a separate `collect-reviewer-results.sh` call from the one in Step 3. Both are permitted because they operate on completely distinct output file sets (`*-sketch-output.txt` vs `*-plan-output.txt`).
+Note: This is a separate `collect-reviewer-results.sh` call from the one in Step 3. Both are permitted because they operate on completely distinct output file sets (`*-sketch-*-output.txt` vs `*-plan-output.txt`).
 
 Parse the structured output for each reviewer's `STATUS`, `REVIEWER_FILE`, and `HEALTHY`. For sketches, a valid output is non-empty and contains substantive architectural content (at least a paragraph). If a reviewer's `STATUS` is not `OK`, follow the **Runtime Timeout Fallback** procedure in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md` (set `*_available=false` for all subsequent steps).
 
 ### 2a.4 — Synthesis
 
-Read all 5 sketches (Claude General + Architecture/Standards + Pragmatism/Safety + Cursor or replacement + Codex or replacement). Produce a synthesis that:
+Read all 5 sketches (Claude General + Cursor slot 1 Architecture/Standards + Cursor slot 2 Edge-cases/Failure-modes + Codex slot 1 Innovation/Exploration + Codex slot 2 Pragmatism/Safety — or their Claude fallbacks if an external tool was unavailable). Produce a synthesis that:
 
 1. Identifies where the approaches **agree** (likely the majority)
 2. Identifies where they **diverge** and makes a reasoned call on each contested point with justification
 3. Notes which ideas from each sketch are being incorporated into the full plan
-4. Highlights any **Architecture/Standards** concerns that should be addressed in the plan
-5. Highlights any **Pragmatism/Safety** warnings about regression risk or unnecessary complexity
-6. Lists contested decisions as a structured markdown list in `$DESIGN_TMPDIR/contested-decisions.md`. Use this schema:
+4. Highlights any **Architecture/Standards** concerns (sourced from Cursor slot 1) that should be addressed in the plan
+5. Highlights any **Pragmatism/Safety** warnings (sourced from Codex slot 2) about regression risk or unnecessary complexity
+6. Surfaces any **Edge-case/Failure-mode** risks (sourced from Cursor slot 2) that should be addressed in the plan's Failure modes section
+7. Notes any **Innovation/Exploration** alternatives (sourced from Codex slot 1) worth preserving as options even when not chosen
+8. Lists contested decisions as a structured markdown list in `$DESIGN_TMPDIR/contested-decisions.md`. Use this schema:
 
    ```markdown
    ### DECISION_1: <short title>
@@ -363,13 +392,13 @@ Print the plan to the user under a `## Implementation Plan` header so reviewers 
 
 ## Step 3 — Plan Review
 
-**IMPORTANT: Plan review MUST ALWAYS run with all available reviewers (2 Claude subagents + 2 Codex instances and Cursor if available). Never skip or abbreviate this step regardless of how straightforward the plan appears — even when all sketch agents agreed, the plan is short, or the change seems trivial. Reviewers validate against the actual codebase state, catching issues that sketch-phase reasoning alone cannot detect.**
+**IMPORTANT: Plan review MUST ALWAYS run with all 3 reviewers (1 Claude Code Reviewer subagent + 1 Codex + 1 Cursor). Never skip or abbreviate this step regardless of how straightforward the plan appears — even when all sketch agents agreed, the plan is short, or the change seems trivial. Reviewers validate against the actual codebase state, catching issues that sketch-phase reasoning alone cannot detect.**
 
-Launch **all 5 reviewers in parallel** (in a single message). When external tools are unavailable, launch Claude replacement subagents instead so the total reviewer count always remains 5. **Spawn order matters for parallelism** — launch the slowest reviewers first: Cursor (slowest), then both Codex instances, then Claude subagents (fastest). Each reviewer receives the plan text and the feature description. Each must **only report findings** — never edit files.
+Launch **all 3 reviewers in parallel** (in a single message). When an external tool is unavailable, launch a Claude subagent fallback so the total reviewer count always remains 3. **Spawn order matters for parallelism** — launch the slowest reviewer first: Cursor, then Codex, then the Claude subagent. Each reviewer receives the plan text and the feature description. Each must **only report findings** — never edit files.
 
 ### External Reviewer Setup (if `codex_available` or `cursor_available`)
 
-Before launching external reviewers, write the implementation plan to `$DESIGN_TMPDIR/plan.txt` so both Codex instances and Cursor can read it.
+Before launching external reviewers, write the implementation plan to `$DESIGN_TMPDIR/plan.txt` so Codex and Cursor can read it.
 
 ### Cursor Reviewer (if `cursor_available`)
 
@@ -379,53 +408,34 @@ Invoke Cursor via the shared monitored wrapper script (with `--capture-stdout` s
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "$DESIGN_TMPDIR/cursor-plan-output.txt" --timeout 1800 --capture-stdout -- \
-  cursor agent -p --force --trust $("${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-model-args.sh" --tool cursor) --workspace "$PWD" \
-    "Review the implementation plan in $DESIGN_TMPDIR/plan.txt for this project. Read the plan file, then explore the codebase to validate the plan. Combine 4 perspectives: (1) General: logical flaws, code reuse, test coverage, backward compat, pattern consistency. (2) Correctness: logic errors, off-by-one, nil handling, type mismatches, races, error paths. (3) Risk/Integration: breaking changes, side effects, thread safety, deployment risks, regressions, CI. (4) Architecture: separation of concerns, contract boundaries, invariants, semantic boundaries. Return numbered findings with perspective, concern, and suggested revision. If NO issues, output exactly NO_ISSUES_FOUND. Do NOT modify files."
+  cursor agent -p --force --trust $("${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-model-args.sh" --tool cursor --with-effort) --workspace "$PWD" \
+    "Review the implementation plan in $DESIGN_TMPDIR/plan.txt for this project. Read the plan file, then explore the codebase to validate the plan. Walk four focus areas: (1) Code Quality: logical flaws, code reuse, test coverage, backward compat, style consistency. (2) Risk/Integration: breaking changes, side effects, thread safety, deployment risks, regressions, CI. (3) Correctness: logic errors, off-by-one, nil handling, type mismatches, races, error paths. (4) Architecture: separation of concerns, contract boundaries, invariants, semantic boundaries. Tag each finding with its focus area. Return numbered findings with focus-area tag, concern, and suggested revision. If NO issues, output exactly NO_ISSUES_FOUND. Do NOT modify files. Work at your maximum reasoning effort level."
 ```
 
 Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
-**Cursor replacement** (if `cursor_available` is false): Launch a Claude subagent (Risk/Integration) via the Agent tool instead. This replacement ensures the total reviewer count remains 5 regardless of external tool availability.
+**Cursor fallback** (if `cursor_available` is false): Launch a Claude Code Reviewer subagent via the Agent tool (subagent_type: `code-reviewer`) with the same plan-review context. This fallback ensures the total reviewer count remains 3 regardless of external tool availability.
 
-Prompt: `"You are a Risk/Integration plan reviewer. Review the implementation plan provided below for this project. Explore the codebase via Read/Grep/Glob tools to validate the plan against the actual codebase state. Combine 4 perspectives: (1) General: logical flaws, code reuse, test coverage, backward compat, pattern consistency. (2) Correctness: logic errors, off-by-one, nil handling, type mismatches, races, error paths. (3) Risk/Integration: breaking changes, side effects, thread safety, deployment risks, regressions, CI. (4) Architecture: separation of concerns, contract boundaries, invariants, semantic boundaries. Quality gate: for each in-scope finding, verify the proposed change is justified by a concrete need and proportionate to the issue. Return findings in two separate sections: In-Scope Findings (numbered, with concern and suggested revision) and Out-of-Scope Observations. If no in-scope issues, say 'No in-scope issues found.' Do NOT modify files. <include {CONTEXT_BLOCK} and competition notice>"`
+### Codex Reviewer (if `codex_available`)
 
-### Codex Reviewers (if `codex_available`) — 2 instances
-
-Run both Codex instances **second** in the parallel message (after Cursor). Each Codex instance has full repo access and will examine the codebase itself, but focuses on different perspectives.
-
-**Codex-General** — focuses on general code quality and risk/integration perspectives:
+Run Codex **second** in the parallel message (after Cursor). Codex has full repo access and will examine the codebase itself.
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$DESIGN_TMPDIR/codex-general-plan-output.txt" --timeout 1800 -- \
-  codex exec --full-auto -C "$PWD" $("${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-model-args.sh" --tool codex) \
-    --output-last-message "$DESIGN_TMPDIR/codex-general-plan-output.txt" \
-    "Review the implementation plan in $DESIGN_TMPDIR/plan.txt for this project. Read the plan file, then explore the codebase to validate the plan. Focus on general code quality and risk/integration perspectives: (1) General: logical flaws, code reuse, test coverage, backward compat, pattern consistency. (2) Risk/Integration: breaking changes, side effects, thread safety, deployment risks, regressions, CI. Return numbered findings with perspective, concern, and suggested revision. If NO issues, output exactly NO_ISSUES_FOUND. Do NOT modify files."
+${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$DESIGN_TMPDIR/codex-plan-output.txt" --timeout 1800 -- \
+  codex exec --full-auto -C "$PWD" $("${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-model-args.sh" --tool codex --with-effort) \
+    --output-last-message "$DESIGN_TMPDIR/codex-plan-output.txt" \
+    "Review the implementation plan in $DESIGN_TMPDIR/plan.txt for this project. Read the plan file, then explore the codebase to validate the plan. Walk four focus areas: (1) Code Quality: logical flaws, code reuse, test coverage, backward compat, style consistency. (2) Risk/Integration: breaking changes, side effects, thread safety, deployment risks, regressions, CI. (3) Correctness: logic errors, off-by-one, nil handling, type mismatches, races, error paths. (4) Architecture: separation of concerns, contract boundaries, invariants, semantic boundaries. Tag each finding with its focus area. Return numbered findings with focus-area tag, concern, and suggested revision. If NO issues, output exactly NO_ISSUES_FOUND. Do NOT modify files. Work at your maximum reasoning effort level."
 ```
 
 Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
 
-**Codex-Deep-Analysis** — focuses on correctness and architecture perspectives:
+**Codex fallback** (if `codex_available` is false): Launch a Claude Code Reviewer subagent via the Agent tool (subagent_type: `code-reviewer`) with the same plan-review context. This fallback ensures the total reviewer count remains 3 regardless of external tool availability.
 
-```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "$DESIGN_TMPDIR/codex-deep-plan-output.txt" --timeout 1800 -- \
-  codex exec --full-auto -C "$PWD" $("${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-model-args.sh" --tool codex) \
-    --output-last-message "$DESIGN_TMPDIR/codex-deep-plan-output.txt" \
-    "Review the implementation plan in $DESIGN_TMPDIR/plan.txt for this project. Read the plan file, then explore the codebase to validate the plan. Focus on correctness and architecture perspectives: (1) Correctness: logic errors, off-by-one, nil handling, type mismatches, races, error paths. (2) Architecture: separation of concerns, contract boundaries, invariants, semantic boundaries. Return numbered findings with perspective, concern, and suggested revision. If NO issues, output exactly NO_ISSUES_FOUND. Do NOT modify files."
-```
+### Claude Code Reviewer Subagent (1 reviewer)
 
-Use `run_in_background: true` and `timeout: 1860000` on the Bash tool call.
+Launch the Claude subagent **last** in the same message (it finishes fastest).
 
-**Codex replacements** (if `codex_available` is false): Launch 2 Claude subagents to replace the 2 Codex instances. These replacements ensure the total reviewer count remains 5 regardless of external tool availability.
-
-**Claude (Codex-General replacement)**: Launch via Agent tool with prompt: `"You are a code quality and risk/integration plan reviewer. Review the implementation plan provided below for this project. Explore the codebase via Read/Grep/Glob tools. Focus on general code quality and risk/integration: logical flaws, code reuse, test coverage, backward compat, pattern consistency, breaking changes, side effects, deployment risks, regressions, CI. Quality gate: for each in-scope finding, verify the proposed change is justified by a concrete need and proportionate to the issue. Return findings in two separate sections: In-Scope Findings (numbered, with concern and suggested revision) and Out-of-Scope Observations. If no in-scope issues, say 'No in-scope issues found.' Do NOT modify files. <include {CONTEXT_BLOCK} and competition notice>"`
-
-**Claude (Codex-Deep-Analysis replacement)**: Launch via Agent tool with prompt: `"You are a deep correctness and architecture plan reviewer. Review the implementation plan provided below for this project. Explore the codebase via Read/Grep/Glob tools. Focus on correctness and architecture: logic errors, off-by-one, nil handling, type mismatches, races, error paths, separation of concerns, contract boundaries, invariants, semantic boundaries. Quality gate: for each in-scope finding, verify the proposed change is justified by a concrete need and proportionate to the issue. Return findings in two separate sections: In-Scope Findings (numbered, with concern and suggested revision) and Out-of-Scope Observations. If no in-scope issues, say 'No in-scope issues found.' Do NOT modify files. <include {CONTEXT_BLOCK} and competition notice>"`
-
-### Claude Subagents (2 reviewers)
-
-Launch both Claude subagents **last** in the same message (they finish fastest).
-
-Use the two reviewer archetypes from `${CLAUDE_PLUGIN_ROOT}/skills/shared/reviewer-templates.md`, filling in the variables for **plan review**:
+Use the Code Reviewer archetype from `${CLAUDE_PLUGIN_ROOT}/skills/shared/reviewer-templates.md`, filling in the variables for **plan review**:
 
 - **`{REVIEW_TARGET}`** = `"an implementation plan"`
 - **`{CONTEXT_BLOCK}`**:
@@ -438,21 +448,23 @@ Use the two reviewer archetypes from `${CLAUDE_PLUGIN_ROOT}/skills/shared/review
   ```
 - **`{OUTPUT_INSTRUCTION}`** = `"What the concern is"` + `"Suggested revision to the plan"`
 
-Additionally, append the following competition context to each reviewer's prompt (both Claude subagents and external reviewers):
+Invoke via Agent tool with subagent_type: `code-reviewer`. The agent file's checklist matches the shared template; any fallback Claude launches (when Codex or Cursor are unavailable) use the same subagent.
 
-> **Competition notice**: Your findings will be voted on by a 3-agent panel (Deep Analysis Reviewer, Codex, Cursor) using YES/NO/EXONERATE. Each finding that receives 2+ YES votes earns you +1 point. Findings with exactly 1 YES earn 0 points. Findings with 0 YES but at least 1 EXONERATE earn 0 points (the panel recognized your concern as legitimate). Findings with 0 YES and 0 EXONERATE cost you -1 point. Focus on high-quality, actionable findings. Concerns that are valid but not actionable in this PR may still be exonerated rather than penalized. Out-of-scope observations use the same scoring as in-scope findings: OOS items that receive 2+ YES votes earn +1 point and will be filed as GitHub issues. OOS items with 0 YES and 0 EXONERATE cost -1 point. OOS items with exactly 1 YES or with 1+ EXONERATE earn 0 points.
+Additionally, append the following competition context to each reviewer's prompt (Claude subagent and external reviewers):
+
+> **Competition notice**: Your findings will be voted on by a 3-agent panel (Claude Code Reviewer subagent, Codex, Cursor) using YES/NO/EXONERATE. Each finding that receives 2+ YES votes earns you +1 point. Findings with exactly 1 YES earn 0 points. Findings with 0 YES but at least 1 EXONERATE earn 0 points (the panel recognized your concern as legitimate). Findings with 0 YES and 0 EXONERATE cost you -1 point. Focus on high-quality, actionable findings. Concerns that are valid but not actionable in this PR may still be exonerated rather than penalized. Out-of-scope observations use the same scoring as in-scope findings: OOS items that receive 2+ YES votes earn +1 point and will be filed as GitHub issues. OOS items with 0 YES and 0 EXONERATE cost -1 point. OOS items with exactly 1 YES or with 1+ EXONERATE earn 0 points.
 
 ### Collecting External Reviewer Results
 
 **Process Claude findings immediately** — do not wait for external reviewers before starting:
 
-1. Collect findings from the two Claude subagents right away. Claude subagents produce **dual-list output** (per `reviewer-templates.md`): "In-Scope Findings" and "Out-of-Scope Observations". Parse both lists from each subagent.
-2. **Then** collect and validate external reviewer outputs using the shared collection script. Only include output paths for reviewers that were actually launched:
+1. Collect findings from the Claude Code Reviewer subagent right away. The subagent produces **dual-list output** (per `reviewer-templates.md`): "In-Scope Findings" and "Out-of-Scope Observations". Parse both lists.
+2. **Then** collect and validate external reviewer outputs using the shared collection script. Only include output paths for reviewers that were actually launched as external tools:
    ```bash
-   ${CLAUDE_PLUGIN_ROOT}/scripts/collect-reviewer-results.sh --timeout 1860 [--write-health "${SESSION_ENV_PATH}.health"] "$DESIGN_TMPDIR/cursor-plan-output.txt" "$DESIGN_TMPDIR/codex-general-plan-output.txt" "$DESIGN_TMPDIR/codex-deep-plan-output.txt"
+   ${CLAUDE_PLUGIN_ROOT}/scripts/collect-reviewer-results.sh --timeout 1860 [--write-health "${SESSION_ENV_PATH}.health"] "$DESIGN_TMPDIR/cursor-plan-output.txt" "$DESIGN_TMPDIR/codex-plan-output.txt"
    ```
    Only include `--write-health` if `SESSION_ENV_PATH` is non-empty. Parse the structured output for each reviewer's `STATUS` and `REVIEWER_FILE`. For any reviewer with `STATUS` not `OK`, follow the **Runtime Timeout Fallback** procedure in `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md`. Read valid output files. External reviewers (Codex, Cursor) produce single-list output — treat their entire output as in-scope findings.
-3. Merge external reviewer in-scope findings into the Claude in-scope findings.
+3. Merge external reviewer in-scope findings into the Claude in-scope findings. Also merge any fallback Claude subagent findings (when externals were unavailable) into the same in-scope list, attributing them as `Code` (broad) per the fallback slot.
 4. Deduplicate in-scope findings separately. Assign each a stable sequential ID (`FINDING_1`, `FINDING_2`, etc.) and note which reviewer(s) proposed each.
 5. Deduplicate out-of-scope observations separately. Assign each an `OOS_` prefixed ID (`OOS_1`, `OOS_2`, etc.). If the same issue appears in both in-scope and OOS from different reviewers, merge under the in-scope finding (in-scope takes precedence).
 
@@ -462,9 +474,9 @@ If **all reviewers** report no in-scope issues and no out-of-scope observations,
 
 After deduplication, submit both in-scope findings and out-of-scope observations to a 3-agent voting panel per the **Voting Protocol** in `${CLAUDE_PLUGIN_ROOT}/skills/shared/voting-protocol.md`. Include OOS items on the ballot with `[OUT_OF_SCOPE]` prefix per the protocol's OOS section — voters decide whether each OOS item deserves a GitHub issue (YES = file issue, not implement). For plan review:
 
-- **Voter 1**: Claude Deep Analysis reviewer subagent — fresh Agent tool invocation with the voting prompt. Instruct: `"You are a senior architect and correctness specialist on a voting panel. You will vote YES, NO, or EXONERATE on proposed modifications to an implementation plan. Be scrupulous — only vote YES for findings that are correct, important, and worth revising the plan for. Vote EXONERATE if the concern is legitimate but not worth implementing in this PR. When voting, also consider proportionality: vote EXONERATE (not YES) if the finding's concern is legitimate but the proposed change would introduce more complexity than the issue warrants."`
-- **Voter 2**: Codex — via `run-external-reviewer.sh` with the ballot. If `codex_available` is false, launch a Claude subagent voter instead per the Voting Protocol.
-- **Voter 3**: Cursor — via `run-external-reviewer.sh` with the ballot. If `cursor_available` is false, launch a Claude subagent voter instead per the Voting Protocol.
+- **Voter 1**: **Claude Code Reviewer subagent** — fresh Agent tool invocation (subagent_type: `code-reviewer`) with the voting prompt. Instruct: `"You are a senior code reviewer on a voting panel. You will vote YES, NO, or EXONERATE on proposed modifications to an implementation plan. Be scrupulous — only vote YES for findings that are correct, important, and worth revising the plan for. Vote EXONERATE if the concern is legitimate but not worth implementing in this PR. When voting, also consider proportionality: vote EXONERATE (not YES) if the finding's concern is legitimate but the proposed change would introduce more complexity than the issue warrants."`
+- **Voter 2**: Codex — via `run-external-reviewer.sh` with the ballot (use `--with-effort` and append "Work at maximum reasoning effort level." to the voter prompt). If `codex_available` is false, launch a Claude subagent voter instead per the Voting Protocol.
+- **Voter 3**: Cursor — via `run-external-reviewer.sh` with the ballot (use `--with-effort` and append "Work at maximum reasoning effort level." to the voter prompt). If `cursor_available` is false, launch a Claude subagent voter instead per the Voting Protocol.
 
 For Codex, Cursor, and their Claude replacement voters, instruct each: `"You are a senior engineer on a voting panel deciding which proposed plan modifications should be accepted. When voting, also consider proportionality: vote EXONERATE (not YES) if the finding's concern is legitimate but the proposed change would introduce more complexity than the issue warrants."`
 
