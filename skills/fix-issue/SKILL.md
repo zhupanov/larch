@@ -7,7 +7,7 @@ allowed-tools: Bash, Read, Grep, Glob, Skill
 
 # Fix Issue
 
-Process one approved GitHub issue per invocation. Fetches open issues with a `GO` sentinel comment, triages against the codebase, classifies complexity, and delegates to `/implement`.
+Process one approved GitHub issue per invocation. Fetches open issues with a `GO` sentinel comment, skips any whose GitHub issue-dependencies list includes an open blocker, triages the remaining candidate against the codebase, classifies complexity, and delegates to `/implement`.
 
 **Single-iteration design**: Each invocation handles at most one issue, then exits. The caller (cron, `/loop`, or manual invocation) is responsible for repeated execution.
 
@@ -65,6 +65,8 @@ ${CLAUDE_PLUGIN_ROOT}/skills/fix-issue/scripts/fetch-eligible-issue.sh ["$ISSUE_
 ```
 
 Only include `"$ISSUE_ARG"` as a positional argument if `ISSUE_ARG` is non-empty (the user provided an issue number/URL via positional argument or the deprecated `--issue` flag).
+
+Candidates are required to be open, have `GO` as their last comment, not be locked by a prior `IN PROGRESS` comment, and **have no currently-open blocking dependencies** (per GitHub's native issue-dependencies feature, queried via `repos/{owner}/{repo}/issues/{N}/dependencies/blocked_by`). An issue whose listed blockers are all closed is eligible; an issue with even one open blocker is skipped in auto-pick mode and reported as ineligible in explicit `--issue` mode. If the dependencies endpoint is unavailable (e.g., 404, transient gh failure), the check degrades to the pre-existing GO-only behavior so API availability never hard-blocks the automation.
 
 Handle exit codes:
 
