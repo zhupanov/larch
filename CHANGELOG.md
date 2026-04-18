@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.5] - 2026-04-18
+
+### Changed
+
+- `/research` refactored from a 5+5 lane composition to 3+3. Phase 1 (Research) now launches 3 agents — Claude inline + Cursor + Codex — all running a single uniform `RESEARCH_PROMPT` that requires alternative perspectives, edge cases/gaps, architectural patterns, and risks/feasibility. Phase 2 (Validation) now launches 3 lanes — Codex deep + Codex broad + Cursor generic. Claude Code Reviewer subagent fallbacks preserve the 3-lane invariant in each phase when an external tool is unavailable, with per-slot attribution (Cursor-unavailable → 1 generic Claude lane; Codex-unavailable → 2 Claude lanes, deep + broad). Both phases build a `COLLECT_ARGS` list from only actually-launched externals and skip `collect-reviewer-results.sh` entirely when zero externals are launched. Runtime external timeouts trigger an immediate same-phase Claude fallback so the 3-lane invariant holds at synthesis/negotiation time. Docs, diagram, and progress-reporting examples are synced across `README.md`, `docs/agents.md`, `docs/review-agents.md`, `docs/workflow-lifecycle.md`, `docs/external-reviewers.md`, `docs/collaborative-sketches.md`, `skills/shared/progress-reporting.md`, `skills/shared/voting-protocol.md`, and `skills/research/diagram.svg`.
+
 ## [3.0.4] - 2026-04-18
 
 ### Changed
@@ -44,7 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Voter 1 canonical label is now `Claude Code Reviewer subagent` in both `/design` and `/review` (previously split between Deep Analysis and General names).
 - Attribution strings in round summaries and reviewer competition scoreboards collapse from `General / Deep-Analysis / Codex-General / Codex-Deep-Analysis / Cursor` to `Code / Codex / Cursor`.
 - Output file paths for the single Codex review launch are now `codex-plan-output.txt` (design) and `codex-output.txt` (review); the old `codex-general-*` / `codex-deep-*` names are no longer emitted by these skills.
-- `skills/research/SKILL.md` and `skills/loop-review/SKILL.md` continue to use a 5-reviewer composition under the Negotiation Protocol; their two Claude lanes are now attributed as `Code Reviewer (broad perspective)` and `Code Reviewer (deep perspective)`, both invoking the unified archetype.
+- `skills/research/SKILL.md` and `skills/loop-review/SKILL.md` retained a 5-reviewer composition under the Negotiation Protocol at this version; their two Claude lanes are attributed as `Code Reviewer (broad perspective)` and `Code Reviewer (deep perspective)`, both invoking the unified archetype. (`/research` was later refactored to a 3-lane composition — see subsequent changelog entries.)
 - `scripts/reviewer-model-args.sh` gained a `--with-effort` opt-in flag. When passed, it emits `-c model_reasoning_effort="$EFFORT"` for Codex, where EFFORT resolves from `LARCH_CODEX_EFFORT` → `CLAUDE_PLUGIN_OPTION_CODEX_EFFORT` → default `high`. Default (no flag) behavior is unchanged — health probes and negotiation callers do not pass `--with-effort` and therefore remain at Codex's default effort.
 - `.claude-plugin/plugin.json` adds `codex_effort` userConfig (default `high`). The plugin-level description is updated to reflect the new reviewer composition.
 

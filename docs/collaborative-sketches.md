@@ -32,7 +32,7 @@ The handling of unavailable external tools differs across workflow phases:
 
 | Phase | Unavailable Tool Handling |
 |---|---|
-| **Sketch phase** (`/design`, `/research`) | Per-slot Claude fallbacks with matching personality — always 5 agents |
+| **Sketch phase** (`/design`) | Per-slot Claude fallbacks with matching personality — always 5 agents |
 | **Plan review** (`/design`) | Claude Code Reviewer subagent fallbacks — always 3 reviewers |
 | **Code review** (`/review`) | Claude Code Reviewer subagent fallbacks — always 3 reviewers |
 | **Voting** | Claude replacement voters used — always 3 voters. 3 voters: 2+ YES to accept; 2 voters: unanimous YES; <2 voters: voting skipped, all findings accepted |

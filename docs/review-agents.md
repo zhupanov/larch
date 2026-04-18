@@ -75,8 +75,8 @@ External reviewers (Codex, Cursor) produce single-list output — their entire o
 | `/implement` | Phase 3 conflict review | 1 Claude Code Reviewer subagent + 1 Codex + 1 Cursor (3 total) |
 | `/implement` (quick mode) | Simplified review | 1 Claude Code Reviewer subagent (no external reviewers, no voting) |
 | `/loop-review` | Slice review | 2 Claude Code Reviewer subagent lanes (broad + deep perspectives) + 2 Codex (broad + deep) + Cursor (5 total, Negotiation Protocol) |
-| `/research` | Validation | 2 Claude Code Reviewer subagent lanes (broad + deep perspectives) + 2 Codex (broad + deep) + Cursor (5 total, Negotiation Protocol) |
+| `/research` | Validation | Codex (broad) + Codex (deep) + Cursor (generic) — 3 total, Negotiation Protocol; Claude Code Reviewer subagent fallbacks (2 for Codex, 1 for Cursor) preserve the 3-lane invariant |
 
-**Note A**: `/loop-review` and `/research` retain 5-lane compositions because they use the Negotiation Protocol (per-reviewer independent negotiation), not the Voting Protocol (quorum-based). The two Claude lanes invoke the same unified archetype with per-lane emphasis on code quality/risk-integration (broad) vs correctness/architecture (deep), preserving distinct finding streams under Negotiation semantics.
+**Note A**: `/loop-review` retains a 5-lane composition under the Negotiation Protocol; `/research` uses 3 lanes under the same protocol. Lane count is independent of protocol choice — the Negotiation Protocol supports any per-reviewer independent negotiation count. In `/loop-review`, the two Claude lanes invoke the same unified archetype with per-lane emphasis on code quality/risk-integration (broad) vs correctness/architecture (deep), preserving distinct finding streams.
 
 **Claude fallback for externals**: When Cursor or Codex is unavailable in the 3-reviewer skills, a Claude Code Reviewer subagent is launched in its place so the total reviewer count remains 3.
