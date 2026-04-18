@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.1] - 2026-04-18
+
+### Changed
+
+- Raised the `/implement --quick` single-reviewer code-review loop cap from 5 rounds to 7. The quick-mode re-review gate (`skills/implement/SKILL.md` Step 5.8) now loops while `round_num <= 7` and prints the non-convergence warning when `round_num > 7`; the `--quick` flag description, Step 5 header, body, warning copy, execution-issues log text, and the quick-mode PR-body guidance for the Code Review Voting Tally are updated in lockstep. Reviews that previously exhausted the cap with unresolved findings now have two additional iterations to converge before the warning is emitted. `/review`'s independent normal-mode 5-round cap is unchanged.
+
 ## [3.1.0] - 2026-04-18
 
 ### Added
