@@ -13,7 +13,7 @@ The feature to implement is described by `$ARGUMENTS` after flag stripping.
 
 **Flags**: Parse flags from the start of `$ARGUMENTS` before treating the remainder as the feature description. Flags may appear in any order; stop at the first non-flag token. After stripping all flags, save the remainder as `FEATURE_DESCRIPTION` — use this (not raw `$ARGUMENTS`) whenever the human-readable feature description is needed (e.g., PR body, design invocation, commit messages). **All boolean flags default to `false`. Only set a flag to `true` when its `--flag` token is explicitly present in the arguments. Flags are independent — the presence of one flag must not influence the default value of any other flag.**
 
-- `--quick`: Set a mental flag `quick_mode=true`. Default: `quick_mode=false`. When `quick_mode=true`: Step 1 skips `/design` (this skill creates the branch and an inline plan directly), Step 5 skips `/review` (a simplified one-round review with 2 Claude subagents only — no external reviewers, no voting panel), and Step 7a skips the Code Flow Diagram. All other steps (CI wait, Slack, cleanup) run normally. The `--merge` opt-in is independent of `--quick`.
+- `--quick`: Set a mental flag `quick_mode=true`. Default: `quick_mode=false`. When `quick_mode=true`: Step 1 skips `/design` (this skill creates the branch and an inline plan directly), Step 5 skips `/review` (a simplified one-round review with 1 Claude Code Reviewer subagent only — no external reviewers, no voting panel), and Step 7a skips the Code Flow Diagram. All other steps (CI wait, Slack, cleanup) run normally. The `--merge` opt-in is independent of `--quick`.
 - `--auto`: Set a mental flag `auto_mode=true`. Default: `auto_mode=false`. When `auto_mode=true`: (a) forward `--auto` to `/design` invocation in Step 1, suppressing `/design`'s interactive question checkpoints; (b) suppress this skill's own opportunistic questions in Step 2; (c) in Step 12, when merge conflicts require user input for uncertain resolutions, suppress `AskUserQuestion` and use best-effort resolution instead (bailing if confidence is too low). When `--quick` is also set and `/design` is skipped, `--auto` still suppresses Step 2 questions.
 - `--merge`: Set a mental flag `merge=true`. Default: `merge=false`. When `merge=true`, Steps 12–15 run (CI+rebase+merge loop, :merged: emoji, local cleanup, and main verification). When `merge=false`, these steps are skipped — the PR is created and the workflow stops after the initial CI wait, Slack announcement, rejected findings report, final report, and temp cleanup.
 - `--no-merge`: **Deprecated** — recognized for backward compatibility but treated as a no-op (the new default already skips merge steps). When this flag is encountered, print: `**ℹ '--no-merge' is now the default and no longer needed; the flag is recognized as a no-op for backward compatibility.**`
@@ -276,20 +276,20 @@ Skip `/review`. Instead, run a simplified one-round review:
    ${CLAUDE_PLUGIN_ROOT}/scripts/gather-branch-context.sh --output-dir "$IMPLEMENT_TMPDIR"
    ```
    Parse the output for `DIFF_FILE`, `FILE_LIST_FILE`, and `COMMIT_LOG_FILE`. Read these files to get the full diff, file list, and commit log.
-2. Launch **2 Claude subagent reviewers** (general, deep-analysis) using the same reviewer archetypes from `${CLAUDE_PLUGIN_ROOT}/skills/shared/reviewer-templates.md` with these variable bindings: `{REVIEW_TARGET}` = `"code changes"`, `{CONTEXT_BLOCK}` = the commit log + file list + full diff, `{OUTPUT_INSTRUCTION}` = `"File path and line number(s)"` + `"What the issue is"` + `"Suggested fix"`. **No Codex, no Cursor, no external reviewers. No competition notice** (there is no voting panel in quick mode).
-3. Collect findings from all 2 subagents. Deduplicate.
+2. Launch **1 Claude Code Reviewer subagent** (subagent_type: `code-reviewer`) using the unified reviewer archetype from `${CLAUDE_PLUGIN_ROOT}/skills/shared/reviewer-templates.md` with these variable bindings: `{REVIEW_TARGET}` = `"code changes"`, `{CONTEXT_BLOCK}` = the commit log + file list + full diff, `{OUTPUT_INSTRUCTION}` = `"File path and line number(s)"` + `"What the issue is"` + `"Suggested fix"`. **No Codex, no Cursor, no external reviewers. No competition notice** (there is no voting panel in quick mode).
+3. Collect findings from the Code Reviewer subagent.
 4. **Main agent decides**: Evaluate each finding and unilaterally accept or reject it. No voting panel. Accept findings that identify genuine bugs, logic errors, or important improvements. Reject trivial style nits or speculative concerns. Also reject findings whose proposed fix would introduce more complexity than the issue warrants (disproportionate fix).
 5. Implement accepted fixes. Run `/relevant-checks` if files changed.
 6. **One round only** — no re-review loop.
 7. For rejected findings, write them to `$IMPLEMENT_TMPDIR/rejected-findings.md` using the same format as normal mode (see below), so Step 16 and PR body sections work unchanged.
 
-Print: `> **🔶 5: code review — quick mode (2 Claude subagents, 1 round, no voting)**`
+Print: `> **🔶 5: code review — quick mode (1 Claude Code Reviewer subagent, 1 round, no voting)**`
 
 ### Normal mode (`quick_mode=false`)
 
 **IMPORTANT: Code review must ALWAYS be invoked via `/review`. Never skip this step regardless of the nature of the changes — whether code, skills, documentation, data files, or configuration. All changes require full review.**
 
-Invoke the `/review` skill with `--session-env $IMPLEMENT_TMPDIR/session-env.sh` to forward reviewer health state. Always prepend `--step-prefix "5.::code review"`. **If `debug_mode=true`, also prepend `--debug`.** Canonical invocation order: `[--debug] --step-prefix "5.::code review" --session-env $IMPLEMENT_TMPDIR/session-env.sh`. This launches 2 parallel Claude subagent reviewers (general, deep-analysis) plus two Codex and Cursor reviewers (if available and healthy), implements their suggestions recursively until clean.
+Invoke the `/review` skill with `--session-env $IMPLEMENT_TMPDIR/session-env.sh` to forward reviewer health state. Always prepend `--step-prefix "5.::code review"`. **If `debug_mode=true`, also prepend `--debug`.** Canonical invocation order: `[--debug] --step-prefix "5.::code review" --session-env $IMPLEMENT_TMPDIR/session-env.sh`. This launches the 3-reviewer panel (1 Claude Code Reviewer subagent + 1 Codex + 1 Cursor, with Claude fallbacks when externals are unavailable), implements accepted suggestions recursively until clean.
 
 After `/review` returns, follow the **Cross-Skill Health Propagation** procedure from Step 0 to read the health status file and update `session-env.sh` if any reviewer timed out during the review.
 
@@ -565,7 +565,7 @@ Populate Run Statistics from conversation context: count accepted/rejected findi
 - **Version Bump Reasoning**: Populate from `$IMPLEMENT_TMPDIR/bump-version-reasoning.md` as in normal mode (the `/bump-version` skill writes this file when Step 8 runs, and this is mode-agnostic).
 - **Rejected Plan Review Suggestions**: Write "Quick mode — no plan review was conducted."
 - **Plan Review Voting Tally**: Write "Quick mode — no plan review voting."
-- **Code Review Voting Tally (Round 1)**: Write "Quick mode — no voting panel. Main agent reviewed findings from 2 Claude subagents."
+- **Code Review Voting Tally (Round 1)**: Write "Quick mode — no voting panel. Main agent reviewed findings from 1 Claude Code Reviewer subagent."
 - **Implementation Deviations**: Compare implementation to the inline plan (same as normal mode).
 - **Out-of-Scope Observations**: Write "Quick mode — no out-of-scope observations collected."
 - **Run Statistics**: Set "Plan review findings" to "N/A (quick mode)", "External reviewers" to "N/A (quick mode)", "OOS issues filed" to "N/A (quick mode)". Code review findings should reflect the quick review results.
@@ -934,17 +934,19 @@ For each file in `CONFLICT_FILES`:
 
 Also capture `git diff --cached` as supplementary context showing the full staged state.
 
-**3d. Launch reviewers**: Launch 2 Claude subagent reviewers + Codex + Cursor (if available) using the reviewer archetypes from `${CLAUDE_PLUGIN_ROOT}/skills/shared/reviewer-templates.md` with:
+**3d. Launch reviewers**: Launch 1 Claude Code Reviewer subagent + Codex + Cursor (if available), 3 reviewers total, using the unified Code Reviewer archetype from `${CLAUDE_PLUGIN_ROOT}/skills/shared/reviewer-templates.md` with:
 - `{REVIEW_TARGET}` = `"merge conflict resolution"`
 - `{CONTEXT_BLOCK}` = the per-file conflict context blocks from 3c + supplementary `git diff --cached`
 - `{OUTPUT_INSTRUCTION}` = `"File path and line number(s)"` + `"What the issue is with the resolution"` + `"Suggested correction"`
 
-Follow `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md` for launch order (Cursor first, Codex, then Claude subagents), background execution, sentinel polling via `wait-for-reviewers.sh`, and output validation. Use `$IMPLEMENT_TMPDIR/conflict-review/` as the tmpdir for all reviewer output files, sentinel files, and ballot files.
+Follow `${CLAUDE_PLUGIN_ROOT}/skills/shared/external-reviewers.md` for launch order (Cursor first, Codex, then the Claude subagent), background execution, sentinel polling via `wait-for-reviewers.sh`, and output validation. Use `$IMPLEMENT_TMPDIR/conflict-review/` as the tmpdir for all reviewer output files, sentinel files, and ballot files.
 
-**3d-ii. Collect and deduplicate**: After all reviewers complete, collect their findings. Parse Claude subagent dual-list outputs (in-scope findings only — **discard OOS observations** from conflict-review context, as conflict resolution is a narrow validation context not suitable for OOS issue filing). Read and validate external reviewer outputs per `external-reviewers.md`. Merge all in-scope findings, deduplicate (same file + same issue = one finding), assign stable sequential IDs (`FINDING_1`, `FINDING_2`, etc.), and write the ballot to `$IMPLEMENT_TMPDIR/conflict-review/ballot.txt` following the ballot format in `voting-protocol.md`. **Do not include OOS items on the conflict-review ballot.**
+**Claude fallbacks when externals unavailable** (F_11): mirror the `/design` and `/review` fallback rules — when Cursor is unavailable, launch a Claude Code Reviewer fallback subagent (subagent_type: `code-reviewer`); when Codex is unavailable, launch another Claude Code Reviewer fallback subagent. This preserves the 3-reviewer invariant and the 3-voter invariant. Without these fallbacks, both externals being down would collapse the panel to a single reviewer and skip voting — exactly when rigor matters most (merge-conflict resolution).
+
+**3d-ii. Collect and deduplicate**: After all reviewers complete, collect their findings. Parse the Claude subagent dual-list output (in-scope findings only — **discard OOS observations** from conflict-review context, as conflict resolution is a narrow validation context not suitable for OOS issue filing). Read and validate external reviewer outputs per `external-reviewers.md`. Merge all in-scope findings, deduplicate (same file + same issue = one finding), assign stable sequential IDs (`FINDING_1`, `FINDING_2`, etc.), and write the ballot to `$IMPLEMENT_TMPDIR/conflict-review/ballot.txt` following the ballot format in `voting-protocol.md`. **Do not include OOS items on the conflict-review ballot.**
 
 **3e. Voting**: Run the voting protocol from `${CLAUDE_PLUGIN_ROOT}/skills/shared/voting-protocol.md` with code review voter composition:
-- **Voter 1**: Claude General Reviewer subagent (fresh Agent invocation)
+- **Voter 1**: Claude Code Reviewer subagent (fresh Agent invocation, subagent_type: `code-reviewer`)
 - **Voter 2**: Codex (if available) — via `run-external-reviewer.sh`
 - **Voter 3**: Cursor (if available) — via `run-external-reviewer.sh`
 
@@ -1084,7 +1086,7 @@ Print a report of all code review suggestions that were **not** implemented.
 
 ## Step 17 — Final Report
 
-**If `quick_mode=true`**: Print: `✅ 17: final report — quick mode, /design skipped, 2 subagent review (<elapsed>)`
+**If `quick_mode=true`**: Print: `✅ 17: final report — quick mode, /design skipped, 1 subagent review (<elapsed>)`
 
 **If `quick_mode=false`**: Print a summary noting that:
 - Plan review findings were reported by the `/design` phase (visible in conversation above)

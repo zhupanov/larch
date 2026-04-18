@@ -20,7 +20,7 @@ FINDING_2: <reviewer attribution> — <finding description>
 ...
 ```
 
-Include the reviewer attribution (e.g., "General", "Deep-Analysis", "Codex-General", "Codex-Deep-Analysis", "Cursor") so voters have context, but instruct voters to evaluate each finding on its merits regardless of who proposed it.
+Include the reviewer attribution (`Code`, `Codex`, or `Cursor` in `/design` and `/review`; `Code Reviewer (broad perspective)`, `Code Reviewer (deep perspective)`, `Codex-General`, `Codex-Deep-Analysis`, or `Cursor` in `/loop-review` / `/research` under the Negotiation Protocol) so voters have context, but instruct voters to evaluate each finding on its merits regardless of who proposed it.
 
 ## Voter Output Format
 
@@ -51,12 +51,12 @@ When voting is skipped due to insufficient voters, print: `**⚠ Voting skipped 
 ## Voter Panel Composition
 
 **For plan review** (`/design` Step 3):
-- **Voter 1**: Claude Deep Analysis reviewer subagent — launched as a fresh Agent tool invocation with a focused voting prompt (separate from the reviewer subagents)
+- **Voter 1**: Claude Code Reviewer subagent — launched as a fresh Agent tool invocation (subagent_type: `code-reviewer`) with a focused voting prompt (separate from the reviewer subagents)
 - **Voter 2**: Codex — via `run-external-reviewer.sh`
 - **Voter 3**: Cursor — via `run-external-reviewer.sh`
 
 **For code review** (`/review` Step 3):
-- **Voter 1**: Claude General reviewer subagent — launched as a fresh Agent tool invocation
+- **Voter 1**: Claude Code Reviewer subagent — launched as a fresh Agent tool invocation (subagent_type: `code-reviewer`)
 - **Voter 2**: Codex — via `run-external-reviewer.sh`
 - **Voter 3**: Cursor — via `run-external-reviewer.sh`
 
@@ -102,8 +102,8 @@ Launch all 3 voters **in parallel** (in a single message). When external tools a
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool cursor --output "<tmpdir>/cursor-vote-output.txt" --timeout 1200 --capture-stdout -- \
-  cursor agent -p --force --trust $("${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-model-args.sh" --tool cursor) --workspace "$PWD" \
-    "<voter prompt with ballot>"
+  cursor agent -p --force --trust $("${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-model-args.sh" --tool cursor --with-effort) --workspace "$PWD" \
+    "<voter prompt with ballot>. Work at your maximum reasoning effort level."
 ```
 
 Use `run_in_background: true` and `timeout: 1260000`.
@@ -114,9 +114,9 @@ Use `run_in_background: true` and `timeout: 1260000`.
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/run-external-reviewer.sh --tool codex --output "<tmpdir>/codex-vote-output.txt" --timeout 1200 -- \
-  codex exec --full-auto -C "$PWD" $("${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-model-args.sh" --tool codex) \
+  codex exec --full-auto -C "$PWD" $("${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-model-args.sh" --tool codex --with-effort) \
     --output-last-message "<tmpdir>/codex-vote-output.txt" \
-    "<voter prompt with ballot>"
+    "<voter prompt with ballot>. Work at your maximum reasoning effort level."
 ```
 
 Use `run_in_background: true` and `timeout: 1260000`.
@@ -159,11 +159,9 @@ After voting, print a scoreboard to the session:
 
 | Reviewer | Findings | Accepted | Neutral (1 YES) | Exonerated (0 YES, 1+ EXON.) | Rejected (0 YES, 0 EXON.) | OOS Proposed | OOS Accepted | Score |
 |----------|----------|----------|-----------------|-------------------------------|---------------------------|--------------|--------------|-------|
-| General              | 3        | 2        | 1               | 0                             | 0                         | 1            | 0            | +2    |
-| Deep-Analysis        | 2        | 1        | 0               | 1                             | 0                         | 0            | 0            | +1    |
-| Codex-General        | 1        | 0        | 0               | 0                             | 1                         | 0            | 0            | -1    |
-| Codex-Deep-Analysis  | 1        | 1        | 0               | 0                             | 0                         | 0            | 0            | +1    |
-| Cursor               | 2        | 1        | 1               | 0                             | 0                         | 0            | 0            | +1    |
+| Code   | 3        | 2        | 1               | 0                             | 0                         | 1            | 0            | +2    |
+| Codex  | 2        | 1        | 0               | 1                             | 0                         | 0            | 0            | +1    |
+| Cursor | 2        | 1        | 1               | 0                             | 0                         | 0            | 0            | +1    |
 
 Note: In future iterations, token allocation will be weighted proportionally
 to reviewer scores — higher-scoring reviewers will receive more tokens.
@@ -178,7 +176,7 @@ Reviewers may return a second list of **out-of-scope observations** — pre-exis
 Out-of-scope items are deduplicated separately from in-scope findings and assigned IDs with an `OOS_` prefix (e.g., `OOS_1`, `OOS_2`). They are included on the same ballot as in-scope findings, labeled with `[OUT_OF_SCOPE]`:
 
 ```
-OOS_1: [OUT_OF_SCOPE] General — <description of pre-existing issue>
+OOS_1: [OUT_OF_SCOPE] Code — <description of pre-existing issue>
 ```
 
 ### OOS Vote Semantics

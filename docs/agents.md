@@ -31,9 +31,9 @@ flowchart TD
 
 This pattern is used for:
 
-- **[Collaborative sketches](collaborative-sketches.md)** — 5 agents propose architectural approaches in parallel
-- **Plan review** — 5 reviewers examine the implementation plan simultaneously
-- **Code review** — 5 reviewers examine the diff simultaneously
+- **[Collaborative sketches](collaborative-sketches.md)** — 5 agents propose architectural approaches in parallel (1 Claude + 2 Cursor + 2 Codex)
+- **Plan review** — 3 reviewers examine the implementation plan simultaneously (1 Claude Code Reviewer subagent + 1 Codex + 1 Cursor)
+- **Code review** — 3 reviewers examine the diff simultaneously (1 Claude Code Reviewer subagent + 1 Codex + 1 Cursor)
 - **[Voting](voting-process.md)** — 3 voters evaluate findings in parallel
 
 ### Sequential Composition
@@ -44,21 +44,21 @@ Skills invoke other skills in sequence, each building on the previous result. Fo
 
 Larch uses several categories of agents:
 
-### Review Agents
+### Review Agent
 
-The 2 persistent [reviewer archetypes](review-agents.md) (General, Deep Analysis) launched during plan and code review. These are defined in `agents/*.md` (discovered via `${CLAUDE_PLUGIN_ROOT}`) with specific model assignments and tool access.
+The 1 persistent [Code Reviewer archetype](review-agents.md) — a unified reviewer covering code quality, risk/integration, correctness, and architecture. Defined in `agents/code-reviewer.md` (discovered via `${CLAUDE_PLUGIN_ROOT}`) with model: sonnet (default) and Read/Grep/Glob tool access. In `/design` and `/review`, exactly one Claude Code Reviewer subagent runs alongside 1 Codex and 1 Cursor (3-reviewer panel). In `/loop-review` and `/research`, two Claude Code Reviewer subagent lanes run with distinct "broad perspective" and "deep perspective" attributions under the Negotiation Protocol.
 
 ### Sketch Agents
 
-The 5 agents in the [collaborative sketch phase](collaborative-sketches.md) (General, Architecture/Standards, Pragmatism/Safety, plus Cursor/Codex or Claude replacements). These are ephemeral — launched with inline prompts, not persistent agent definitions.
+The 5 agents in the [collaborative sketch phase](collaborative-sketches.md): 1 Claude (General, orchestrator inline) + 2 Cursor slots (Architecture/Standards + Edge-cases/Failure-modes) + 2 Codex slots (Innovation/Exploration + Pragmatism/Safety). When an external tool is unavailable, the affected slot falls back to a Claude subagent with the matching personality prompt. These are ephemeral — launched with inline prompts, not persistent agent definitions.
 
 ### Voting Panel Agents
 
-The 3 voters in the [voting process](voting-process.md) (one Claude subagent + Codex + Cursor). These are ephemeral agents launched with the ballot and voting instructions.
+The 3 voters in the [voting process](voting-process.md) (Claude Code Reviewer subagent + Codex + Cursor). These are ephemeral agents launched with the ballot and voting instructions.
 
 ### Research Agents
 
-The 5 research agents in `/research` (3 Claude subagents + Codex + Cursor) that investigate a question from different angles, followed by 5 validation reviewers. All are ephemeral.
+The 5 research agents in `/research` (3 Claude subagents + Codex + Cursor) that investigate a question from different angles, followed by 5 validation reviewer lanes (2 Claude Code Reviewer subagent lanes + 2 Codex + Cursor). All are ephemeral.
 
 ## Context Isolation
 

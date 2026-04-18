@@ -40,7 +40,7 @@ flowchart TD
         SKETCHES --> SYNTHESIS[Approach synthesis]
         SYNTHESIS --> DIALECTIC[Dialectic debate on contested decisions]
         DIALECTIC --> PLAN[Write implementation plan]
-        PLAN --> PLAN_REVIEW[Plan review: 5 reviewers]
+        PLAN --> PLAN_REVIEW[Plan review: 3 reviewers]
         PLAN_REVIEW --> VOTE1[Voting panel adjudicates findings]
         VOTE1 --> REVISE[Revise plan if needed]
         REVISE --> DISCUSS2[Design discussion round 2]
@@ -51,7 +51,7 @@ flowchart TD
     subgraph IMPL_PHASE["Implementation Phase"]
         CODE[Implement feature] --> VALIDATE1[Validation checks]
         VALIDATE1 --> COMMIT1[First commit]
-        COMMIT1 --> CODE_REVIEW[Code review: 5 reviewers]
+        COMMIT1 --> CODE_REVIEW[Code review: 3 reviewers]
         CODE_REVIEW --> VOTE2[Voting panel adjudicates findings]
         VOTE2 --> FIX[Implement accepted fixes]
         FIX --> VALIDATE2[Validation checks]
@@ -94,7 +94,7 @@ Flags modify behavior across the skill hierarchy:
 
 | Flag | Available on | Effect |
 |---|---|---|
-| `--quick` | `/implement` | Skips `/design` (produces inline plan instead). Simplifies code review to 1 round with 2 Claude subagents only (no external reviewers, no voting panel). |
+| `--quick` | `/implement` | Skips `/design` (produces inline plan instead). Simplifies code review to 1 round with 1 Claude Code Reviewer subagent only (no external reviewers, no voting panel). |
 | `--auto` | `/implement`, `/design` | Suppresses all interactive question checkpoints. Skills run fully autonomously without user interaction. |
 | `--merge` | `/implement` | Runs the CI+rebase+merge loop, :merged: emoji, local branch cleanup, and main verification after PR creation. Without `--merge`, `/implement` creates the PR and stops (the initial CI wait, Slack announcement, rejected findings report, final report, and temp cleanup still run). |
 | `--debug` | `/implement`, `/design`, `/review`, `/research`, `/loop-review` | Enables verbose output: descriptive Bash tool descriptions, full explanatory prose between tool calls, per-reviewer individual completion messages alongside the compact status table. Default (no `--debug`) uses minimal output with compact status tables and suppressed prose. `/implement` auto-propagates `--debug` to `/design` and `/review`. `/loop-review` propagates to `/implement`. |
@@ -106,7 +106,7 @@ Certain steps in the workflow depend on configuration prerequisites and are skip
 - **Slack announcements** — Require Slack configuration. When unavailable, the announcement step is skipped with a warning but the workflow continues.
 - **CI monitoring** — Requires repository identification. When unavailable, CI monitoring is skipped.
 - **Version bump** — Requires a `/bump-version` skill defined in the repo. When absent, the version bump step is skipped with a warning.
-- **External reviewers (Cursor, Codex)** — When unavailable, Claude subagents replace them so the total reviewer/voter count remains constant. The quality of review is maintained through diverse Claude perspectives rather than degrading to fewer reviewers.
+- **External reviewers (Cursor, Codex)** — When unavailable, Claude Code Reviewer subagent fallbacks replace them so the total reviewer/voter count remains constant (3 for plan/code review, 5 for sketch phase and for `/loop-review` + `/research`). The review still lands because the unified Code Reviewer archetype is what each reviewer runs; losing the external tool means losing harness diversity but not coverage.
 
 ## Resolution Protocols
 
