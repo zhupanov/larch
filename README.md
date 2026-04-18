@@ -42,7 +42,7 @@ claude plugin install larch@larch-local
 | Component | Description |
 |---|---|
 | Skills | `/design`, `/implement`, `/review`, `/research`, `/loop-review`, `/fix-issue`, `/issue`, `/alias`, `/im`, `/imaq` |
-| Agents | `code-reviewer` (unified archetype covering code quality, risk/integration, correctness, architecture) |
+| Agents | `code-reviewer` (unified archetype covering code quality, risk/integration, correctness, architecture, security) |
 | PreToolUse hook | `block-submodule-edit.sh` — blocks `Edit`/`Write` on files inside any checked-out git submodule of the consuming project |
 
 ### `/relevant-checks` — required consumer dependency
@@ -139,7 +139,7 @@ Internal agent definitions used by skills like `/design`, `/review`, and `/loop-
 
 | Agent | Description |
 |---|---|
-| [`code-reviewer`](agents/code-reviewer.md) | Unified code reviewer combining code quality (bugs, reuse, tests, backward compat, style), risk/integration (breaking changes, thread safety, deployment, regressions, CI), correctness (logic errors, off-by-one, nil, types, races, errors, math), and architecture (separation of concerns, contract boundaries, invariants, semantic boundaries). Findings are tagged with their focus area. |
+| [`code-reviewer`](agents/code-reviewer.md) | Unified code reviewer combining code quality (bugs, reuse, tests, backward compat, style), risk/integration (breaking changes, thread safety, deployment, regressions, CI), correctness (logic errors, off-by-one, nil, types, races, errors, math), architecture (separation of concerns, contract boundaries, invariants, semantic boundaries), and security (injection, authn/authz, secrets, crypto, deserialization, SSRF, path traversal, dependency CVEs). Findings are tagged with their focus area. Generated from `skills/shared/reviewer-templates.md` via `scripts/generate-code-reviewer-agent.sh`. |
 
 ### Migration note
 

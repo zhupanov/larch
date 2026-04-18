@@ -48,3 +48,58 @@ jobs:
         with:
           target: 'claude-code'
           config: '.agnix.toml'
+
+  agent-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regenerate agents/code-reviewer.md and check for drift
+        run: |
+          bash scripts/generate-code-reviewer-agent.sh --check
+      - name: Assert focus-area enum includes 'security' in canonical surfaces
+        run: |
+          set -euo pipefail
+          # Files where the five-tag enum must remain aligned. Voting-Protocol
+          # SKILL.md callers, shared template + generated agent, and user/dev
+          # docs that advertise the archetype. Negotiation-Protocol skills
+          # (loop-review, research) are intentionally excluded — their
+          # external-reviewer prose uses a different taxonomy and is tracked
+          # as a follow-up.
+          FILES=(
+            skills/review/SKILL.md
+            skills/design/SKILL.md
+            skills/implement/SKILL.md
+            skills/shared/reviewer-templates.md
+            agents/code-reviewer.md
+            docs/review-agents.md
+            docs/agents.md
+            README.md
+          )
+          exit_code=0
+          for f in "${FILES[@]}"; do
+            if [[ ! -f "$f" ]]; then
+              echo "::error file=$f::expected file is missing"
+              exit_code=1
+              continue
+            fi
+            # Match the formal enum: backticked tags in order. Skip prose
+            # mentions (e.g., "code quality/risk-integration" without backticks)
+            # which are not enum declarations. Literal backticks in the regex
+            # are intentional; the single-quotes around the pattern are
+            # required to keep the shell from parsing them as command
+            # substitution.
+            # shellcheck disable=SC2016
+            if grep -n '`code-quality`.*`risk-integration`.*`correctness`.*`architecture`' "$f" >/tmp/hits 2>/dev/null; then
+              while IFS= read -r hit; do
+                line_no="${hit%%:*}"
+                line_text="${hit#*:}"
+                if ! printf '%s\n' "$line_text" | grep -q 'security'; then
+                  echo "::error file=$f,line=$line_no::focus-area enumeration does not include 'security': $line_text"
+                  exit_code=1
+                fi
+              done </tmp/hits
+            fi
+          done
+          rm -f /tmp/hits
+          exit "$exit_code"
