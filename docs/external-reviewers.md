@@ -9,7 +9,7 @@ At the start of each skill, a binary check determines which external tools are i
 - If **Codex** is not found, a warning is printed and the skill proceeds without it
 - If **Cursor** is not found, a warning is printed and the skill proceeds without it
 
-Skills gracefully degrade when external tools are unavailable. When Codex or Cursor is not found, Claude replacement subagents fill their slots to maintain constant participant counts across all phases — sketch, research, plan review, code review, and voting. The total reviewer count (5) and voter count (3) remain constant regardless of external tool availability. Voting uses a step-function threshold: 3 voters require 2+ YES votes, 2 voters require unanimous YES, and fewer than 2 eligible voters causes voting to be skipped with all findings accepted automatically.
+Skills gracefully degrade when external tools are unavailable. When Codex or Cursor is not found, Claude replacement subagents fill their slots to maintain per-skill lane counts across all phases. The counts are: 3 for plan/code review (1 Claude + 1 Codex + 1 Cursor) and `/research` (both phases); 5 for the `/design` sketch phase and `/loop-review` (Negotiation Protocol); 3 for voting panels. Voting uses a step-function threshold: 3 voters require 2+ YES votes, 2 voters require unanimous YES, and fewer than 2 eligible voters causes voting to be skipped with all findings accepted automatically.
 
 ## Launching External Reviewers
 
@@ -63,7 +63,7 @@ External reviewers participate in multiple phases:
 
 | Phase | Role | Skills |
 |---|---|---|
-| [Collaborative sketches](collaborative-sketches.md) | Propose architectural approaches | `/design`, `/research` |
+| [Collaborative sketches](collaborative-sketches.md) | Propose architectural approaches | `/design` |
 | Plan review | Review implementation plans | `/design` |
 | Code review | Review code changes | `/review` |
 | [Voting](voting-process.md) | Vote on findings | `/design`, `/review` |
