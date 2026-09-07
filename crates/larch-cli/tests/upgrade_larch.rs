@@ -449,6 +449,74 @@ fn failed_refresh_and_failed_install_leave_the_prior_root_usable() {
     assert!(harness.old_root.join("bin/larch").is_file());
 }
 
+/// Replays #9099: a clone that enables larch through `.claude/settings.json`
+/// holds a project-scope registry entry pinned to an older version. The
+/// driver must read user scope only, so that entry neither aborts the upgrade
+/// nor the no-op repair, and the release Step 7 root still resolves.
+#[test]
+fn project_scope_pin_in_another_clone_does_not_block_the_upgrade() {
+    let harness = Harness::new();
+    harness.flag("project_scope_pin");
+    harness
+        .command()
+        .arg("upgrade-larch")
+        .arg("run")
+        .assert()
+        .success()
+        .stderr(
+            predicate::str::contains("Upgrading larch from 1.0.0 to 2.0.0")
+                .and(predicate::str::contains("LARCH_NEW_VERSION_INSTALLED=true"))
+                .and(predicate::str::contains("user-scope larch version").not()),
+        );
+    assert_eq!(harness.installed_version(), "2.0.0");
+    let log = fs::read_to_string(&harness.log).expect("log");
+    assert!(log.contains("bootstrap bootstrap self-check"));
+
+    harness
+        .command()
+        .env("CLAUDE_PLUGIN_ROOT", &harness.new_root)
+        .arg("upgrade-larch")
+        .arg("run")
+        .assert()
+        .success()
+        .stderr(predicate::str::contains(
+            "Binary verification passed. No upgrade needed.",
+        ));
+    harness
+        .command()
+        .env("CLAUDE_PLUGIN_ROOT", harness.home.join("not-a-cache-root"))
+        .arg("upgrade-larch")
+        .arg("release-step7-root")
+        .assert()
+        .success()
+        .stdout(format!("RESOLVED_ROOT={}\n", harness.new_root.display()));
+}
+
+#[test]
+fn conflicting_user_scope_entries_stop_before_any_plugin_mutation() {
+    let harness = Harness::new();
+    harness.flag("user_scope_conflict");
+    harness
+        .command()
+        .arg("upgrade-larch")
+        .arg("run")
+        .assert()
+        .failure()
+        .stderr(
+            predicate::str::contains(
+                "reported 2 user-scope larch version(s) (1.0.0, 9.9.9); the driver needs exactly one",
+            )
+            .and(predicate::str::contains(
+                "Upgrade stopped before changing plugin state",
+            )),
+        );
+    assert_eq!(harness.installed_version(), "1.0.0");
+    let log = fs::read_to_string(&harness.log).expect("log");
+    assert!(!log.contains("plugin marketplace update"));
+    assert!(!log.contains("plugin update"));
+    assert!(!log.contains("plugin install"));
+}
+
 /// Replays #9097: `claude plugin update` moved the active root to a version
 /// whose `bin/larch` never materialized, which bricked every new session.
 #[test]
@@ -690,11 +758,17 @@ installed="$(/usr/bin/sed -n 's/.*"version":"\([^"]*\)".*/\1/p' '{registry}' 2>/
 case "$*" in
   'plugin list --json')
     if [ "$installed" = 2.0.0 ]; then root='{new_root}'; else root='{old_root}'; fi
+    entries="{{\"id\":\"larch@larch-local\",\"version\":\"$installed\",\"scope\":\"user\",\"installPath\":\"$root\"}}"
     if [ -f '{state}/ambiguous' ]; then
-      printf '[{{"id":"larch@larch-local","version":"%s","installPath":"%s"}},{{"id":"larch@larch-local","version":"%s","installPath":"%s/other"}}]\n' "$installed" "$root" "$installed" "$root"
-    else
-      printf '[{{"id":"larch@larch-local","version":"%s","installPath":"%s"}}]\n' "$installed" "$root"
+      entries="$entries,{{\"id\":\"larch@larch-local\",\"version\":\"$installed\",\"scope\":\"user\",\"installPath\":\"$root/other\"}}"
     fi
+    if [ -f '{state}/user_scope_conflict' ]; then
+      entries="$entries,{{\"id\":\"larch@larch-local\",\"version\":\"9.9.9\",\"scope\":\"user\",\"installPath\":\"$root/conflict\"}}"
+    fi
+    if [ -f '{state}/project_scope_pin' ]; then
+      entries="$entries,{{\"id\":\"larch@larch-local\",\"version\":\"1.0.0\",\"scope\":\"project\",\"installPath\":\"{old_root}\",\"projectPath\":\"{state}/other-clone\"}}"
+    fi
+    printf '[%s]\n' "$entries"
     ;;
   'plugin marketplace list --json')
     if [ "$(/bin/cat '{state}/marketplace')" = remote ]; then

@@ -409,8 +409,13 @@ mismatch is refused while the prior installation is still the active one rather
 than after it has been replaced. First-use bootstrap does not gate on the pin,
 because the branch moves ahead of installs that are deliberately on an older
 release. The driver then uses supported Claude plugin
-commands and resolves exactly one new cache root through
-`claude plugin list --json`. Success requires the new root's manifest and
+commands and resolves exactly one new user-scope cache root through
+`claude plugin list --json`. Project-scope entries, which Claude Code records
+for every clone whose `.claude/settings.json` enables the plugin and pins to
+the version current when that clone was first opened, are ignored: the driver
+installs, verifies, and rolls back user scope only, and two user-scope entries
+at different versions stop the upgrade before any plugin state changes (#9099).
+Success requires the new root's manifest and
 executable to report the expected version. A failure leaves the prior cache root
 untouched and prints retry commands.
 

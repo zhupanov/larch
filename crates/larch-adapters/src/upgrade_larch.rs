@@ -57,10 +57,21 @@ impl Failure {
     }
 }
 
+/// The scope Claude Code records for the install the driver manages.
+///
+/// `claude plugin install|update` defaults to `--scope user`, and that entry is
+/// the pointer every new session resolves. A clone whose `.claude/settings.json`
+/// enables the plugin gets its own `project` entry, pinned to whatever version
+/// was current when that clone was first opened; a user-scope update never
+/// moves it. Reading versions across scopes therefore misreads a routine
+/// per-project enablement as an ambiguous install (#9099).
+const USER_SCOPE: &str = "user";
+
 #[derive(Clone, Debug, Deserialize)]
 struct InstalledEntry {
     id: Option<String>,
     version: Option<String>,
+    scope: Option<String>,
     #[serde(rename = "installPath")]
     install_path: Option<PathBuf>,
 }
@@ -164,6 +175,12 @@ impl Context {
         )
     }
 
+    /// The user-scope larch entries from `claude plugin list --json`.
+    ///
+    /// Project-scope entries belong to other clones and are deliberately
+    /// excluded: the driver installs, verifies, and rolls back user scope only.
+    /// An entry with no `scope` field predates per-project enablement and is
+    /// the single user-scope record of that era.
     fn installed_entries(&self) -> Vec<InstalledEntry> {
         let Ok(output) = self.claude(&["plugin", "list", "--json"]) else {
             return Vec::new();
@@ -174,11 +191,18 @@ impl Context {
         serde_json::from_slice::<Vec<InstalledEntry>>(output.stdout())
             .unwrap_or_default()
             .into_iter()
-            .filter(|entry| entry.id.as_deref() == Some(LARCH_ID))
+            .filter(|entry| {
+                entry.id.as_deref() == Some(LARCH_ID)
+                    && entry
+                        .scope
+                        .as_deref()
+                        .is_none_or(|scope| scope == USER_SCOPE)
+            })
             .collect()
     }
 
-    fn installed_version(&self) -> Option<String> {
+    /// Distinct safe versions across the user-scope entries, sorted.
+    fn installed_versions(&self) -> Vec<String> {
         let mut versions = self
             .installed_entries()
             .into_iter()
@@ -187,6 +211,11 @@ impl Context {
             .collect::<Vec<_>>();
         versions.sort();
         versions.dedup();
+        versions
+    }
+
+    fn installed_version(&self) -> Option<String> {
+        let mut versions = self.installed_versions();
         (versions.len() == 1).then(|| versions.remove(0))
     }
 
@@ -455,8 +484,17 @@ pub fn run(plugin_root: Option<&Path>) -> Result<(), Failure> {
         .and_then(|value| value.to_str())
         .unwrap_or_default()
         .to_owned();
-    let current = context
-        .installed_version()
+    let versions = context.installed_versions();
+    if versions.len() > 1 {
+        // Two user-scope entries at different versions is a corrupt registry,
+        // not an upgrade target. Stop before any plugin state changes.
+        eprintln!("{}", user_scope_ambiguity(&versions));
+        eprintln!("Upgrade stopped before changing plugin state.");
+        return Err(Failure::new(1, "Ambiguous user-scope larch install."));
+    }
+    let current = versions
+        .first()
+        .cloned()
         .unwrap_or_else(|| installed_version.clone());
     let marketplace_will_reconcile = !context.marketplace_matches();
     let latest = expected_or_latest(&context, &plugin_root)?;
@@ -567,7 +605,11 @@ fn install_and_verify(
             &roots,
         ));
     }
-    let actual = context.installed_version().unwrap_or_default();
+    let versions = context.installed_versions();
+    let actual = match versions.as_slice() {
+        [only] => only.clone(),
+        _ => String::new(),
+    };
     let root = (actual == latest)
         .then(|| context.resolve_installed_root(&actual))
         .flatten();
@@ -576,6 +618,9 @@ fn install_and_verify(
         .is_some_and(|root| context.bootstrap_installed_root(root, &actual))
     {
         return Ok(actual);
+    }
+    if versions.len() != 1 {
+        eprintln!("{}", user_scope_ambiguity(&versions));
     }
     eprintln!(
         "Upgrade incomplete: expected plugin and binary version {latest} in the newly installed cache root."
@@ -796,6 +841,19 @@ fn refresh_marketplace(context: &Context, reconcile: bool) -> Result<RefreshMode
         recovery();
         Err(Failure::new(1, "Marketplace migration failed."))
     }
+}
+
+/// Name the user-scope registry state the driver cannot act on.
+fn user_scope_ambiguity(versions: &[String]) -> String {
+    let listed = if versions.is_empty() {
+        "none".to_owned()
+    } else {
+        versions.join(", ")
+    };
+    format!(
+        "claude plugin list --json reported {} user-scope larch version(s) ({listed}); the driver needs exactly one. Project-scope entries for other clones are ignored.",
+        versions.len()
+    )
 }
 
 fn safe_version(value: &str) -> bool {
