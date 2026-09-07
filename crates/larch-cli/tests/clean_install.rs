@@ -3163,11 +3163,28 @@ fn hook_shims_emit_static_denies_when_no_verified_binary_is_available() {
         fs::write(&manifest, &valid_manifest).expect("restore clean-install manifest");
         let reason = shim_deny_reason(&fixture, &destination, script);
         assert!(
-            reason.contains("not installed for this plugin version (exit 97)")
+            reason.contains("no verified larch executable for this plugin version (exit 97)")
                 && reason.contains(&repair),
             "{script}: {reason}"
         );
         assert!(!fixture.root.join("bin").exists(), "{script}");
+
+        // A root with a JSON-significant or shell-hostile character is never
+        // interpolated; the reason falls back to the placeholder.
+        let hostile_root = fixture.root.with_file_name("plu\"g in");
+        fs::create_dir_all(hostile_root.join("scripts")).expect("hostile root scripts");
+        fs::create_dir_all(hostile_root.join(".claude-plugin")).expect("hostile root manifest");
+        for relative in ["scripts/larch.sh", ".claude-plugin/plugin.json"] {
+            fs::copy(fixture.root.join(relative), hostile_root.join(relative))
+                .expect("copy into hostile root");
+        }
+        let hostile_shim = hostile_root.join("scripts").join(script);
+        fs::copy(&destination, &hostile_shim).expect("copy shim into hostile root");
+        let reason = shim_deny_reason_at(&fixture, &hostile_root, &hostile_shim, script);
+        assert!(
+            reason.contains("CLAUDE_PLUGIN_ROOT=<CLAUDE_PLUGIN_ROOT> CLAUDE_PLUGIN_DATA=<absolute-dir> <CLAUDE_PLUGIN_ROOT>/scripts/larch.sh --version"),
+            "{script}: {reason}"
+        );
 
         // Any other bootstrap failure keeps the fixed static deny.
         fs::write(&manifest, b"not a manifest\n").expect("corrupt clean-install manifest");
@@ -3182,10 +3199,20 @@ fn hook_shims_emit_static_denies_when_no_verified_binary_is_available() {
 
 #[cfg(unix)]
 fn shim_deny_reason(fixture: &CleanInstallFixture, shim: &Path, script: &str) -> String {
+    shim_deny_reason_at(fixture, &fixture.root, shim, script)
+}
+
+#[cfg(unix)]
+fn shim_deny_reason_at(
+    fixture: &CleanInstallFixture,
+    root: &Path,
+    shim: &Path,
+    script: &str,
+) -> String {
     let output = Command::new("/bin/bash")
         .arg(shim)
         .env("HOME", &fixture.home)
-        .env("CLAUDE_PLUGIN_ROOT", &fixture.root)
+        .env("CLAUDE_PLUGIN_ROOT", root)
         .env_remove("LARCH_BINARY")
         .env_remove("CLAUDE_PLUGIN_DATA")
         .stdin(Stdio::null())

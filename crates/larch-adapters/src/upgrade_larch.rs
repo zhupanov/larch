@@ -1,19 +1,20 @@
 use crate::{
     TokioProcessRunner,
-    file_io::atomic_write_bytes,
+    file_io::{atomic_write_bytes, open_confined_read},
     filesystem::{PathIntent, PluginRoot},
     runtime::{Cancellation, LarchRuntime},
 };
 use larch_core::{
     ActiveRootState, ChildEnvironment, ExternalProcessRunner, ExternalProgram,
     InstalledVersionState, LarchProgram, MarketplaceState, ProcessOutput, ProcessRequest,
-    UpgradeDisposition, VendorProgram, classify_upgrade, env,
+    UpgradeDisposition, VendorProgram, classify_upgrade, env, shell_quote,
 };
 use serde::Deserialize;
 use std::{
     env as process_env,
     ffi::OsString,
     fs,
+    io::Read as _,
     num::NonZeroUsize,
     path::{Component, Path, PathBuf},
     time::Duration,
@@ -306,16 +307,27 @@ impl Context {
         self.home.join(INSTALLED_REGISTRY_RELATIVE)
     }
 
-    /// Capture the install registry before `claude plugin install|update`
-    /// flips the active root. `None` means there is nothing to restore: the
-    /// registry is absent, or it is not a regular file this driver may rewrite.
-    fn installed_registry_snapshot(&self) -> Option<RegistrySnapshot> {
+    fn installed_registry_root(&self) -> Result<PluginRoot, String> {
         let path = self.installed_registry();
-        let metadata = fs::symlink_metadata(&path).ok()?;
-        if metadata.file_type().is_symlink() || !metadata.is_file() {
-            return None;
-        }
-        let bytes = fs::read(&path).ok()?;
+        let plugins = path
+            .parent()
+            .ok_or_else(|| "install registry has no parent directory".to_owned())?;
+        PluginRoot::resolve(Some(plugins)).map_err(|error| error.to_string())
+    }
+
+    /// Capture the install registry as one no-follow read. `None` means there
+    /// is nothing to restore or compare: the registry is absent, or it is not
+    /// a regular file this driver may rewrite.
+    fn installed_registry_snapshot(&self) -> Option<RegistrySnapshot> {
+        let confined = self
+            .installed_registry_root()
+            .ok()?
+            .confine(INSTALLED_REGISTRY_NAME, PathIntent::Read)
+            .ok()?;
+        let mut file = open_confined_read(&confined).ok()?;
+        let metadata = file.metadata().ok()?;
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes).ok()?;
         Some(RegistrySnapshot {
             bytes,
             mode: unix_mode(&metadata),
@@ -326,27 +338,25 @@ impl Context {
     ///
     /// `post_flip` is the registry as `claude plugin install|update` left it.
     /// A registry that differs from it now was rewritten by another process,
-    /// and restoring the snapshot would discard that write, so refuse.
+    /// and restoring the snapshot would discard that write, so refuse. The
+    /// comparison runs immediately before the rename; a write that lands
+    /// inside that window is not detected.
     fn restore_installed_registry(
         &self,
         snapshot: &RegistrySnapshot,
         post_flip: Option<&RegistrySnapshot>,
     ) -> Result<(), String> {
-        let path = self.installed_registry();
+        let root = self.installed_registry_root()?;
+        let confined = root
+            .confine(INSTALLED_REGISTRY_NAME, PathIntent::Write)
+            .map_err(|error| error.to_string())?;
         let live = self.installed_registry_snapshot();
         if live.as_ref().map(|state| &state.bytes) != post_flip.map(|state| &state.bytes) {
             return Err(format!(
                 "{} changed after the plugin install; another process owns the newer content",
-                path.display()
+                self.installed_registry().display()
             ));
         }
-        let plugins = path
-            .parent()
-            .ok_or_else(|| "install registry has no parent directory".to_owned())?;
-        let root = PluginRoot::resolve(Some(plugins)).map_err(|error| error.to_string())?;
-        let confined = root
-            .confine(INSTALLED_REGISTRY_NAME, PathIntent::Write)
-            .map_err(|error| error.to_string())?;
         atomic_write_bytes(&confined, &snapshot.bytes, snapshot.mode)
             .map_err(|error| error.to_string())
     }
@@ -357,20 +367,27 @@ struct RegistrySnapshot {
     mode: u32,
 }
 
-/// What the driver did about the active root after a post-flip verification failure.
+impl RegistrySnapshot {
+    /// Whether `claude plugin install|update` rewrote the registry new sessions read.
+    fn moved_to(&self, post_flip: Option<&Self>) -> bool {
+        post_flip.is_none_or(|state| state.bytes != self.bytes)
+    }
+}
+
+/// What the driver did about the active root after a post-flip failure.
 #[derive(Debug)]
 enum ActiveRootRecovery {
     /// The registry names `prior` again and that root re-verified.
     RolledBack { prior: String },
-    /// The install did not move the pointer to another version, so there is
-    /// no earlier registry state worth restoring.
-    PointerUnchanged,
-    /// No pre-flip snapshot exists, so the pointer stays on the new root.
+    /// The install left the registry byte-identical, so new sessions still
+    /// resolve the prior version's root and there is nothing to restore.
+    RegistryUnchanged,
+    /// No pre-flip snapshot exists, so the registry stays as the install left it.
     NoSnapshot,
-    /// The restore itself failed and the pointer stays on the new root.
+    /// The restore itself failed and the registry stays as the install left it.
     RestoreFailed(String),
-    /// The registry was restored, but `claude plugin list --json` or the prior
-    /// root's binary did not confirm the prior version.
+    /// The registry was restored and names the prior version again, but
+    /// `claude plugin list --json` or that root's binary did not confirm it.
     RestoreUnverified,
 }
 
@@ -520,34 +537,73 @@ fn install_and_verify(
         }
     };
     relay(&install);
-    if !install.status().success() {
-        eprintln!("Plugin install failed. The prior cache root was not modified.");
-        recovery();
-        return Err(Failure::new(exit_code(&install), "Plugin install failed."));
-    }
     let post_flip_registry = context.installed_registry_snapshot();
+    let roots = RecoveryRoots {
+        prior: context.cache_parent().join(current),
+        new: context.cache_parent().join(latest),
+    };
+    if !install.status().success() {
+        // A non-zero exit can still follow the registry rewrite, which is the
+        // same stranded state as a failed binary materialization.
+        let moved = registry_snapshot
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.moved_to(post_flip_registry.as_ref()));
+        if !moved {
+            eprintln!("Plugin install failed. The prior cache root was not modified.");
+            recovery();
+            return Err(Failure::new(exit_code(&install), "Plugin install failed."));
+        }
+        eprintln!("Plugin install failed after it rewrote the plugin registry.");
+        let outcome = recover_active_root(
+            context,
+            registry_snapshot.as_ref(),
+            post_flip_registry.as_ref(),
+            current,
+        );
+        return Err(report_active_root_recovery(
+            &outcome,
+            "Plugin install failed",
+            exit_code(&install),
+            &roots,
+        ));
+    }
     let actual = context.installed_version().unwrap_or_default();
     let root = (actual == latest)
         .then(|| context.resolve_installed_root(&actual))
         .flatten();
     if root
         .as_deref()
-        .is_none_or(|root| !context.bootstrap_installed_root(root, &actual))
+        .is_some_and(|root| context.bootstrap_installed_root(root, &actual))
     {
-        eprintln!(
-            "Upgrade incomplete: expected plugin and binary version {latest} in the newly installed cache root."
-        );
-        let outcome = recover_active_root(
-            context,
-            registry_snapshot.as_ref(),
-            post_flip_registry.as_ref(),
-            current,
-            &actual,
-        );
-        let unverified_root = root.unwrap_or_else(|| context.cache_parent().join(latest));
-        return Err(report_active_root_recovery(&outcome, &unverified_root));
+        return Ok(actual);
     }
-    Ok(actual)
+    eprintln!(
+        "Upgrade incomplete: expected plugin and binary version {latest} in the newly installed cache root."
+    );
+    let outcome = recover_active_root(
+        context,
+        registry_snapshot.as_ref(),
+        post_flip_registry.as_ref(),
+        current,
+    );
+    let roots = RecoveryRoots {
+        new: root.unwrap_or(roots.new),
+        ..roots
+    };
+    Err(report_active_root_recovery(
+        &outcome,
+        "Installed plugin verification failed",
+        1,
+        &roots,
+    ))
+}
+
+/// The cache roots a post-flip recovery message can name.
+struct RecoveryRoots {
+    /// The root the pre-flip registry pointed at.
+    prior: PathBuf,
+    /// The root the install pointed at, whose executable never verified.
+    new: PathBuf,
 }
 
 fn upgrade_disposition(
@@ -869,25 +925,25 @@ fn recovery() {
     eprintln!("  claude plugin install {LARCH_ID}");
 }
 
-/// Move the active root back to `prior` after the new root failed verification.
+/// Move the active root back to `prior` after the install left a bad state.
 ///
-/// The restore is a byte-identical rewrite of the pre-flip registry through the
-/// confined atomic writer, followed by the same-surface check the upgrade uses:
-/// `claude plugin list --json` must name `prior` again and that root's
-/// executable must pass its bootstrap self-check.
+/// Movement is decided from the registry file itself, because that file is
+/// what new sessions read. The restore is a byte-identical rewrite of the
+/// pre-flip registry through the confined atomic writer, followed by the
+/// same-surface check the upgrade uses: `claude plugin list --json` must name
+/// `prior` again and that root's executable must pass its bootstrap self-check.
 fn recover_active_root(
     context: &Context,
     snapshot: Option<&RegistrySnapshot>,
     post_flip: Option<&RegistrySnapshot>,
     prior: &str,
-    actual: &str,
 ) -> ActiveRootRecovery {
-    if actual == prior {
-        return ActiveRootRecovery::PointerUnchanged;
-    }
     let Some(snapshot) = snapshot else {
         return ActiveRootRecovery::NoSnapshot;
     };
+    if !snapshot.moved_to(post_flip) {
+        return ActiveRootRecovery::RegistryUnchanged;
+    }
     eprintln!("Rolling the active larch plugin root back to {prior}...");
     if let Err(error) = context.restore_installed_registry(snapshot, post_flip) {
         return ActiveRootRecovery::RestoreFailed(error);
@@ -909,56 +965,66 @@ fn recover_active_root(
 
 /// Print the post-flip state accurately and build the matching failure.
 ///
-/// `unverified_root` is the cache root new sessions resolve while the pointer
-/// still names the version whose executable never verified.
-fn report_active_root_recovery(outcome: &ActiveRootRecovery, unverified_root: &Path) -> Failure {
+/// `reason` names the step that failed, and `code` is its exit status. Each
+/// outcome names the root new sessions resolve now: the install's root while
+/// the registry still carries the install's content, the prior root once the
+/// registry is back to its pre-install content or never changed.
+fn report_active_root_recovery(
+    outcome: &ActiveRootRecovery,
+    reason: &str,
+    code: u8,
+    roots: &RecoveryRoots,
+) -> Failure {
     eprintln!();
-    match outcome {
+    let stranded = match outcome {
         ActiveRootRecovery::RolledBack { prior } => {
             eprintln!(
                 "Rolled the active larch plugin root back to {prior}. New Claude Code sessions keep using it, and the running session is unaffected."
             );
             eprintln!("Recovery: retry /upgrade-larch.");
             return Failure::new(
-                1,
-                format!(
-                    "Installed plugin verification failed; active root rolled back to {prior}."
-                ),
+                code,
+                format!("{reason}; active root rolled back to {prior}."),
             );
         }
-        ActiveRootRecovery::PointerUnchanged => {
+        ActiveRootRecovery::RegistryUnchanged => {
             eprintln!(
-                "The install did not move the active plugin root to another version, so there is no earlier state to restore."
+                "The install left the plugin registry unchanged, so there is no earlier state to restore."
             );
+            &roots.prior
         }
         ActiveRootRecovery::NoSnapshot => {
             eprintln!(
                 "No pre-install registry snapshot exists, so the active plugin root could not be rolled back."
             );
+            &roots.new
         }
         ActiveRootRecovery::RestoreFailed(error) => {
             eprintln!("Rolling back the active plugin root failed: {error}");
+            &roots.new
         }
         ActiveRootRecovery::RestoreUnverified => {
             eprintln!(
-                "The registry was restored, but claude plugin list --json and the prior root's executable did not confirm the prior version."
+                "The registry is back to its pre-install content, but claude plugin list --json and that root's executable did not confirm the prior version."
             );
+            &roots.prior
         }
-    }
-    let root = unverified_root.display();
+    };
+    let root = stranded.display();
     eprintln!(
-        "New Claude Code sessions resolve CLAUDE_PLUGIN_ROOT to {root}, which has no verified larch executable. Their fail-closed larch hooks deny Edit, Write, and Bash until it is installed. The running session is unaffected."
+        "New Claude Code sessions resolve CLAUDE_PLUGIN_ROOT to {root}. If it has no verified larch executable, their fail-closed larch hooks deny Edit, Write, and Bash until it is installed. The running session is unaffected."
     );
     eprintln!(
         "Repair from a terminal outside Claude Code, with CLAUDE_PLUGIN_DATA set to an absolute, symlink-free directory:"
     );
+    let quoted = shell_quote(&root.to_string());
     eprintln!(
-        "  CLAUDE_PLUGIN_ROOT={root} CLAUDE_PLUGIN_DATA=<absolute-dir> {root}/scripts/larch.sh --version"
+        "  CLAUDE_PLUGIN_ROOT={quoted} CLAUDE_PLUGIN_DATA=<absolute-dir> {quoted}/scripts/larch.sh --version"
     );
     eprintln!("Then retry /upgrade-larch.");
     Failure::new(
-        1,
-        "Installed plugin verification failed; the active root was not rolled back.",
+        code,
+        format!("{reason}; the active root was not rolled back."),
     )
 }
 

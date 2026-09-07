@@ -1,6 +1,6 @@
 # `deny-edit-write.sh` contract
 
-`scripts/deny-edit-write.sh` is the fail-closed PreToolUse shim for the Rust-owned `hook deny-edit-write <token>` command. It forwards stdin through `scripts/larch.sh` with `LARCH_BOOTSTRAP_NO_INSTALL=1`. A missing launcher, unavailable verified binary, or nonzero Rust command emits the fixed deny envelope and exits zero; hooks never download or install an executable.
+`scripts/deny-edit-write.sh` is the fail-closed PreToolUse shim for the Rust-owned `hook deny-edit-write <token>` command. It forwards stdin through `scripts/larch.sh` with `LARCH_BOOTSTRAP_NO_INSTALL=1`. A missing launcher, unavailable verified binary, or nonzero Rust command emits the fixed deny envelope and exits zero; hooks never download or install an executable. The launcher's exit 97 (no executable for this plugin version) still denies, but the reason names the `scripts/larch.sh --version` repair, as described in `block-submodule-edit.md`.
 
 ## Activation gate
 

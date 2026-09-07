@@ -521,7 +521,7 @@ fn post_flip_failure_without_a_registry_snapshot_names_the_stranded_root_and_rep
         .stderr(
             predicate::str::contains("No pre-install registry snapshot exists")
                 .and(predicate::str::contains(format!(
-                    "resolve CLAUDE_PLUGIN_ROOT to {root}, which has no verified larch executable"
+                    "resolve CLAUDE_PLUGIN_ROOT to {root}."
                 )))
                 .and(predicate::str::contains("deny Edit, Write, and Bash"))
                 .and(predicate::str::contains(format!(
@@ -573,11 +573,37 @@ fn same_version_reinstall_failure_does_not_restore_the_registry() {
         .stderr(
             predicate::str::contains("still running cached larch 1.0.0")
                 .and(predicate::str::contains(
-                    "did not move the active plugin root to another version",
+                    "left the plugin registry unchanged",
                 ))
-                .and(predicate::str::contains("scripts/larch.sh --version")),
+                .and(predicate::str::contains(format!(
+                    "{}/scripts/larch.sh --version",
+                    harness.new_root.display()
+                ))),
         );
     assert_eq!(harness.installed_version(), "2.0.0");
+}
+
+/// A non-zero `claude plugin update` exit can still follow the registry
+/// rewrite, which strands new sessions exactly like a failed bootstrap.
+#[test]
+fn install_that_fails_after_rewriting_the_registry_rolls_back() {
+    let harness = Harness::new();
+    harness.flag("fail_install_after_write");
+    harness
+        .command()
+        .arg("upgrade-larch")
+        .arg("run")
+        .assert()
+        .code(7)
+        .stderr(
+            predicate::str::contains("Plugin install failed after it rewrote the plugin registry")
+                .and(predicate::str::contains(
+                    "Rolled the active larch plugin root back to 1.0.0",
+                ))
+                .and(predicate::str::contains("was not modified").not()),
+        );
+    assert_eq!(harness.installed_version(), "1.0.0");
+    assert!(harness.old_root.join("bin/larch").is_file());
 }
 
 fn install_root(root: &Path, version: &str, state: &Path, registry: &Path, log: &Path) {
@@ -685,6 +711,7 @@ case "$*" in
     desired="$(/bin/cat '{state}/desired')"
     if [ "$desired" = 2.0.0 ]; then root='{new_root}'; else root='{old_root}'; fi
     printf '{{"version":2,"plugins":{{"larch@larch-local":[{{"scope":"user","installPath":"%s","version":"%s"}}]}}}}' "$root" "$desired" > '{registry}'
+    [ ! -f '{state}/fail_install_after_write' ] || exit 7
     ;;
   'plugin list') printf 'larch@larch-local %s\n' "$installed" ;;
 esac

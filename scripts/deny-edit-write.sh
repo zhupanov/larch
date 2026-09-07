@@ -14,9 +14,9 @@ hook_emit() { printf '%s\n' "$1"; }
 no_install_deny() {
     local root="$PLUGIN_ROOT"
     case "$root" in
-        *[!A-Za-z0-9/._@+\ -]*) root='<CLAUDE_PLUGIN_ROOT>' ;;
+        *[!A-Za-z0-9/._@+-]*) root='<CLAUDE_PLUGIN_ROOT>' ;;
     esac
-    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"read-only-repo guard: the larch executable is not installed for this plugin version (exit 97). Repair from a terminal outside Claude Code: CLAUDE_PLUGIN_ROOT=%s CLAUDE_PLUGIN_DATA=<absolute-dir> %s/scripts/larch.sh --version"}}\n' "$root" "$root"
+    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"read-only-repo guard: no verified larch executable for this plugin version (exit 97). Repair from a terminal outside Claude Code: CLAUDE_PLUGIN_ROOT=%s CLAUDE_PLUGIN_DATA=<absolute-dir> %s/scripts/larch.sh --version"}}\n' "$root" "$root"
 }
 
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P)" || {
