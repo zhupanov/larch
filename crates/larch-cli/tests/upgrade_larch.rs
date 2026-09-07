@@ -466,6 +466,9 @@ fn project_scope_pin_in_another_clone_does_not_block_the_upgrade() {
         .stderr(
             predicate::str::contains("Upgrading larch from 1.0.0 to 2.0.0")
                 .and(predicate::str::contains("LARCH_NEW_VERSION_INSTALLED=true"))
+                .and(predicate::str::contains(
+                    "Installed larch plugin version (user scope): 2.0.0",
+                ))
                 .and(predicate::str::contains("user-scope larch version").not()),
         );
     assert_eq!(harness.installed_version(), "2.0.0");
@@ -490,6 +493,85 @@ fn project_scope_pin_in_another_clone_does_not_block_the_upgrade() {
         .assert()
         .success()
         .stdout(format!("RESOLVED_ROOT={}\n", harness.new_root.display()));
+
+    // A project pin at the same version but a foreign install path is the
+    // sibling shape: one version, two paths. The no-op repair must still
+    // resolve the user-scope root alone.
+    harness.clear("project_scope_pin");
+    harness.flag("project_scope_pin_latest");
+    harness
+        .command()
+        .env("CLAUDE_PLUGIN_ROOT", &harness.new_root)
+        .arg("upgrade-larch")
+        .arg("run")
+        .assert()
+        .success()
+        .stderr(predicate::str::contains(
+            "Binary verification passed. No upgrade needed.",
+        ));
+}
+
+/// A registry that predates per-project enablement has no `scope` field on
+/// any row; those rows are the user-scope record. Once any row carries
+/// `scope`, an unscoped row is no longer trusted as user scope.
+#[test]
+fn scopeless_rows_count_as_user_scope_only_when_no_row_is_scoped() {
+    let legacy = Harness::new();
+    legacy.flag("unscoped_rows");
+    legacy
+        .command()
+        .arg("upgrade-larch")
+        .arg("run")
+        .assert()
+        .success()
+        .stderr(
+            predicate::str::contains("Upgrading larch from 1.0.0 to 2.0.0")
+                .and(predicate::str::contains("LARCH_NEW_VERSION_INSTALLED=true")),
+        );
+    assert_eq!(legacy.installed_version(), "2.0.0");
+
+    let mixed = Harness::new();
+    mixed.flag("project_scope_pin_unscoped");
+    mixed
+        .command()
+        .arg("upgrade-larch")
+        .arg("run")
+        .assert()
+        .success()
+        .stderr(
+            predicate::str::contains("Upgrading larch from 1.0.0 to 2.0.0")
+                .and(predicate::str::contains("LARCH_NEW_VERSION_INSTALLED=true"))
+                .and(predicate::str::contains("user-scope larch versions").not()),
+        );
+    assert_eq!(mixed.installed_version(), "2.0.0");
+}
+
+/// A failed registry read is not an absent install. Falling back to the root
+/// name would bypass the conflict check and could upgrade over an unknown
+/// user-scope state, so the driver refuses before any mutation.
+#[test]
+fn unreadable_registry_stops_before_any_plugin_mutation() {
+    let harness = Harness::new();
+    harness.flag("fail_list");
+    harness
+        .command()
+        .arg("upgrade-larch")
+        .arg("run")
+        .assert()
+        .failure()
+        .stderr(
+            predicate::str::contains(
+                "Cannot read the installed larch version: claude plugin list --json exited 1",
+            )
+            .and(predicate::str::contains(
+                "Upgrade stopped before changing plugin state",
+            )),
+        );
+    assert_eq!(harness.installed_version(), "1.0.0");
+    let log = fs::read_to_string(&harness.log).expect("log");
+    assert!(!log.contains("bootstrap --preflight-release"));
+    assert!(!log.contains("plugin marketplace update"));
+    assert!(!log.contains("plugin update"));
 }
 
 #[test]
@@ -504,7 +586,7 @@ fn conflicting_user_scope_entries_stop_before_any_plugin_mutation() {
         .failure()
         .stderr(
             predicate::str::contains(
-                "reported 2 user-scope larch version(s) (1.0.0, 9.9.9); the driver needs exactly one",
+                "reported 2 user-scope larch versions (1.0.0, 9.9.9); the driver needs exactly one",
             )
             .and(predicate::str::contains(
                 "Upgrade stopped before changing plugin state",
@@ -523,6 +605,9 @@ fn conflicting_user_scope_entries_stop_before_any_plugin_mutation() {
 fn failed_new_root_bootstrap_rolls_the_active_root_back_then_retries_cleanly() {
     let harness = Harness::new();
     harness.flag("fail_bootstrap_2.0.0");
+    // The v57.0.20 environment: a project-scope pin at the prior version must
+    // not turn the post-restore user-scope check into RestoreUnverified.
+    harness.flag("project_scope_pin");
     let marker = harness.old_root.join("rollback-marker");
     fs::write(&marker, "old").expect("marker");
     let mode_before = fs::metadata(&harness.registry)
@@ -757,16 +842,25 @@ printf 'claude %s\n' "$*" >> '{log}'
 installed="$(/usr/bin/sed -n 's/.*"version":"\([^"]*\)".*/\1/p' '{registry}' 2>/dev/null)"
 case "$*" in
   'plugin list --json')
+    [ ! -f '{state}/fail_list' ] || exit 1
     if [ "$installed" = 2.0.0 ]; then root='{new_root}'; else root='{old_root}'; fi
-    entries="{{\"id\":\"larch@larch-local\",\"version\":\"$installed\",\"scope\":\"user\",\"installPath\":\"$root\"}}"
+    scope_user=',"scope":"user"'
+    [ ! -f '{state}/unscoped_rows' ] || scope_user=''
+    entries="{{\"id\":\"larch@larch-local\",\"version\":\"$installed\"$scope_user,\"installPath\":\"$root\"}}"
     if [ -f '{state}/ambiguous' ]; then
-      entries="$entries,{{\"id\":\"larch@larch-local\",\"version\":\"$installed\",\"scope\":\"user\",\"installPath\":\"$root/other\"}}"
+      entries="$entries,{{\"id\":\"larch@larch-local\",\"version\":\"$installed\"$scope_user,\"installPath\":\"$root/other\"}}"
     fi
     if [ -f '{state}/user_scope_conflict' ]; then
-      entries="$entries,{{\"id\":\"larch@larch-local\",\"version\":\"9.9.9\",\"scope\":\"user\",\"installPath\":\"$root/conflict\"}}"
+      entries="$entries,{{\"id\":\"larch@larch-local\",\"version\":\"9.9.9\"$scope_user,\"installPath\":\"$root/conflict\"}}"
     fi
     if [ -f '{state}/project_scope_pin' ]; then
       entries="$entries,{{\"id\":\"larch@larch-local\",\"version\":\"1.0.0\",\"scope\":\"project\",\"installPath\":\"{old_root}\",\"projectPath\":\"{state}/other-clone\"}}"
+    fi
+    if [ -f '{state}/project_scope_pin_latest' ]; then
+      entries="$entries,{{\"id\":\"larch@larch-local\",\"version\":\"2.0.0\",\"scope\":\"project\",\"installPath\":\"{state}/other-clone/plugin\",\"projectPath\":\"{state}/other-clone\"}}"
+    fi
+    if [ -f '{state}/project_scope_pin_unscoped' ]; then
+      entries="$entries,{{\"id\":\"larch@larch-local\",\"version\":\"1.0.0\",\"installPath\":\"{old_root}\",\"projectPath\":\"{state}/other-clone\"}}"
     fi
     printf '[%s]\n' "$entries"
     ;;

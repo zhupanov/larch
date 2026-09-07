@@ -24,7 +24,7 @@ Upgrade the larch plugin to the latest stable version. This skill is for the run
 "${CLAUDE_PLUGIN_ROOT}/scripts/larch.sh" upgrade-larch run
 ```
 
-2. Verify the script exited successfully with no recovery banner. If it printed `Binary verification passed. No upgrade needed.`, report that the current plugin and executable match, so no restart is required. If it printed `LARCH_MARKETPLACE_RECONCILED=true`, report the runtime-only marketplace migration. Otherwise, confirm the installed version block matches the preflighted version. Tell the user to restart Claude Code after an install or marketplace migration.
+2. Verify the script exited successfully with no recovery banner. If it printed `Binary verification passed. No upgrade needed.`, report that the current plugin and executable match, so no restart is required. If it printed `LARCH_MARKETPLACE_RECONCILED=true`, report the runtime-only marketplace migration. Otherwise, confirm the `Installed larch plugin version (user scope):` line matches the preflighted version. The `claude plugin list` block under it may also show project-scope rows that other clones pinned to older versions; that is expected and not a mismatch. Tell the user to restart Claude Code after an install or marketplace migration.
 
 If the driver stopped because the marketplace-pinned `stable` branch is not at the release's tagged commit, report that no plugin state changed and that a release is likely still in flight. Tell the user to retry once it finishes.
 
