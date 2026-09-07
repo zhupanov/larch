@@ -101,7 +101,11 @@ Rust-owned `hook` verbs in `crates/larch-cli/src/hook_commands.rs`. Their shippe
 shell files are fail-closed compatibility shims: each enters only through
 `scripts/larch.sh`, sets `LARCH_BOOTSTRAP_NO_INSTALL=1`, and emits a static deny
 when the verified executable is unavailable or the Rust verb returns nonzero.
-Hook evaluation therefore never downloads or installs code. The
+The one dynamic reason is the launcher's exit 97, no executable for this plugin
+version: the shim still denies, but its reason names the bootstrap repair and
+embeds the plugin root only when it is free of JSON-significant and
+shell-hostile characters. Hook evaluation therefore never downloads or
+installs code. The
 [bootstrap and atomic-installation contract](supply-chain-credentials-and-services.md#bootstrap-and-atomic-installation)
 owns the no-install executable-validation and status boundary.
 
@@ -115,7 +119,7 @@ Clearly non-Git paths and unavailable Git metadata fail open.
 `hook deny-edit-write` checks its token-scoped, TTL-bounded activation before
 reading the tool event. While active, only a positively resolved absolute path
 under canonical `/tmp` or the existing larch sessions cache is allowed. The
-deny envelope is fixed and byte-stable. An inactive Rust command emits nothing,
+Rust deny envelope is fixed and byte-stable. An inactive Rust command emits nothing,
 but a delegation failure denies because the shim cannot establish inactivity.
 
 `hook deny-run-in-background` reads `CLONE_PATH` through the shared registry KV

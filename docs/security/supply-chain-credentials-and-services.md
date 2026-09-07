@@ -349,7 +349,11 @@ The deny and anti-read-poll hook wrappers set
 executes a matching `LARCH_BINARY` or installed `bin/larch`, but it exits with
 the distinct status 97 before lock creation, download, or installation when
 neither is valid. The hook wrapper then applies its own fixed allow or deny
-fallback. The mode does not intercept the explicit `--preflight-release` or
+fallback. The fail-closed deny wrappers keep denying on status 97 but name the
+one-command bootstrap repair in the deny reason, embedding the plugin root only
+when it contains no JSON-significant or shell-hostile characters; every other
+failure keeps the static reason. Hooks still never download or install an executable. The mode
+does not intercept the explicit `--preflight-release` or
 `--latest-stable-version` actions.
 
 The staged binary must pass `--version` and compact-JSON
@@ -386,7 +390,8 @@ fallback.
 ### Upgrade and rollback boundaries
 
 `/upgrade-larch` never writes install stamps or recursively deletes, prunes, or
-edits Claude-managed plugin version directories. Claude Code owns orphan
+edits Claude-managed plugin version directories. Its one write outside its own
+staging is the byte-identical registry rollback described below. Claude Code owns orphan
 retention so active sessions keep their original roots. The installed Rust
 driver invokes only Claude, validated larch executables, and the bounded
 `scripts/larch.sh` bootstrap exception. Only bootstrap children inherit the
@@ -408,6 +413,25 @@ commands and resolves exactly one new cache root through
 `claude plugin list --json`. Success requires the new root's manifest and
 executable to report the expected version. A failure leaves the prior cache root
 untouched and prints retry commands.
+
+`claude plugin install|update` moves the active root for every new session
+before the new root's `bin/larch` exists, and no Claude command moves it back.
+The driver therefore snapshots `~/.claude/plugins/installed_plugins.json`
+through a no-follow confined read immediately before that command, and again
+right after it. When the command exits non-zero after rewriting the registry,
+or the new root's executable fails to materialize or verify, and the registry
+bytes changed, the driver restores the byte-identical snapshot through the
+confined atomic writer with the original file mode, then re-reads
+`claude plugin list --json` and re-verifies the prior root's executable before
+it reports the rollback. Movement is decided from the registry file itself,
+because that file is what new sessions read. The driver never edits registry
+content. It skips the restore when the registry is unchanged or no regular
+snapshot exists, and it refuses the restore when the registry no longer matches
+what the install wrote, because another process then owns the newer content.
+That comparison runs immediately before the rename; a write that lands inside
+that window is not detected. Every outcome names the root new sessions resolve
+now, prior or new, and prints the exact bootstrap command that installs a
+missing executable there (#9097).
 
 Bootstrap cleanup removes only its current staging directory and lock under
 `${CLAUDE_PLUGIN_DATA}`, or its current same-filesystem binary stage. The

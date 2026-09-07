@@ -20,6 +20,10 @@ struct Harness {
     old_root: PathBuf,
     new_root: PathBuf,
     state: PathBuf,
+    /// The fake harness registry: `claude plugin install|update` rewrites it
+    /// and `claude plugin list --json` reads the installed version from it,
+    /// so a rollback is observable only through the file the driver restores.
+    registry: PathBuf,
     log: PathBuf,
 }
 
@@ -31,22 +35,22 @@ impl Harness {
         let fake_bin = temp.path().join("fake-bin");
         let state = temp.path().join("state");
         let log = temp.path().join("calls.log");
+        let registry = home.join(".claude/plugins/installed_plugins.json");
         fs::create_dir_all(&fake_bin).expect("fake bin");
         fs::create_dir_all(&data).expect("plugin data");
         fs::create_dir_all(&state).expect("state");
-        fs::write(state.join("installed"), "1.0.0").expect("installed state");
         fs::write(state.join("desired"), "2.0.0").expect("desired state");
         fs::write(state.join("marketplace"), "remote").expect("marketplace state");
         let cache = home.join(".claude/plugins/cache/larch-local/larch");
         let old_root = cache.join("1.0.0");
         let new_root = cache.join("2.0.0");
-        install_root(&old_root, "1.0.0", &state, &log);
-        install_root(&new_root, "2.0.0", &state, &log);
+        install_root(&old_root, "1.0.0", &state, &registry, &log);
+        install_root(&new_root, "2.0.0", &state, &registry, &log);
         write_executable(
             &fake_bin.join("claude"),
-            &claude_script(&state, &log, &old_root, &new_root),
+            &claude_script(&state, &registry, &log, &old_root, &new_root),
         );
-        Self {
+        let harness = Self {
             _temp: temp,
             home,
             data,
@@ -54,8 +58,30 @@ impl Harness {
             old_root,
             new_root,
             state,
+            registry,
             log,
-        }
+        };
+        harness.set_installed("1.0.0");
+        harness
+    }
+
+    fn set_installed(&self, version: &str) {
+        let root = if version == "2.0.0" {
+            &self.new_root
+        } else {
+            &self.old_root
+        };
+        fs::write(&self.registry, registry_document(version, root)).expect("registry write");
+    }
+
+    fn installed_version(&self) -> String {
+        let document: serde_json::Value =
+            serde_json::from_slice(&fs::read(&self.registry).expect("registry read"))
+                .expect("registry JSON");
+        document["plugins"]["larch@larch-local"][0]["version"]
+            .as_str()
+            .expect("registry version")
+            .to_owned()
     }
 
     fn command(&self) -> Command {
@@ -122,7 +148,7 @@ fn auxiliary_commands_preserve_their_machine_output() {
 #[test]
 fn no_op_repairs_and_verifies_the_binary_without_python() {
     let harness = Harness::new();
-    harness.set("installed", "2.0.0");
+    harness.set_installed("2.0.0");
     fs::remove_file(harness.new_root.join("bin/larch")).expect("remove broken binary");
     harness
         .command()
@@ -227,7 +253,7 @@ fn preflight_uses_the_driver_root_when_the_install_target_predates_the_flag() {
 #[test]
 fn active_old_session_is_refreshed_without_deleting_its_cache_root() {
     let harness = Harness::new();
-    harness.set("installed", "2.0.0");
+    harness.set_installed("2.0.0");
     harness
         .command()
         .arg("upgrade-larch")
@@ -290,10 +316,7 @@ fn marketplace_migration_refuses_a_symlinked_clone_before_mutating() {
         ));
     let log = fs::read_to_string(&harness.log).expect("log");
     assert!(!log.contains("claude plugin marketplace remove larch-local"));
-    assert_eq!(
-        fs::read_to_string(harness.state.join("installed")).expect("installed"),
-        "1.0.0"
-    );
+    assert_eq!(harness.installed_version(), "1.0.0");
 }
 
 #[test]
@@ -325,7 +348,7 @@ fn upgrade_rejects_relative_home_and_plugin_data_paths_before_children_run() {
 #[test]
 fn ambiguous_installed_roots_fail_closed_with_retry_guidance() {
     let harness = Harness::new();
-    harness.set("installed", "2.0.0");
+    harness.set_installed("2.0.0");
     harness.flag("ambiguous");
     harness
         .command()
@@ -348,10 +371,7 @@ fn interrupted_preflight_is_retryable_and_does_not_mutate_plugin_state() {
         .assert()
         .failure()
         .stderr(predicate::str::contains("stable release preflight failed"));
-    assert_eq!(
-        fs::read_to_string(harness.state.join("installed")).expect("state"),
-        "1.0.0"
-    );
+    assert_eq!(harness.installed_version(), "1.0.0");
     harness.clear("fail_preflight");
     harness
         .command()
@@ -377,10 +397,7 @@ fn unproven_release_pin_stops_the_upgrade_before_the_marketplace_is_touched() {
     assert!(!log.contains("plugin marketplace update"));
     assert!(!log.contains("plugin install"));
     assert!(!log.contains("plugin update"));
-    assert_eq!(
-        fs::read_to_string(harness.state.join("installed")).expect("installed state"),
-        "1.0.0"
-    );
+    assert_eq!(harness.installed_version(), "1.0.0");
 }
 
 #[test]
@@ -399,10 +416,7 @@ fn missing_plugin_data_fails_closed_before_any_mutation_with_the_remedy() {
         );
     let log = fs::read_to_string(&harness.log).expect("log");
     assert!(!log.contains("bootstrap --preflight-release"));
-    assert_eq!(
-        fs::read_to_string(harness.state.join("installed")).expect("installed state"),
-        "1.0.0"
-    );
+    assert_eq!(harness.installed_version(), "1.0.0");
     assert_eq!(
         fs::read_to_string(harness.state.join("marketplace")).expect("marketplace state"),
         "remote"
@@ -435,24 +449,164 @@ fn failed_refresh_and_failed_install_leave_the_prior_root_usable() {
     assert!(harness.old_root.join("bin/larch").is_file());
 }
 
+/// Replays #9097: `claude plugin update` moved the active root to a version
+/// whose `bin/larch` never materialized, which bricked every new session.
 #[test]
-fn failed_new_root_bootstrap_preserves_rollback_and_retry_state() {
+fn failed_new_root_bootstrap_rolls_the_active_root_back_then_retries_cleanly() {
     let harness = Harness::new();
     harness.flag("fail_bootstrap_2.0.0");
     let marker = harness.old_root.join("rollback-marker");
     fs::write(&marker, "old").expect("marker");
+    let mode_before = fs::metadata(&harness.registry)
+        .expect("registry metadata")
+        .permissions()
+        .mode();
     harness
         .command()
         .arg("upgrade-larch")
         .arg("run")
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Upgrade incomplete"));
+        .stderr(
+            predicate::str::contains("Upgrade incomplete")
+                .and(predicate::str::contains(
+                    "Rolled the active larch plugin root back to 1.0.0",
+                ))
+                .and(predicate::str::contains("Recovery: retry /upgrade-larch"))
+                .and(predicate::str::contains("remain usable").not()),
+        );
+    assert_eq!(harness.installed_version(), "1.0.0");
+    assert_eq!(
+        fs::metadata(&harness.registry)
+            .expect("restored registry metadata")
+            .permissions()
+            .mode(),
+        mode_before
+    );
     assert_eq!(fs::read_to_string(marker).expect("marker"), "old");
+    assert!(harness.old_root.join("bin/larch").is_file());
     assert!(harness.new_root.is_dir());
+    let log = fs::read_to_string(&harness.log).expect("log");
+    let update = log.find("claude plugin update").expect("update");
+    let reverify = log.rfind("claude plugin list --json").expect("owning-surface read");
+    assert!(reverify > update, "rollback re-reads claude plugin list");
+
+    harness.clear("fail_bootstrap_2.0.0");
+    harness
+        .command()
+        .arg("upgrade-larch")
+        .arg("run")
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("LARCH_NEW_VERSION_INSTALLED=true"));
+    assert_eq!(harness.installed_version(), "2.0.0");
 }
 
-fn install_root(root: &Path, version: &str, state: &Path, log: &Path) {
+#[test]
+fn post_flip_failure_without_a_registry_snapshot_names_the_stranded_root_and_repair() {
+    let harness = Harness::new();
+    harness.flag("fail_bootstrap_2.0.0");
+    fs::remove_file(&harness.registry).expect("remove registry");
+    // The driver reports the resolved root, so canonicalize past macOS /var.
+    let root = fs::canonicalize(&harness.new_root)
+        .expect("canonical new root")
+        .display()
+        .to_string();
+    harness
+        .command()
+        .arg("upgrade-larch")
+        .arg("run")
+        .assert()
+        .failure()
+        .stderr(
+            predicate::str::contains("No pre-install registry snapshot exists")
+                .and(predicate::str::contains(format!(
+                    "resolve CLAUDE_PLUGIN_ROOT to {root}."
+                )))
+                .and(predicate::str::contains("deny Edit, Write, and Bash"))
+                .and(predicate::str::contains(format!(
+                    "CLAUDE_PLUGIN_ROOT={root} CLAUDE_PLUGIN_DATA=<absolute-dir> {root}/scripts/larch.sh --version"
+                )))
+                .and(predicate::str::contains("remain usable").not()),
+        );
+    assert_eq!(harness.installed_version(), "2.0.0");
+}
+
+#[test]
+fn rollback_refuses_to_clobber_a_registry_another_process_rewrote() {
+    let harness = Harness::new();
+    harness.flag("fail_bootstrap_2.0.0");
+    harness.flag("registry_drift_2.0.0");
+    harness
+        .command()
+        .arg("upgrade-larch")
+        .arg("run")
+        .assert()
+        .failure()
+        .stderr(
+            predicate::str::contains("Rolling back the active plugin root failed")
+                .and(predicate::str::contains(
+                    "changed after the plugin install; another process owns the newer content",
+                ))
+                .and(predicate::str::contains("scripts/larch.sh --version")),
+        );
+    assert_eq!(harness.installed_version(), "2.0.0");
+    assert!(
+        fs::read(&harness.registry)
+            .expect("registry")
+            .ends_with(b"}\n"),
+        "the foreign write survives"
+    );
+}
+
+#[test]
+fn same_version_reinstall_failure_does_not_restore_the_registry() {
+    let harness = Harness::new();
+    harness.set_installed("2.0.0");
+    harness.flag("fail_bootstrap_2.0.0");
+    harness
+        .command()
+        .arg("upgrade-larch")
+        .arg("run")
+        .assert()
+        .failure()
+        .stderr(
+            predicate::str::contains("still running cached larch 1.0.0")
+                .and(predicate::str::contains(
+                    "left the plugin registry unchanged",
+                ))
+                .and(predicate::str::contains(format!(
+                    "{}/scripts/larch.sh --version",
+                    harness.new_root.display()
+                ))),
+        );
+    assert_eq!(harness.installed_version(), "2.0.0");
+}
+
+/// A non-zero `claude plugin update` exit can still follow the registry
+/// rewrite, which strands new sessions exactly like a failed bootstrap.
+#[test]
+fn install_that_fails_after_rewriting_the_registry_rolls_back() {
+    let harness = Harness::new();
+    harness.flag("fail_install_after_write");
+    harness
+        .command()
+        .arg("upgrade-larch")
+        .arg("run")
+        .assert()
+        .code(7)
+        .stderr(
+            predicate::str::contains("Plugin install failed after it rewrote the plugin registry")
+                .and(predicate::str::contains(
+                    "Rolled the active larch plugin root back to 1.0.0",
+                ))
+                .and(predicate::str::contains("was not modified").not()),
+        );
+    assert_eq!(harness.installed_version(), "1.0.0");
+    assert!(harness.old_root.join("bin/larch").is_file());
+}
+
+fn install_root(root: &Path, version: &str, state: &Path, registry: &Path, log: &Path) {
     fs::create_dir_all(root.join(".claude-plugin")).expect("manifest dir");
     fs::create_dir_all(root.join("scripts")).expect("scripts dir");
     fs::create_dir_all(root.join("bin")).expect("bin dir");
@@ -466,7 +620,7 @@ fn install_root(root: &Path, version: &str, state: &Path, log: &Path) {
     write_executable(&root.join("bin/larch"), &binary);
     write_executable(
         &root.join("scripts/larch.sh"),
-        &bootstrap_script(root, version, state, log),
+        &bootstrap_script(root, version, state, registry, log),
     );
 }
 
@@ -477,7 +631,13 @@ fn identity_script(version: &str, log: &Path) -> String {
     )
 }
 
-fn bootstrap_script(root: &Path, version: &str, state: &Path, log: &Path) -> String {
+fn bootstrap_script(
+    root: &Path,
+    version: &str,
+    state: &Path,
+    registry: &Path,
+    log: &Path,
+) -> String {
     format!(
         r#"#!/bin/sh
 printf 'bootstrap %s\n' "$*" >> '{log}'
@@ -492,6 +652,7 @@ case "${{1:-}}" in
     printf 'LARCH_PREFLIGHT_VERSION=%s\n' "$2"
     ;;
   bootstrap)
+    [ ! -f '{state}/registry_drift_{version}' ] || printf '\n' >> '{registry}'
     [ ! -f '{state}/fail_bootstrap_{version}' ] || exit 1
     if [ ! -x '{root}/bin/larch' ]; then
       /bin/cp '{root}/bin-template' '{root}/bin/larch'
@@ -503,15 +664,29 @@ esac
 "#,
         log = log.display(),
         state = state.display(),
+        registry = registry.display(),
         root = root.display()
     )
 }
 
-fn claude_script(state: &Path, log: &Path, old_root: &Path, new_root: &Path) -> String {
+fn registry_document(version: &str, root: &Path) -> String {
+    format!(
+        r#"{{"version":2,"plugins":{{"larch@larch-local":[{{"scope":"user","installPath":"{}","version":"{version}"}}]}}}}"#,
+        root.display()
+    )
+}
+
+fn claude_script(
+    state: &Path,
+    registry: &Path,
+    log: &Path,
+    old_root: &Path,
+    new_root: &Path,
+) -> String {
     format!(
         r#"#!/bin/sh
 printf 'claude %s\n' "$*" >> '{log}'
-installed="$(/bin/cat '{state}/installed')"
+installed="$(/usr/bin/sed -n 's/.*"version":"\([^"]*\)".*/\1/p' '{registry}' 2>/dev/null)"
 case "$*" in
   'plugin list --json')
     if [ "$installed" = 2.0.0 ]; then root='{new_root}'; else root='{old_root}'; fi
@@ -533,13 +708,17 @@ case "$*" in
   'plugin marketplace add {source}') printf remote > '{state}/marketplace' ;;
   'plugin update larch@larch-local'|'plugin install larch@larch-local')
     [ ! -f '{state}/fail_install' ] || exit 7
-    /bin/cat '{state}/desired' > '{state}/installed'
+    desired="$(/bin/cat '{state}/desired')"
+    if [ "$desired" = 2.0.0 ]; then root='{new_root}'; else root='{old_root}'; fi
+    printf '{{"version":2,"plugins":{{"larch@larch-local":[{{"scope":"user","installPath":"%s","version":"%s"}}]}}}}' "$root" "$desired" > '{registry}'
+    [ ! -f '{state}/fail_install_after_write' ] || exit 7
     ;;
   'plugin list') printf 'larch@larch-local %s\n' "$installed" ;;
 esac
 "#,
         log = log.display(),
         state = state.display(),
+        registry = registry.display(),
         old_root = old_root.display(),
         new_root = new_root.display(),
         source = SOURCE
