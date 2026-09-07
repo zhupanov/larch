@@ -538,7 +538,7 @@ if [ -n "$STEP7_STATE" ]; then
 fi
 ```
 
-If metadata names a newer install than the active `CLAUDE_PLUGIN_ROOT`, still run against the active root from item 1. The driver never deletes either root. If the working-tree invocation fails, warn and continue to Step 8, but still persist any captured machine-readable restart or reconcile state because plugin metadata may already have changed. The release is already published, so a local-install upgrade hiccup must not strand the operator on the release branch. If no root is resolvable, record `MARKETPLACE_RECONCILED=false`, `NEW_VERSION_INSTALLED=false`, and `RESTART_REQUIRED=false`.
+If metadata names a newer install than the active `CLAUDE_PLUGIN_ROOT`, still run against the active root from item 1. The driver never deletes either root. If the working-tree invocation fails, warn and continue to Step 8, but still persist any captured machine-readable restart or reconcile state because plugin metadata may already have changed. When the new root's executable fails after the plugin switch, the driver moves the active version back to the prior one; if its output instead prints a `scripts/larch.sh --version` repair command, relay it to the operator, because new sessions are denied every edit until it runs. The release is already published, so a local-install upgrade hiccup must not strand the operator on the release branch. If no root is resolvable, record `MARKETPLACE_RECONCILED=false`, `NEW_VERSION_INSTALLED=false`, and `RESTART_REQUIRED=false`.
 
 ## Step 8 — Local cleanup (post-merge teardown)
 

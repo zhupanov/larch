@@ -342,7 +342,18 @@ immutable stable release before refreshing plugin metadata. It then resolves
 the new cache root from `claude plugin list --json`, installs that root's
 release-matched executable, and verifies matching plugin and binary versions.
 A failure leaves the prior cache root untouched and safe for the running
-session. Restart `claude` after a successful install or marketplace repair.
+session. If the executable cannot be installed after Claude has already
+switched to the new version, the driver moves the active version back to the
+prior one so new sessions keep a working `bin/larch`. When it reports that it
+could not roll back, run the printed command from a terminal outside Claude
+Code before starting new sessions; it installs the missing executable in one
+shot:
+
+```bash
+CLAUDE_PLUGIN_ROOT=<new-cache-root> CLAUDE_PLUGIN_DATA=<absolute-dir> <new-cache-root>/scripts/larch.sh --version
+```
+
+Restart `claude` after a successful install or marketplace repair.
 The first upgrade from the old sparse GitHub marketplace registration replaces
 that registration with the runtime-only remote source.
 

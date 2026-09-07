@@ -3128,7 +3128,13 @@ fn hook_no_install_mode_never_bootstraps_and_still_uses_verified_binaries() {
 #[test]
 fn hook_shims_emit_static_denies_when_no_verified_binary_is_available() {
     let fixture = clean_install_fixture();
-    for (script, reason_fragment) in [
+    let manifest = fixture.root.join(".claude-plugin/plugin.json");
+    let valid_manifest = fs::read(&manifest).expect("read clean-install manifest");
+    let repair = format!(
+        "CLAUDE_PLUGIN_ROOT={root} CLAUDE_PLUGIN_DATA=<absolute-dir> {root}/scripts/larch.sh --version",
+        root = fixture.root.display()
+    );
+    for (script, unavailable_fragment) in [
         (
             "block-submodule-edit.sh",
             "larch hook unavailable, blocking as precaution",
@@ -3151,36 +3157,56 @@ fn hook_shims_emit_static_denies_when_no_verified_binary_is_available() {
         permissions.set_mode(0o755);
         fs::set_permissions(&destination, permissions).expect("make hook shim executable");
 
-        let output = Command::new("/bin/bash")
-            .arg(&destination)
-            .env("HOME", &fixture.home)
-            .env("CLAUDE_PLUGIN_ROOT", &fixture.root)
-            .env_remove("LARCH_BINARY")
-            .env_remove("CLAUDE_PLUGIN_DATA")
-            .stdin(Stdio::null())
-            .output()
-            .expect("run hook shim without binary");
+        // A valid root with no `bin/larch` is the exit-97 shape an interrupted
+        // upgrade leaves behind (#9097): still a deny, but one that names the
+        // one-command repair so a bricked session can report it.
+        fs::write(&manifest, &valid_manifest).expect("restore clean-install manifest");
+        let reason = shim_deny_reason(&fixture, &destination, script);
         assert!(
-            output.status.success(),
-            "{script}: {}",
-            String::from_utf8_lossy(&output.stderr)
+            reason.contains("not installed for this plugin version (exit 97)")
+                && reason.contains(&repair),
+            "{script}: {reason}"
         );
-        let payload: serde_json::Value =
-            serde_json::from_slice(&output.stdout).expect("static deny JSON");
-        assert_eq!(
-            payload["hookSpecificOutput"]["permissionDecision"],
-            "deny",
-            "{script}"
-        );
+        assert!(!fixture.root.join("bin").exists(), "{script}");
+
+        // Any other bootstrap failure keeps the fixed static deny.
+        fs::write(&manifest, b"not a manifest\n").expect("corrupt clean-install manifest");
+        let reason = shim_deny_reason(&fixture, &destination, script);
         assert!(
-            payload["hookSpecificOutput"]["permissionDecisionReason"]
-                .as_str()
-                .is_some_and(|reason| reason.contains(reason_fragment)),
-            "{script}: {}",
-            String::from_utf8_lossy(&output.stdout)
+            reason.contains(unavailable_fragment),
+            "{script}: {reason}"
         );
         assert!(!fixture.root.join("bin").exists(), "{script}");
     }
+}
+
+#[cfg(unix)]
+fn shim_deny_reason(fixture: &CleanInstallFixture, shim: &Path, script: &str) -> String {
+    let output = Command::new("/bin/bash")
+        .arg(shim)
+        .env("HOME", &fixture.home)
+        .env("CLAUDE_PLUGIN_ROOT", &fixture.root)
+        .env_remove("LARCH_BINARY")
+        .env_remove("CLAUDE_PLUGIN_DATA")
+        .stdin(Stdio::null())
+        .output()
+        .expect("run hook shim without binary");
+    assert!(
+        output.status.success(),
+        "{script}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let payload: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("static deny JSON");
+    assert_eq!(
+        payload["hookSpecificOutput"]["permissionDecision"],
+        "deny",
+        "{script}"
+    );
+    payload["hookSpecificOutput"]["permissionDecisionReason"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{script}: deny reason missing"))
+        .to_owned()
 }
 
 #[cfg(unix)]

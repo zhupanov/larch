@@ -349,7 +349,11 @@ The deny and anti-read-poll hook wrappers set
 executes a matching `LARCH_BINARY` or installed `bin/larch`, but it exits with
 the distinct status 97 before lock creation, download, or installation when
 neither is valid. The hook wrapper then applies its own fixed allow or deny
-fallback. The mode does not intercept the explicit `--preflight-release` or
+fallback. The fail-closed deny wrappers keep denying on status 97 but name the
+one-command bootstrap repair in the deny reason, embedding the plugin root only
+when it contains no JSON-significant characters; every other failure keeps the
+static reason. Hooks still never download or install an executable. The mode
+does not intercept the explicit `--preflight-release` or
 `--latest-stable-version` actions.
 
 The staged binary must pass `--version` and compact-JSON
@@ -408,6 +412,21 @@ commands and resolves exactly one new cache root through
 `claude plugin list --json`. Success requires the new root's manifest and
 executable to report the expected version. A failure leaves the prior cache root
 untouched and prints retry commands.
+
+`claude plugin install|update` moves the active root for every new session
+before the new root's `bin/larch` exists, and no Claude command moves it back.
+The driver therefore snapshots `~/.claude/plugins/installed_plugins.json`
+immediately before that command. When the new root's executable fails to
+materialize or verify, and the pointer moved to another version, the driver
+restores the byte-identical snapshot through the confined atomic writer with the
+original file mode, then re-reads `claude plugin list --json` and re-verifies the
+prior root's executable before it reports the rollback. It never edits registry
+content. It skips the restore when the pointer did not move or no regular
+snapshot exists, and it refuses the restore when the registry no longer matches
+what the install wrote, because another process then owns the newer content. When no rollback happened or it could not be verified, the
+driver says which root new sessions resolve, that their fail-closed hooks deny
+edits there, and prints the exact bootstrap command that installs the missing
+executable (#9097).
 
 Bootstrap cleanup removes only its current staging directory and lock under
 `${CLAUDE_PLUGIN_DATA}`, or its current same-filesystem binary stage. The
