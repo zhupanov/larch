@@ -3071,7 +3071,7 @@ dependencies = [
 
 [[package]]
 name = "larch-adapters"
-version = "57.0.20"
+version = "57.0.21"
 dependencies = [
  "automod",
  "aws-config",
@@ -3117,7 +3117,7 @@ dependencies = [
 
 [[package]]
 name = "larch-cli"
-version = "57.0.20"
+version = "57.0.21"
 dependencies = [
  "assert_cmd",
  "automod",
@@ -3152,7 +3152,7 @@ dependencies = [
 
 [[package]]
 name = "larch-core"
-version = "57.0.20"
+version = "57.0.21"
 dependencies = [
  "automod",
  "chrono",
@@ -3175,11 +3175,11 @@ dependencies = [
 
 [[package]]
 name = "larch-harness-mark"
-version = "57.0.20"
+version = "57.0.21"
 
 [[package]]
 name = "larch-lint"
-version = "57.0.20"
+version = "57.0.21"
 dependencies = [
  "assert_cmd",
  "automod",
@@ -3204,7 +3204,7 @@ dependencies = [
 
 [[package]]
 name = "larch-test-support"
-version = "57.0.20"
+version = "57.0.21"
 dependencies = [
  "larch-adapters",
  "larch-core",

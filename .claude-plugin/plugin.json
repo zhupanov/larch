@@ -1,6 +1,6 @@
 {
   "name": "larch",
-  "version": "57.0.20",
+  "version": "57.0.21",
   "description": "Multi-agent workflow automation for Claude Code: issue-anchored `/design` (one direct-drafting flow; plan-review panel), `/file-bug` (consumer issue-filing helper), `/deps` issue dependency audits, and `/implement` (positional `<issue-N>`, fixed 7200s Step 2 timeout, optional `--merge`, `--forked`, `--draft`, `--no-admin-fallback`, `--no-logs-commit`, `--coder`, `--run-id`). `/implement` Preflight reads the `larch:plan` block from the issue body; `/implement` Step 5 code review always uses the unified strict panel internally (public `--panel` argv removed).",
   "author": {
     "name": "Sergey Zhupanov",
