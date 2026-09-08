@@ -1,0 +1,7 @@
+step	name
+0	setup
+1	gather context
+2	launch reviewers
+3	review cycle
+4	final summary
+5	cleanup

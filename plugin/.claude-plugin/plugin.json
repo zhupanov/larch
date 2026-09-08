@@ -1,0 +1,45 @@
+{
+  "name": "larch",
+  "version": "57.0.21",
+  "description": "Multi-agent workflow automation for Claude Code: issue-anchored `/design` (one direct-drafting flow; plan-review panel), `/file-bug` (consumer issue-filing helper), `/deps` issue dependency audits, and `/implement` (positional `<issue-N>`, fixed 7200s Step 2 timeout, optional `--merge`, `--forked`, `--draft`, `--no-admin-fallback`, `--no-logs-commit`, `--coder`, `--run-id`). `/implement` Preflight reads the `larch:plan` block from the issue body; `/implement` Step 5 code review always uses the unified strict panel internally (public `--panel` argv removed).",
+  "author": {
+    "name": "Sergey Zhupanov",
+    "email": "zhupanov@yahoo.com"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/character-ai/larch",
+  "homepage": "https://github.com/character-ai/larch",
+  "keywords": [
+    "workflow",
+    "automation",
+    "code-review",
+    "ci",
+    "pull-request",
+    "multi-agent",
+    "design-review",
+    "pr-automation",
+    "collaborative-review",
+    "voting-panel",
+    "issue-dependencies"
+  ],
+  "userConfig": {
+    "cursor_model": {
+      "title": "Cursor Model",
+      "type": "string",
+      "description": "Default model for Cursor launches (e.g., gpt-5.4-medium). Also accepted via LARCH_CURSOR_MODEL env var. Reviewer-panel rows may override this per slot with auto. When unset, defaults to composer-2.5 (with max-mode engaged via scripts/cursor-wrap-prompt.sh).",
+      "sensitive": false
+    },
+    "codex_model": {
+      "title": "Codex Model",
+      "type": "string",
+      "description": "Strong/default Codex model for untagged launches such as brainstorm, negotiations, health probes, and callers that do not pass --model-role. Also accepted via LARCH_CODEX_MODEL. When unset, defaults to gpt-6-astra. Step 2 Codex implementers with an explicit difficulty use gpt-5.6-terra unless pinned. Review panels, voters, and fixers use their role env vars and tier routing before falling back to gpt-5.6-luna or gpt-5.6-terra.",
+      "sensitive": false
+    },
+    "codex_effort": {
+      "title": "Codex Effort",
+      "type": "string",
+      "description": "Codex reasoning effort at launch sites that pass --with-effort or use internal effort-enabled launchers (review, implementation, voting, health probe): minimal, low, medium, or high. Unlike model routing, there are no per-role effort variants\u2014review, vote, and fix roles share this same effort level. Also accepted via LARCH_CODEX_EFFORT env var. When unset, defaults to 'high' at those launch sites. launch-codex-exec callers that omit --with-effort (design drafter, /research lanes, plan autofix, lint-fix) ignore this setting.",
+      "sensitive": false
+    }
+  }
+}

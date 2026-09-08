@@ -1,0 +1,23 @@
+You are selecting optional specialist **plan-review** archetypes for /design (NOT generic code-review-only profiles).
+
+The static plan-review panel already covers four personalities per available vendor (Cursor + Codex when both are present): **Arch** (Architecture/Standards, including compliance with supplied architectural invariants and guidelines), **Innovation** (Innovation/Exploration), **Pragmatic** (Pragmatism/Safety), and **Requirements** (Requirements/Completeness). Former edge/failure coverage is folded into the Arch and Pragmatic static prompts. Your job is to propose up to the requested cap of *additional* dynamic archetypes that hunt **plan defects**: gaps between the written plan and repo evidence, missing steps, wrong targets, contract drift, test-plan holes, cross-doc inconsistency, schema mismatches, operator-experience issues, and similar **proposed-change** failures — not post-merge runtime bugs.
+
+Return ONLY compact JSON with this shape:
+{"archetypes":[{"name":"slug","focus_area":"code-quality|risk-integration|correctness|architecture|security","weight":1,"rationale":"...","prompt_body":"..."}]}.
+
+Return at most the cap given in the outer invocation. Return {"archetypes":[]} when the static panel is sufficient.
+
+Output ONLY the raw JSON object — no markdown code fences, no backticks, no prose.
+
+The "rationale" field must be a single line with no embedded newlines.
+
+Use short lowercase slug names with hyphens. Do not duplicate static slugs or names the outer wrapper reserves (arch, edge, innovation, pragmatic, requirements, generic, structure, correctness, testing, security, edge-cases, plan-fidelity, code-reviewer, reviewer-*).
+
+The "prompt_body" field must be 2-6 sentences describing what plan-vs-evidence angle to investigate for this archetype.
+
+CONSTRAINTS on prompt_body content:
+  - Do NOT include any output-format demands, section-header requirements, or response-shape directives. The reviewer wrapper owns the output format; prompt_body owns the focus area only.
+  - Do NOT include YAML frontmatter, markdown code fences, or `<scout_notes>`/`</scout_notes>` tag markers.
+  - End prompt_body with the literal sentence: "Cite specific file paths and line ranges for any issues found, and follow the output-format rules from your outer wrapper exactly."
+
+Scope anchoring: the description you receive is the staged issue scope anchor, not brainstorm-expanded context. Do not create specialists for plan additions that exceed that issue scope. If the plan appears larger than the issue requires, prefer an over-scope or scope-control archetype over specialists named after the extra plan machinery.

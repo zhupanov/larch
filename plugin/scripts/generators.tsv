@@ -1,0 +1,16 @@
+# Format: <generator-verb>	<output-path>
+# Each generator verb is invoked as `scripts/larch.sh generate <verb> --check`.
+# Column 2 remains the committed artifact validated by that verb.
+generate code-reviewer-agent	agents/code-reviewer.md
+generate reviewer-plan-fidelity-agent	agents/reviewer-plan-fidelity.md
+generate reviewer-code-robustness-agent	agents/reviewer-code-robustness.md
+generate reviewer-security-structure-tests-agent	agents/reviewer-security-structure-tests.md
+generate reviewer-structure-agent	agents/reviewer-structure.md
+generate reviewer-correctness-agent	agents/reviewer-correctness.md
+generate reviewer-testing-agent	agents/reviewer-testing.md
+generate reviewer-security-agent	agents/reviewer-security.md
+generate reviewer-edge-cases-agent	agents/reviewer-edge-cases.md
+generate pre-rendered-reviewer-prompts	agents/pre-rendered/.manifest
+generate cursor-implementer	skills/implement/prompts/cursor-implementer.md
+generate codex-implementer	skills/implement/prompts/codex-implementer.md
+generate topology-docs	docs/topology.md

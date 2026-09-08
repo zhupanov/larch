@@ -1,0 +1,8 @@
+glob	floor	reason
+hooks/**	MODERATE	Hook behavior affects every Claude Code session that loads the plugin.
+crates/larch-core/src/redaction.rs	MODERATE	Secret and redaction handling must receive at least moderate review scrutiny.
+crates/larch-cli/src/redact_commands.rs	MODERATE	Secret and redaction handling must receive at least moderate review scrutiny.
+crates/larch-cli/src/merge_commands.rs	MODERATE	Ship and merge drivers affect PR publication, CI, and merge outcomes.
+crates/larch-cli/src/session_env_commands.rs	MODERATE	Session-env writers affect cross-step state and resume behavior.
+crates/larch-cli/src/implement_bootstrap_continuation.rs	MODERATE	Step 0 session, tracking, branch, and routing behavior affects implement run materialization.
+.github/workflows/**	MODERATE	CI workflow changes affect validation and branch protection signals.

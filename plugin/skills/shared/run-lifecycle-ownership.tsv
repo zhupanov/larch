@@ -1,0 +1,6 @@
+skill	start_owner	terminal_owner	no_archive_exception
+*	skills/shared/run-lifecycle.md	skills/shared/run-lifecycle.md	-
+design	crates/larch-cli/src/design_step0_commands.rs	crates/larch-cli/src/design_log_publish_commands.rs	-
+implement	crates/larch-cli/src/implement_commands.rs	crates/larch-cli/src/implement_terminal_commands.rs	no-logs-commit
+review	skills/review/SKILL.md	skills/review/SKILL.md	-
+audit-umbrella	skills/audit-umbrella/SKILL.md	skills/audit-umbrella/SKILL.md	-

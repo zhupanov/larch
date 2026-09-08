@@ -1,0 +1,16 @@
+relative_path	condition	batch_slug	extension
+# This manifest describes published /implement run directories using step-scoped
+# conditions. Step 18 prepares the complete terminal snapshot before publication.
+manifest.json	always	manifest	json
+plan-review-tally.json	always	plan-review-tally	json
+difficulty-rating.json	always	difficulty-rating	json
+code-review-tally.json	step5	code-review-tally	json
+review-findings-full.jsonl	step5	review-findings-full	jsonl
+final-summary.md	step18	direct-file	md
+token-report.json	step18	token-report	json
+timing-report.json	step18	timing-report	json
+execution-issues.ndjson	step18	execution-issues	ndjson
+session-transcript.jsonl	step18	session-transcript	jsonl
+round-*/aggregator-validate.stderr	exn-agg-validate-fail	direct-file	stderr
+round-*/aggregator-dispatch.stderr	exn-agg-dispatch-fail	direct-file	stderr
+run-statistics.md	step9a1	run-statistics	md
