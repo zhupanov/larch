@@ -341,6 +341,10 @@ Run the `/upgrade-larch` skill in your `claude` session. It verifies the exact
 immutable stable release before refreshing plugin metadata. It then resolves
 the new cache root from `claude plugin list --json`, installs that root's
 release-matched executable, and verifies matching plugin and binary versions.
+The upgrade reads and moves the user-scope install only. Any clone that enables
+larch in its `.claude/settings.json`, including the one you upgrade from, keeps
+its own project-scope entry pinned to the version current when that clone was
+first opened. `/upgrade-larch` ignores those entries and does not refresh them.
 A failure leaves the prior cache root untouched and safe for the running
 session. If the executable cannot be installed after Claude has already
 switched to the new version, the driver moves the active version back to the

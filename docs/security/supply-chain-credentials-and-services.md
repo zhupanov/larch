@@ -409,8 +409,15 @@ mismatch is refused while the prior installation is still the active one rather
 than after it has been replaced. First-use bootstrap does not gate on the pin,
 because the branch moves ahead of installs that are deliberately on an older
 release. The driver then uses supported Claude plugin
-commands and resolves exactly one new cache root through
-`claude plugin list --json`. Success requires the new root's manifest and
+commands and resolves exactly one new user-scope cache root through
+`claude plugin list --json`. Project-scope entries, which Claude Code records
+for every clone whose `.claude/settings.json` enables the plugin, the current
+clone included, and pins to the version current when that clone was first
+opened, are ignored: the driver installs, verifies, and rolls back user scope
+only. Rows without a `scope` field count as user scope only when no larch row
+in the payload carries one. Two user-scope entries at different versions stop
+the upgrade before any plugin state changes (#9099).
+Success requires the new root's manifest and
 executable to report the expected version. A failure leaves the prior cache root
 untouched and prints retry commands.
 
@@ -425,7 +432,11 @@ confined atomic writer with the original file mode, then re-reads
 `claude plugin list --json` and re-verifies the prior root's executable before
 it reports the rollback. Movement is decided from the registry file itself,
 because that file is what new sessions read. The driver never edits registry
-content. It skips the restore when the registry is unchanged or no regular
+content, so the restore is whole-file, not scope-aware: a change another Claude
+process made to any entry, project scope included, while
+`claude plugin install|update` itself was running is part of the post-install
+content and is reverted with it. The driver reads user scope only when it
+decides and verifies; it does not preserve unrelated entries during a restore. It skips the restore when the registry is unchanged or no regular
 snapshot exists, and it refuses the restore when the registry no longer matches
 what the install wrote, because another process then owns the newer content.
 That comparison runs immediately before the rename; a write that lands inside
