@@ -14,7 +14,7 @@ edition = "2024"
 license = "MIT"
 repository = "https://github.com/character-ai/larch"
 rust-version = "1.94.1"
-version = "57.0.20"
+version = "57.0.21"
 
 [workspace.dependencies]
 assert_cmd = { version = "2.2.2", default-features = false }
@@ -40,11 +40,11 @@ http-body-util = { version = "0.1.4", default-features = false }
 indexmap = { version = "2.14.0", default-features = false, features = ["serde", "std"] }
 inventory = { version = "0.3.24", default-features = false }
 libproc = { version = "=0.14.11", default-features = false }
-larch-adapters = { version = "=57.0.20", path = "crates/larch-adapters" }
-larch-core = { version = "=57.0.20", path = "crates/larch-core" }
-larch-harness-mark = { version = "=57.0.20", path = "crates/larch-harness-mark" }
-larch-lint = { version = "=57.0.20", path = "crates/larch-lint" }
-larch-test-support = { version = "=57.0.20", path = "crates/larch-test-support" }
+larch-adapters = { version = "=57.0.21", path = "crates/larch-adapters" }
+larch-core = { version = "=57.0.21", path = "crates/larch-core" }
+larch-harness-mark = { version = "=57.0.21", path = "crates/larch-harness-mark" }
+larch-lint = { version = "=57.0.21", path = "crates/larch-lint" }
+larch-test-support = { version = "=57.0.21", path = "crates/larch-test-support" }
 nix = { version = "0.31.3", default-features = false, features = ["process", "signal", "fs", "dir"] }
 num-bigint = { version = "0.4.6", default-features = false, features = ["std"] }
 octocrab = { version = "=0.54.0", default-features = false, features = ["default-client", "jwt-aws-lc-rs", "rustls", "rustls-aws-lc-rs", "timeout"] }
