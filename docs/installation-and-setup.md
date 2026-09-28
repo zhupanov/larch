@@ -158,7 +158,7 @@ alias fablem='git fetch && git rebase && [ -z "$(git stash list)" ] && env -u AN
 Larch is distributed as a [Claude Code plugin](https://code.claude.com/docs/en/plugin-marketplaces).
 ### Install
 ```bash
-claude plugin marketplace add https://raw.githubusercontent.com/character-ai/larch/main/.claude-plugin/marketplace.json
+claude plugin marketplace add https://raw.githubusercontent.com/zhupanov/larch/main/.claude-plugin/marketplace.json
 claude plugin install larch@larch-local
 ```
 
@@ -360,6 +360,28 @@ CLAUDE_PLUGIN_ROOT=<new-cache-root> CLAUDE_PLUGIN_DATA=<absolute-dir> <new-cache
 Restart `claude` after a successful install or marketplace repair.
 The first upgrade from the old sparse GitHub marketplace registration replaces
 that registration with the runtime-only remote source.
+
+### Moving from character-ai/larch
+
+An installation from `character-ai/larch` still checks that repository for
+releases. After the first release built by `zhupanov/larch` is published, move
+the user-scope marketplace registration once from a terminal outside Claude
+Code:
+
+```bash
+claude plugin marketplace remove larch-local --scope user
+claude plugin marketplace add https://raw.githubusercontent.com/zhupanov/larch/main/.claude-plugin/marketplace.json --scope user
+claude plugin install larch@larch-local --scope user
+```
+
+Restart Claude Code, then run `/status` to verify the installed version and
+repository. Project-scope registrations remain under each project's control;
+update their marketplace URL and plugin pin separately when ready. Subsequent
+user-scope upgrades use `/upgrade-larch` as usual. The copied upstream release
+is historical metadata; wait for the destination-built release before moving
+an installed plugin.
+
+### Repairing stale marketplace metadata
 
 If `/upgrade-larch` is unavailable or a plain `claude plugin install
 larch@larch-local` keeps installing an older version, the cached marketplace

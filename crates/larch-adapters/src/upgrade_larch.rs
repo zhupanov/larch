@@ -27,7 +27,7 @@ use std::{
 /// pointer editable without a release, while the content it points at stays
 /// pinned to one commit per version.
 pub const MARKETPLACE_SOURCE: &str =
-    "https://raw.githubusercontent.com/character-ai/larch/main/.claude-plugin/marketplace.json";
+    "https://raw.githubusercontent.com/zhupanov/larch/main/.claude-plugin/marketplace.json";
 const CACHE_RELATIVE: &str = ".claude/plugins/cache/larch-local/larch";
 const MARKETPLACE_RELATIVE: &str = ".claude/plugins/marketplaces/larch-local";
 /// Claude Code's install registry: the harness-level pointer that names the

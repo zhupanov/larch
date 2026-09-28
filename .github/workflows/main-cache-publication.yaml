@@ -254,7 +254,11 @@ jobs:
   main-cache-merge-group-source:
     name: main-cache-merge-group-source
     needs: [main-cache-probe]
-    if: needs.main-cache-probe.outputs.rust-candidates-needed == 'true'
+    # GitHub merge queues require an organization-owned repository. Personal
+    # repositories retain full CI validation without publishing queue artifacts.
+    if: >-
+      github.event.repository.owner.type == 'Organization' &&
+      needs.main-cache-probe.outputs.rust-candidates-needed == 'true'
     runs-on: ubuntu-24.04
     env:
       CARGO_INCREMENTAL: "0"

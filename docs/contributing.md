@@ -5,8 +5,9 @@
 If you are hacking on larch itself and want Claude Code to load the plugin directly from your working checkout (so `${CLAUDE_PLUGIN_ROOT}` resolves to the repo you are editing), launch Claude Code with `--plugin-dir`:
 
 ```bash
-git clone https://github.com/character-ai/larch.git
+git clone https://github.com/zhupanov/larch.git
 cd larch
+gh repo set-default zhupanov/larch
 claude --plugin-dir .
 ```
 

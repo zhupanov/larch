@@ -17,7 +17,7 @@ Mine a repository's closed bug reports for recurring root-cause patterns, then p
 
 **`--file` / `-s` is filing mode, not apply mode.** When either flag is set, the skill groups residual proposals and files detailed batch issues through `/issue` without a separate approval prompt. It must not append guidelines, create or extend invariants, update hooks, scaffold lints, add tests, or change still-broken code in the working tree. Filing under `--file` / `-s` is the explicit exception to per-action approval; every other repository mutation still requires Step 5 approval in default mode.
 
-After every successful state publication, Step 5a reflects on this run's own friction and consolidates material larch improvement suggestions. Filing mode files exactly one self-analysis issue against `character-ai/larch` when suggestions survive; default mode appends the analysis to the report and offers that filing behind the existing Step 5 gate. Zero material suggestions file nothing.
+After every successful state publication, Step 5a reflects on this run's own friction and consolidates material larch improvement suggestions. Filing mode files exactly one self-analysis issue against `zhupanov/larch` when suggestions survive; default mode appends the analysis to the report and offers that filing behind the existing Step 5 gate. Zero material suggestions file nothing.
 
 The engine keeps this cheap. It never reads full issue bodies into context: `learn-from-bugs prepare` compresses each body to a compact root-cause digest first (dropping the appended `/design` plan, which dominates the bytes), so the synthesis reads a small fraction of the raw tokens. The prepared stats print a conservative `DIGEST_TOKENS_EST` so the operator can size a run before spending.
 
@@ -396,11 +396,11 @@ When one or more suggestions survive, consolidate them into exactly one self-con
 
 `/learn-from-bugs self-analysis: <REPO> <YYYY-MM-DD>`
 
-Use the prepared mined `REPO` and the UTC calendar date from `RUN_DATE` (the `YYYY-MM-DD` prefix only). Keep the body self-contained: summary, every surviving suggestion with evidence / proposed change / acceptance sketch, and scope noting the improvements target `character-ai/larch`, not the mined repository. Do not mutate the mined repository's `REPO` binding; every other filing path in this skill continues to use `$REPO` unchanged.
+Use the prepared mined `REPO` and the UTC calendar date from `RUN_DATE` (the `YYYY-MM-DD` prefix only). Keep the body self-contained: summary, every surviving suggestion with evidence / proposed change / acceptance sketch, and scope noting the improvements target `zhupanov/larch`, not the mined repository. Do not mutate the mined repository's `REPO` binding; every other filing path in this skill continues to use `$REPO` unchanged.
 
-**Filing mode (`FILE_MODE=true`):** file that single issue against `character-ai/larch` through `/issue` (never `gh issue create`). Invoke `/issue` via the Skill tool using the canonical bare-then-prefixed fallback:
+**Filing mode (`FILE_MODE=true`):** file that single issue against `zhupanov/larch` through `/issue` (never `gh issue create`). Invoke `/issue` via the Skill tool using the canonical bare-then-prefixed fallback:
 
-1. Try bare `issue` with `--input-file "$RUN_DIR/self-analysis-issue.md" --repo character-ai/larch`.
+1. Try bare `issue` with `--input-file "$RUN_DIR/self-analysis-issue.md" --repo zhupanov/larch`.
 2. Retry as `larch:issue` only when the bare invocation returns `Unknown skill`.
 3. Preserve the anti-halt continuation and parse the child result rather than treating invocation as terminal.
 
@@ -420,7 +420,7 @@ Then continue: filing mode ends this skill's numbered steps after the filing att
 Before offering any follow-up, require a separate explicit operator approval for every proposal whose Size budget is greater than 400 lines. Do not treat approval of a category as approval of an oversized proposal.
 
 - **File issues.** For the Step 4 "Issues to file" items the operator approves, invoke `/issue` via the Skill tool once with the drafted bodies. Do not call `gh issue create` directly.
-- **File self-analysis.** When Step 5a retained a material `${RUN_DIR}/self-analysis-issue.md`, offer filing that single issue against `character-ai/larch` as its own approval item (separate from residual "File issues"). On approval, invoke `/issue` via the Skill tool with the canonical bare-then-prefixed fallback (`issue`, then `larch:issue` only on `Unknown skill`), `--input-file "$RUN_DIR/self-analysis-issue.md" --repo character-ai/larch`. Name the returned issue number to the operator and in report section `9. End-of-run self-analysis`. Skip this offer when Step 5a recorded zero surviving suggestions.
+- **File self-analysis.** When Step 5a retained a material `${RUN_DIR}/self-analysis-issue.md`, offer filing that single issue against `zhupanov/larch` as its own approval item (separate from residual "File issues"). On approval, invoke `/issue` via the Skill tool with the canonical bare-then-prefixed fallback (`issue`, then `larch:issue` only on `Unknown skill`), `--input-file "$RUN_DIR/self-analysis-issue.md" --repo zhupanov/larch`. Name the returned issue number to the operator and in report section `9. End-of-run self-analysis`. Skip this offer when Step 5a recorded zero surviving suggestions.
 - **Append guideline entries.** On approval, `Edit` the target repo's guideline file to append the approved entries, matching its existing numbering and style.
 - **Create or extend the invariants file.** Only if the operator confirms an `ARCHITECTURAL_INVARIANTS.md` should exist, create or append it with the approved never-violate entries.
 - **Update hook contracts.** On approval, edit the hook configuration, hook script, sibling docs, and harness together, then hand behavior changes to `/design` and `/implement` when they exceed a small documentation-only update.

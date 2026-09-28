@@ -1,0 +1,12 @@
+{
+  "upstream": "NicholasBoll/github-migration",
+  "upstreamRevision": "241c203953fb516609b16f454098daa1b48d7d73",
+  "adaptationCommit": "6725bfa8cad993dbcd72582920bff2f9cdf2d4b3",
+  "patchSha256": "dfd1894dd40a68aed7392921f0aa095a2688b943038e86d91d5f4b2a83a56976",
+  "patchBytes": 414810,
+  "tests": "35 migration tests passed, including title references, API limits, and interrupted leaf completion",
+  "schemaVersion": 1,
+  "patch": "github-migration.patch",
+  "retention": "The adaptation Git bundle and execution data are retained privately by the repository owner.",
+  "rawDataCommitted": false
+}

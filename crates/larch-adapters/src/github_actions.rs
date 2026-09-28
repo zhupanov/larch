@@ -1722,7 +1722,7 @@ mod tests {
                     .await
                     .expect("live GitHub service must construct");
             let repository =
-                GitHubRepositoryRef::new("character-ai", "larch").expect("fixed public repository");
+                GitHubRepositoryRef::new("zhupanov", "larch").expect("fixed public repository");
             larch_core::run_logs(&service, &repository, run_id, &cancellation).await
         });
         assert_eq!(

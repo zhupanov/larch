@@ -115,6 +115,12 @@ binary or test executable remains, and uploads its directory inventory. The
 publisher repeats executable digest and version checks for the pinned Cargo
 tools before saving them.
 
+GitHub merge queues require an organization-owned repository. In the personal
+`zhupanov/larch` repository, the publisher skips merge-group resolution and
+dependent Rust cache promotion. CI uses its existing full-build fallback when
+the trusted cache is unavailable. Lightweight tool-cache publication continues.
+No pull-request artifact substitutes for a verified merge-group producer.
+
 The only manual compiler-output publication is an explicitly selected,
 main-ref coverage-target benchmark. Its job is gated to `workflow_dispatch` on
 `refs/heads/main`, uses a separate `coverage-target-deps-benchmark-*` key, and
@@ -269,7 +275,7 @@ emits the schema-v1 manifest and checksum file, attests both, verifies all
 three attestations through the typed Rust GitHub attestation capability, and
 revalidates the final three-file allowlist before upload.
 
-The attestation service verifies only `character-ai/larch` artifact provenance
+The attestation service verifies only `zhupanov/larch` artifact provenance
 and immutable-release attestations. Domain callers cannot set a repository,
 workflow, issuer, signer identity, trust root, API path, or absolute URL.
 Artifact verification requires a valid Sigstore chain, SCT and Rekor evidence,
@@ -279,6 +285,11 @@ SHA-256 subject. Immutable-release verification uses GitHub's separate embedded
 trust root and release identity. It verifies the signed timestamp and signature
 and requires the release tag, source commit, repository, and complete unique
 asset name and digest set. Missing fields fail closed.
+
+Assets copied from the former `character-ai/larch` repository retain their
+upstream build identity. Copying a release does not make those assets a
+destination build. Installation and upgrade verification require artifacts
+built and attested by `zhupanov/larch`.
 
 API bodies, bundle counts, compressed and decompressed bundle bytes, redirects,
 and deadlines are bounded. A response-supplied bundle URL is accepted only on
@@ -292,7 +303,7 @@ directly through its Rust owner. It has no `gh` fallback.
 
 GitHub provenance ties bytes to a commit and workflow, not source or
 infrastructure trust. Checksums index integrity, not trust. `/release` merges
-the version candidate through the normal queue, resolves GitHub's recorded
+the version candidate through the protected merge path, resolves GitHub's recorded
 post-merge `main` commit, builds a projection commit with that commit as its
 first parent, then tags the projection and uploads only the validated
 three-file set to a mutable draft. It rechecks the merge identity, projection
@@ -851,7 +862,9 @@ missing cursors return a typed failure. Backlog analysis records that failure as
 degraded evidence rather than treating the closure field as complete.
 
 Release preparation uses typed, bounded reads for the Latest release, PRs, and
-companion issue titles. Publication fetches through the typed Git CLI adapter,
+companion issue titles. A dry run passes `release prepare --no-fetch` to use
+the existing `origin/main` ref without fetching or changing Git refs.
+Publication fetches through the typed Git CLI adapter,
 checks ancestry through gix, and uses typed release and attestation services. It
 publishes without changing Latest, verifies the immutable release, and only
 then promotes it. Ambiguous promotion reads back Latest before a retry. The

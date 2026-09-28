@@ -157,7 +157,7 @@ work:
   adapter uses that result to build a pinned Octocrab client with native TLS
   disabled and `rustls` enabled, and does not expose an arbitrary REST URL or
   GraphQL document to domain callers.
-- Attestation domain inputs fix the repository to `character-ai/larch`, the
+- Attestation domain inputs fix the repository to `zhupanov/larch`, the
   release workflow to `.github/workflows/rust-release-assets.yaml`, GitHub's
   OIDC issuer and signer identities, and the trust roots. Callers provide only
   a validated release tag, source commit, and expected asset subjects. The

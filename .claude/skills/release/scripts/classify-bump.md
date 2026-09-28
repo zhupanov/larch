@@ -22,4 +22,8 @@ The classifier treats the branch as already versioned when the idempotency head 
 
 ## Edit-in-sync
 
+`release prepare --no-fetch` reads the existing `origin/main` ref. The release
+skill uses it for dry runs so preparation does not fetch or update Git refs.
+Normal preparation still fetches before selecting the release window.
+
 Keep this file aligned with `larch release classify-bump`, `crates/larch-cli/tests/release_prepare.rs`, and `larch release prepare`.

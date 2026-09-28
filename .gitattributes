@@ -22,6 +22,9 @@
 # modification against the unnormalized committed blob.
 fixtures/rust-review/*.golden.* -text
 
+# Preserve upstream diff context and removed lines verbatim in the migration patch.
+docs/repository-migration/github-migration.patch -whitespace
+
 # Runtime logs are committed in development branches for auditability, but
 # they must not ship in the plugin archive consumed by users.
 larch-logs/ export-ignore

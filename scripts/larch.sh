@@ -3,8 +3,8 @@
 # process with it. Keep this bootstrap compatible with macOS Bash 3.2.
 set -eEuo pipefail
 
-readonly RELEASE_REPO="character-ai/larch"
-readonly RELEASE_WORKFLOW="character-ai/larch/.github/workflows/rust-release-assets.yaml"
+readonly RELEASE_REPO="zhupanov/larch"
+readonly RELEASE_WORKFLOW="zhupanov/larch/.github/workflows/rust-release-assets.yaml"
 # The branch .claude-plugin/marketplace.json pins installed plugin content to.
 # Shared with RELEASE_PIN_REF in crates/larch-cli/src/release_publish.rs and the
 # descriptor's "ref" field; all three change together. Not "release": Git refs

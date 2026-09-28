@@ -7,7 +7,7 @@ distilled from how the larch repository configures itself.
 
 There are two ways to use it:
 
-- **Lift the files.** Point your agent at the [larch repo](https://github.com/character-ai/larch),
+- **Lift the files.** Point your agent at the [larch repo](https://github.com/zhupanov/larch),
   copy the files in the [Starter kit](#starter-kit), and adapt the ones marked *Adapt*.
 - **Let your agent do it.** Paste the recipe in [Let your agent do it](#let-your-agent-do-it)
   and let it scaffold the equivalents for your repo.
@@ -31,7 +31,7 @@ Give your agent this prompt. It reads larch's setup and scaffolds the equivalent
 for your repo:
 
 ```text
-Point yourself at the larch repository (https://github.com/character-ai/larch).
+Point yourself at the larch repository (https://github.com/zhupanov/larch).
 Read: CLAUDE.md, AGENTS.md, KARPATHY_CLAUDE.md, BASH_AUTHORING.md,
 ARCHITECTURAL_INVARIANTS.md, ARCHITECTURAL_GUIDELINES.md, hooks/hooks.json,
 docs/linting.md, and .pre-commit-config.yaml.
