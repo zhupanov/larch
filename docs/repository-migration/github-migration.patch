@@ -1,9 +1,9 @@
 diff --git a/LARCH_MIGRATION.md b/LARCH_MIGRATION.md
 new file mode 100644
-index 0000000..39d0555
+index 0000000..b786492
 --- /dev/null
 +++ b/LARCH_MIGRATION.md
-@@ -0,0 +1,169 @@
+@@ -0,0 +1,177 @@
 +# Larch repository migration
 +
 +This adaptation migrates `character-ai/larch` into the existing public
@@ -82,6 +82,13 @@ index 0000000..39d0555
 +ledger. A host/PID lock admits one destination writer. Before a creation request,
 +the tool saves its intent and stable provenance marker. Resume reconciles a
 +possible remote success before retrying. Failed writes never count as migrated.
++Creation responses with HTTP 500, 502, 503, or 504 enter bounded recovery in the
++same process. Recovery first looks for the saved provenance marker. If the
++record is still absent, it waits until at least 90 seconds after the attempted
++write, checks again, and only then retries. A creation permits at most three
++POST attempts per invocation. Persistent errors, unreadable recovery evidence,
++duplicate markers, and body mismatches stop the stage. Authentication,
++validation, and uncertain transport failures also stop for operator recovery.
 +On restart, the three bulk stages trust their completed per-record checkpoints.
 +They check saved identities locally and skip remote rereads of copied issues,
 +PRs, comments, and completed metadata updates. An unfinished creation request
@@ -166,6 +173,7 @@ index 0000000..39d0555
 +```sh
 +node --test migrationReplay.test.js migrationReferences.test.js \
 +  migrationResume.test.js \
++  migrationRecovery.test.js \
 +  migrationSafety.test.js historySupplement.test.js releaseMigration.test.js \
 +  repositoryConfiguration.test.js historyCompletion.test.js historyFiles.test.js
 +```
@@ -2711,6 +2719,177 @@ index 0000000..b6af292
 +  }
 +}
 +module.exports = { render, continuation, originalBlock, objectPresentation, limit }
+diff --git a/migrationRecovery.test.js b/migrationRecovery.test.js
+new file mode 100644
+index 0000000..88990bf
+--- /dev/null
++++ b/migrationRecovery.test.js
+@@ -0,0 +1,165 @@
++const assert = require('node:assert/strict')
++const { test } = require('node:test')
++const fs = require('fs-extra')
++const os = require('node:os')
++const path = require('node:path')
++
++process.env.MIGRATION_SOURCE_TOKEN = 'migration-test-source-token'
++process.env.MIGRATION_TARGET_TOKEN = 'migration-test-target-token'
++process.env.MIGRATION_TEST_REPO = 'larch-migration-rehearsal-20260928'
++process.env.MIGRATION_WRITE = '1'
++const config = require('./config')
++config.apiCallsPerHour = 3600000
++const migration = require('./migrationState')
++const RealDate = Date
++let clock = RealDate.now()
++const response = (value, status = 200) => new Response(JSON.stringify(value), { status })
++
++const fixture = async (run, endpoint = '/issues', readPath = '/issues/42') => {
++  const cwd = process.cwd(), originalFetch = global.fetch, originalTimeout = global.setTimeout
++  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'migration-server-recovery-'))
++  const calls = [], delays = []
++  let handler = async () => response({ message: 'Unexpected request' }, 400)
++  clock = Math.max(clock, RealDate.now())
++  global.Date = class extends RealDate {
++    constructor(...args) { super(...(args.length ? args : [clock])) }
++    static now() { return clock }
++  }
++  global.setTimeout = (callback, delay, ...args) => {
++    delays.push(delay)
++    clock += delay
++    return originalTimeout(callback, 0, ...args)
++  }
++  const identity = migration.marker('object', 101)
++  const remote = { id: 42, number: 42, title: 'Migrated record', body: identity + '\n\nOriginal text', html_url: 'https://github.com/zhupanov/larch-migration-rehearsal-20260928/issues/42' }
++  const options = { key: 'object:101', endpoint, identity, body: { title: remote.title, body: remote.body }, recoveryEndpoint: () => endpoint, readEndpoint: () => readPath }
++  try {
++    process.chdir(directory)
++    global.fetch = async (url, request) => {
++      if (url.pathname.endsWith('/actions/permissions')) return response({ enabled: false })
++      const call = { method: request.method, endpoint: url.pathname.replace('/repos/zhupanov/larch-migration-rehearsal-20260928', ''), at: clock }
++      calls.push(call)
++      return handler(call, request)
++    }
++    await migration.open('server-recovery-test')
++    await run({ options, remote, calls, delays, handle: value => { handler = value } })
++  } finally {
++    await migration.close()
++    global.fetch = originalFetch
++    global.setTimeout = originalTimeout
++    global.Date = RealDate
++    process.chdir(cwd)
++    await fs.remove(directory)
++  }
++}
++
++for (const [endpoint, readPath] of [['/issues', '/issues/42'], ['/pulls', '/pulls/42'], ['/issues/11/comments', '/issues/comments/42'], ['/releases', '/releases/42']]) {
++  test('HTTP 502 after accepting ' + endpoint + ' adopts the existing record without another POST', async () => {
++    await fixture(async ({ options, remote, calls, handle }) => {
++      handle(async call => {
++        if (call.method === 'POST') return response({ message: 'Server Error' }, 502)
++        return response(call.endpoint === options.endpoint ? [remote] : remote)
++      })
++      const result = await migration.createOnce(options)
++      assert.equal(result.id, remote.id)
++      assert.equal(calls.filter(call => call.method === 'POST').length, 1)
++      assert.ok(calls.some(call => call.endpoint === readPath && call.method === 'GET'))
++    }, endpoint, readPath)
++  })
++}
++
++test('a rejected server write waits for settlement and verifies absence before its bounded retry', async () => {
++  await fixture(async ({ options, remote, calls, handle }) => {
++    let posts = 0
++    handle(async call => {
++      if (call.method === 'POST') return ++posts === 1 ? response({ message: 'Unavailable' }, 503) : response(remote)
++      return response(call.endpoint === options.endpoint ? [] : remote)
++    })
++    assert.equal((await migration.createOnce(options)).id, remote.id)
++    assert.equal(posts, 2)
++    assert.deepEqual(calls.slice(0, 4).map(call => call.method), ['POST', 'GET', 'GET', 'POST'])
++    const writes = calls.filter(call => call.method === 'POST')
++    assert.ok(writes[1].at - writes[0].at >= 90000)
++  })
++})
++
++test('a delayed remote success becomes visible during settlement and is never posted again', async () => {
++  await fixture(async ({ options, remote, calls, handle }) => {
++    let lists = 0
++    handle(async call => {
++      if (call.method === 'POST') return response({ message: 'Gateway timeout' }, 504)
++      if (call.endpoint === options.endpoint) return response(++lists === 1 ? [] : [remote])
++      return response(remote)
++    })
++    assert.equal((await migration.createOnce(options)).id, remote.id)
++    assert.equal(calls.filter(call => call.method === 'POST').length, 1)
++    assert.equal(lists, 2)
++    const secondLookup = calls.filter(call => call.method === 'GET' && call.endpoint === options.endpoint)[1]
++    assert.ok(secondLookup.at - Date.parse(migration.state().pending[options.key].attemptedAt) >= 90000)
++  })
++})
++
++test('persistent server errors stop after three POST attempts and retain the unresolved checkpoint', async () => {
++  await fixture(async ({ options, calls, handle }) => {
++    handle(async call => call.method === 'POST' ? response({ message: 'Internal error' }, 500) : response([]))
++    await assert.rejects(migration.createOnce(options), /HTTP 500/)
++    const writes = calls.filter(call => call.method === 'POST')
++    assert.equal(writes.length, 3)
++    assert.ok(writes[1].at - writes[0].at >= 90000)
++    assert.ok(writes[2].at - writes[1].at >= 90000)
++    assert.ok(migration.state().pending[options.key].attemptedAt)
++    const ledger = (await fs.readFile('larch/rehearsal-state.jsonl', 'utf8')).trim().split('\n').map(line => JSON.parse(line))
++    const errors = ledger.filter(event => event.action === 'create-server-error')
++    assert.deepEqual(errors.map(event => event.nextAction), ['reconcile', 'reconcile', 'stop'])
++  })
++})
++
++test('unavailable recovery evidence stops before another POST', async () => {
++  await fixture(async ({ options, calls, handle }) => {
++    handle(async call => response({ message: call.method === 'POST' ? 'Server Error' : 'Unreadable recovery list' }, call.method === 'POST' ? 502 : 404))
++    await assert.rejects(migration.createOnce(options), /HTTP 404/)
++    assert.equal(calls.filter(call => call.method === 'POST').length, 1)
++    assert.ok(migration.state().pending[options.key])
++  })
++})
++
++test('duplicate recovery markers stop before another POST', async () => {
++  await fixture(async ({ options, remote, calls, handle }) => {
++    handle(async call => call.method === 'POST' ? response({ message: 'Server Error' }, 502) : response([remote, { ...remote, id: 43, number: 43 }]))
++    await assert.rejects(migration.createOnce(options), /Duplicate migration marker/)
++    assert.equal(calls.filter(call => call.method === 'POST').length, 1)
++  })
++})
++
++test('a changed recovered body stops instead of being overwritten or recreated', async () => {
++  await fixture(async ({ options, remote, calls, handle }) => {
++    const edited = { ...remote, body: remote.body + '\nOwner edit' }
++    handle(async call => {
++      if (call.method === 'POST') return response({ message: 'Server Error' }, 502)
++      return response(call.endpoint === options.endpoint ? [edited] : edited)
++    })
++    await assert.rejects(migration.createOnce(options), /Destination body verification failed/)
++    assert.equal(calls.filter(call => call.method === 'POST').length, 1)
++    assert.equal(calls.filter(call => call.method === 'PATCH').length, 0)
++  })
++})
++
++for (const status of [401, 403, 422]) {
++  test('HTTP ' + status + ' stops without automatic server-error recovery', async () => {
++    await fixture(async ({ options, calls, handle }) => {
++      handle(async () => response({ message: 'Request rejected' }, status))
++      await assert.rejects(migration.createOnce(options), new RegExp('HTTP ' + status))
++      assert.equal(calls.length, 1)
++      assert.equal(calls[0].method, 'POST')
++    })
++  })
++}
++
++test('an uncertain transport failure retains operator recovery and is never blindly retried', async () => {
++  await fixture(async ({ options, calls, handle }) => {
++    handle(async () => { throw new Error('Connection lost after a possible write') })
++    await assert.rejects(migration.createOnce(options), /transport failed; reconcile writes/)
++    assert.equal(calls.length, 1)
++    assert.ok(migration.state().pending[options.key].attemptedAt)
++  })
++})
 diff --git a/migrationReferences.js b/migrationReferences.js
 new file mode 100644
 index 0000000..ef39a48
@@ -3460,10 +3639,10 @@ index 0000000..f8ba61f
 +})
 diff --git a/migrationState.js b/migrationState.js
 new file mode 100644
-index 0000000..e256133
+index 0000000..e17607a
 --- /dev/null
 +++ b/migrationState.js
-@@ -0,0 +1,154 @@
+@@ -0,0 +1,174 @@
 +const fs = require('fs-extra')
 +const path = require('node:path')
 +const os = require('node:os')
@@ -3554,7 +3733,7 @@ index 0000000..e256133
 +  if (matches.length > 1) throw new Error('Duplicate migration marker found: ' + expected)
 +  return matches[0]
 +}
-+const createOnce = async ({ key, endpoint, body, recoveryEndpoint, identity, readEndpoint }) => {
++const createAttempt = async ({ key, endpoint, body, recoveryEndpoint, identity, readEndpoint }) => {
 +  const pending = state.pending[key]
 +  const digest = sha256(JSON.stringify(body))
 +  if (pending && pending.digest !== digest) throw new Error('Mutation changed while pending: ' + key)
@@ -3586,7 +3765,12 @@ index 0000000..e256133
 +  await audit({ key, action: 'create-intent', endpoint, bodySha256: sha256(body.body || '') })
 +  state.pending[key].attemptedAt = new Date().toISOString()
 +  await save()
-+  response = await call('POST', endpoint, body)
++  try {
++    response = await call('POST', endpoint, body)
++  } catch (error) {
++    if ([500, 502, 503, 504].includes(error.statusCode)) error.retryableCreate = true
++    throw error
++  }
 +  // A rehearsal can interrupt here, after GitHub accepted the write but before any response is checkpointed.
 +  if (process.env.MIGRATION_FAIL_AFTER_REMOTE_SUCCESS === key) {
 +    throw new Error('Rehearsal interruption after remote success: ' + key)
@@ -3597,6 +3781,21 @@ index 0000000..e256133
 +  verifyBody(readback, body.body)
 +  await audit({ key, action: 'created-and-read-back', number: readback.number, id: readback.id })
 +  return readback
++}
++const createOnce = async options => {
++  const maxAttempts = 3
++  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
++    try {
++      return await createAttempt(options)
++    } catch (error) {
++      if (!error.retryableCreate) throw error
++      await audit({ key: options.key, action: 'create-server-error', status: error.statusCode,
++        attempt, maxAttempts, nextAction: attempt < maxAttempts ? 'reconcile' : 'stop' })
++      if (attempt === maxAttempts) throw error
++      console.log('GitHub HTTP ' + error.statusCode + ' for ' + options.key +
++        '; reconciling the pending write before recovery attempt ' + (attempt + 1) + '/' + maxAttempts)
++    }
++  }
 +}
 +const issueFiles = async () => {
 +  let records = (await fs.readdir(path.join(config.source.repo, 'issues')))

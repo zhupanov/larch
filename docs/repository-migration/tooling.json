@@ -1,13 +1,25 @@
 {
   "upstream": "NicholasBoll/github-migration",
   "upstreamRevision": "241c203953fb516609b16f454098daa1b48d7d73",
-  "adaptationCommit": "9aef17d13d65bb0f6fd80f98444885ef1fa092a2",
-  "patchSha256": "1fb198c4c3b61fbef240aaa67b290c807bcb1d1347c7ed3b12f696adad796ed2",
-  "patchBytes": 429008,
-  "tests": "12 targeted replay and resume tests passed; 7,384 actual checkpoint mappings skipped with zero record reads in an offline validation",
+  "adaptationCommit": "0635e9827f222f0e803df7f12ffece720d9ed57a",
+  "patchSha256": "354c10449fcac8e71d1bc3158c0aa413c036ae60f30752777d98339ba9b307fc",
+  "patchBytes": 439155,
+  "tests": "37 targeted recovery, replay, resume, release, completion, and safety tests passed; prior offline validation skipped 7,384 completed mappings without remote record reads",
   "schemaVersion": 1,
   "patch": "github-migration.patch",
   "retention": "The adaptation Git bundle and execution data are retained privately by the repository owner.",
   "rawDataCommitted": false,
-  "resumePolicy": "Skip completed record checkpoints; reconcile interrupted requests; retain independent full audits"
+  "resumePolicy": "Skip completed record checkpoints; reconcile interrupted requests; retain independent full audits",
+  "creationServerErrorRecovery": {
+    "statuses": [
+      500,
+      502,
+      503,
+      504
+    ],
+    "maximumPostAttemptsPerInvocation": 3,
+    "reconcileBeforeRetry": true,
+    "settlementMilliseconds": 90000,
+    "stopOnUnresolvedFailure": true
+  }
 }

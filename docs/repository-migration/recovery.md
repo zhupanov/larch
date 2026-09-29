@@ -18,6 +18,14 @@ destination body or an unknown branch owner requires reconciliation before
 another write. Do not rerun `fetch` over the original snapshot, run `increment`,
 or reset the ledger to bypass a failure.
 
+Creation responses with HTTP 500, 502, 503, or 504 trigger bounded recovery.
+The importer checks the pending record for a remote success. If it is absent,
+it allows 90 seconds for GitHub to settle and checks again before retrying.
+Each invocation permits at most three POST attempts. Persistent failures,
+unreadable recovery data, duplicate markers, and changed bodies stop the stage.
+Authentication, validation, and uncertain transport failures require operator
+recovery. Keep the pending checkpoint when investigating a stopped stage.
+
 The bulk import stages skip completed per-record checkpoints on restart.
 They check saved identities locally and resume unfinished work without remote
 rereads of completed records. Uncertain writes and unfinished body restoration
