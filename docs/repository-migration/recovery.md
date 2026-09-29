@@ -18,6 +18,12 @@ destination body or an unknown branch owner requires reconciliation before
 another write. Do not rerun `fetch` over the original snapshot, run `increment`,
 or reset the ledger to bypass a failure.
 
+The bulk import stages skip completed per-record checkpoints on restart.
+They check saved identities locally and resume unfinished work without remote
+rereads of completed records. Uncertain writes and unfinished body restoration
+still receive remote checks. Independent full audits run before the historical
+leaves are completed.
+
 Synthetic branches may be removed only when their recorded commits still
 match and every associated historical PR is verified closed and unmerged.
 Retain the source Git mirror, archived diffs, and original GitHub metadata

@@ -1,9 +1,9 @@
 diff --git a/LARCH_MIGRATION.md b/LARCH_MIGRATION.md
 new file mode 100644
-index 0000000..76f809f
+index 0000000..39d0555
 --- /dev/null
 +++ b/LARCH_MIGRATION.md
-@@ -0,0 +1,161 @@
+@@ -0,0 +1,169 @@
 +# Larch repository migration
 +
 +This adaptation migrates `character-ai/larch` into the existing public
@@ -82,6 +82,13 @@ index 0000000..76f809f
 +ledger. A host/PID lock admits one destination writer. Before a creation request,
 +the tool saves its intent and stable provenance marker. Resume reconciles a
 +possible remote success before retrying. Failed writes never count as migrated.
++On restart, the three bulk stages trust their completed per-record checkpoints.
++They check saved identities locally and skip remote rereads of copied issues,
++PRs, comments, and completed metadata updates. An unfinished creation request
++still reconciles its provenance marker before retrying. Unfinished long-body
++restoration and metadata updates still receive their normal remote checks.
++`auditReplay` and `auditHistorical` independently reread the migrated records
++before the historical leaves can be completed.
 +If a host name changes, inspect the old worker's PID and start time before
 +retiring its lock; do not weaken the lock or overwrite it while a worker lives.
 +
@@ -158,6 +165,7 @@ index 0000000..76f809f
 +
 +```sh
 +node --test migrationReplay.test.js migrationReferences.test.js \
++  migrationResume.test.js \
 +  migrationSafety.test.js historySupplement.test.js releaseMigration.test.js \
 +  repositoryConfiguration.test.js historyCompletion.test.js historyFiles.test.js
 +```
@@ -708,10 +716,10 @@ index ffdadaf..b1cf777 100644
 +if (require.main === module) migration.run('createBranches', main)
 +module.exports = { main, remoteRefs, git }
 diff --git a/createComments.js b/createComments.js
-index a7c2d98..9e2d4a0 100644
+index a7c2d98..9047a01 100644
 --- a/createComments.js
 +++ b/createComments.js
-@@ -1,296 +1,121 @@
+@@ -1,296 +1,124 @@
 -const request = require('request-promise')
 -const moment = require('moment')
  const fs = require('fs-extra')
@@ -750,8 +758,11 @@ index a7c2d98..9e2d4a0 100644
 +  const key = kind + ':' + record.id + (part ? ':part-' + part : '')
 +  const previous = state.comments[key]
 +  if (previous && previous.status === 'verified') {
-+    const remote = await migration.call('GET', '/issues/comments/' + previous.targetId)
-+    if (!String(remote.body || '').startsWith(identity)) throw new Error('Migrated comment identity changed: ' + key)
++    if (previous.marker !== identity || previous.sourceId !== record.id ||
++        previous.sourceKind !== kind || previous.sourceNumber !== number ||
++        previous.targetNumber !== state.objects[number]?.targetNumber ||
++        !Number.isSafeInteger(previous.targetId) || previous.targetId < 1 ||
++        state.pending['comment:' + key]) throw new Error('Invalid completed comment checkpoint: ' + key)
 +    return previous
 +  }
 +  const mapped = state.objects[number]
@@ -1111,10 +1122,10 @@ index a7c2d98..9e2d4a0 100644
 +if (require.main === module) migration.run('createComments', main)
 +module.exports = { main, createComment, postComment }
 diff --git a/createIssues.js b/createIssues.js
-index fc6cb81..9428ef3 100644
+index fc6cb81..78ea873 100644
 --- a/createIssues.js
 +++ b/createIssues.js
-@@ -1,107 +1,150 @@
+@@ -1,107 +1,153 @@
 -const request = require('request-promise')
  const fs = require('fs-extra')
 -const glob = require('glob')
@@ -1334,8 +1345,11 @@ index fc6cb81..9428ef3 100644
 +    }
 +    const existing = state.objects[issue.number]
 +    if (existing && existing.status === 'verified') {
-+      const remote = await migration.call('GET', '/issues/' + existing.targetNumber)
-+      if (remote.id !== existing.targetIssueId || !String(remote.body || '').startsWith(existing.marker)) throw new Error('Previously mapped object changed identity: #' + issue.number)
++      if (existing.sourceNumber !== issue.number || existing.sourceIssueId !== issue.id ||
++          existing.marker !== migration.marker('object', issue.id) ||
++          !Number.isSafeInteger(existing.targetNumber) || existing.targetNumber < 1 ||
++          !Number.isSafeInteger(existing.targetIssueId) || existing.targetIssueId < 1 ||
++          state.pending['object:' + issue.number]) throw new Error('Invalid completed object checkpoint: #' + issue.number)
 +    } else if (issue.pull_request) {
        await createPull(issue)
 -      await sleep(60 * 60 * 1000 / config.apiCallsPerHour)
@@ -3074,6 +3088,245 @@ index 0000000..126f712
 +}
 +request.safeError = safeError
 +module.exports = request
+diff --git a/migrationResume.test.js b/migrationResume.test.js
+new file mode 100644
+index 0000000..d4191d6
+--- /dev/null
++++ b/migrationResume.test.js
+@@ -0,0 +1,233 @@
++const assert = require('node:assert/strict')
++const { test } = require('node:test')
++const fs = require('fs-extra')
++const os = require('node:os')
++const path = require('node:path')
++
++process.env.MIGRATION_SOURCE_TOKEN = 'migration-test-source-token'
++process.env.MIGRATION_TARGET_TOKEN = 'migration-test-target-token'
++process.env.MIGRATION_TEST_REPO = 'larch-migration-rehearsal-20260928'
++process.env.MIGRATION_WRITE = '1'
++delete process.env.MIGRATION_SELECTION
++const config = require('./config')
++config.apiCallsPerHour = 3600000
++const migration = require('./migrationState')
++const { main: createObjects } = require('./createIssues')
++const { main: createComments, postComment } = require('./createComments')
++const { main: updateObjects } = require('./updateIssues')
++const { render } = require('./migrationContent')
++
++const response = (value, status = 200) => new Response(JSON.stringify(value), { status })
++const source = (number, extra = {}) => ({
++  number, id: 100000 + number, title: 'Source ' + number, body: 'Original body ' + number,
++  state: 'closed', labels: [], assignees: [], locked: false,
++  user: { login: 'original-author', html_url: 'https://github.com/original-author' },
++  created_at: '2026-01-01T00:00:00Z', html_url: 'https://github.com/character-ai/larch/issues/' + number,
++  ...extra,
++})
++const mapping = (record, number) => ({
++  status: 'verified', sourceNumber: record.number, sourceIssueId: record.id,
++  sourceKind: record.pull_request ? 'pull' : 'issue', sourceUrl: record.html_url,
++  targetNumber: number, targetIssueId: 900000 + number,
++  targetKind: record.pull_request ? 'pull' : 'issue',
++  targetUrl: 'https://github.com/zhupanov/larch-migration-rehearsal-20260928/issues/' + number,
++  marker: migration.marker('object', record.id), bodySha256: 'a'.repeat(64),
++})
++const remoteObject = (record, body, number) => ({
++  id: 900000 + number, number, node_id: 'I_' + number, title: record.title, body,
++  html_url: 'https://github.com/zhupanov/larch-migration-rehearsal-20260928/issues/' + number,
++})
++
++const fixture = async (records, run) => {
++  const cwd = process.cwd(), originalFetch = global.fetch
++  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'migration-resume-test-'))
++  const calls = []
++  let handler = async () => response({ message: 'Unexpected remote request' }, 400)
++  try {
++    process.chdir(directory)
++    await fs.ensureDir('larch/issues')
++    for (const record of records) await fs.writeJson('larch/issues/issue-' + record.number + '.json', record)
++    for (const name of ['issue-comments', 'pull-comments', 'reviews', 'comments']) await fs.writeJson('larch/' + name + '.json', [])
++    global.fetch = async (url, options) => {
++      if (url.pathname.endsWith('/actions/permissions')) return response({ enabled: false })
++      calls.push({ method: options.method, path: url.pathname, query: url.search })
++      return handler(url, options)
++    }
++    const state = await migration.open('resume-test')
++    state.metadataProvisionedAt = '2026-01-01T00:00:00Z'
++    state.assignees = {}
++    await run({ state, calls, handle: value => { handler = value } })
++  } finally {
++    await migration.close()
++    global.fetch = originalFetch
++    process.chdir(cwd)
++    await fs.remove(directory)
++  }
++}
++
++test('object resume skips copied issues and PRs, creates the next object, and keeps the live PR deferred', async () => {
++  const records = [source(1), source(2, { pull_request: {} }), source(3), source(9076, { pull_request: {} })]
++  await fixture(records, async ({ state, calls, handle }) => {
++    state.objects[1] = mapping(records[0], 11)
++    state.objects[2] = mapping(records[1], 12)
++    let created
++    handle(async (url, options) => {
++      if (url.pathname.endsWith('/issues') && options.method === 'POST') {
++        created = remoteObject(records[2], JSON.parse(options.body).body, 23)
++        return response(created)
++      }
++      if (url.pathname.endsWith('/issues/23') && options.method === 'GET') return response(created)
++      return response({ message: 'Completed records must not be reread' }, 400)
++    })
++    await createObjects()
++    assert.equal(state.objects[3].targetNumber, 23)
++    assert.equal(state.objects[9076].status, 'deferred')
++    assert.equal(calls.filter(call => call.method === 'POST').length, 1)
++    assert.ok(calls.every(call => !/\/(11|12|9076)$/.test(call.path)))
++    calls.length = 0
++    await createObjects()
++    assert.deepEqual(calls, [])
++  })
++})
++
++test('an unfinished creation reconciles remote success without posting a duplicate', async () => {
++  const record = source(1)
++  await fixture([record], async ({ state, calls, handle }) => {
++    const rendered = await render(record, 'object', {}, {}, '')
++    const body = { title: record.title, body: rendered.body }
++    state.pending['object:1'] = { startedAt: '2026-01-01T00:00:00Z', attemptedAt: '2026-01-01T00:00:00Z', digest: migration.sha256(JSON.stringify(body)), marker: rendered.identity }
++    const remote = remoteObject(record, rendered.body, 42)
++    handle(async (url, options) => {
++      if (options.method === 'GET' && url.pathname.endsWith('/issues')) return response([remote])
++      if (options.method === 'GET' && url.pathname.endsWith('/issues/42')) return response(remote)
++      return response({ message: 'A reconciled creation must not be repeated' }, 400)
++    })
++    await createObjects()
++    assert.equal(state.objects[1].targetNumber, 42)
++    assert.equal(state.pending['object:1'], undefined)
++    assert.equal(calls.filter(call => call.method === 'POST').length, 0)
++    assert.ok(calls.some(call => call.path.endsWith('/issues/42')))
++  })
++})
++
++test('an unfinished creation is retried only after the recovery reads establish absence', async () => {
++  const record = source(1)
++  await fixture([record], async ({ state, calls, handle }) => {
++    const rendered = await render(record, 'object', {}, {}, '')
++    const body = { title: record.title, body: rendered.body }
++    state.pending['object:1'] = { startedAt: '2026-01-01T00:00:00Z', attemptedAt: '2026-01-01T00:00:00Z', digest: migration.sha256(JSON.stringify(body)), marker: rendered.identity }
++    const remote = remoteObject(record, rendered.body, 42)
++    handle(async (url, options) => {
++      if (url.pathname.endsWith('/issues')) return response(options.method === 'GET' ? [] : remote)
++      if (url.pathname.endsWith('/issues/42')) return response(remote)
++      return response({ message: 'Unexpected request' }, 400)
++    })
++    await createObjects()
++    assert.deepEqual(calls.slice(0, 3).map(call => call.method), ['GET', 'GET', 'POST'])
++    assert.equal(calls.filter(call => call.method === 'POST').length, 1)
++    assert.equal(state.objects[1].targetNumber, 42)
++    assert.equal(state.pending['object:1'], undefined)
++  })
++})
++
++test('comment resume skips a verified comment and copies the next comment once', async () => {
++  const record = source(1)
++  await fixture([record], async ({ state, calls, handle }) => {
++    state.objects[1] = mapping(record, 11)
++    const comments = [101, 102].map(id => ({ id, body: 'Comment ' + id, created_at: '2026-01-01T00:00:00Z', user: record.user, issue_url: 'https://api.github.com/repos/character-ai/larch/issues/1', html_url: record.html_url + '#issuecomment-' + id }))
++    await fs.writeJson('larch/issue-comments.json', comments)
++    state.comments['issue-comment:101'] = { status: 'verified', sourceId: 101, sourceKind: 'issue-comment', sourceNumber: 1, targetId: 601, targetNumber: 11, marker: migration.marker('issue-comment', 101) }
++    let created
++    handle(async (url, options) => {
++      if (options.method === 'POST' && url.pathname.endsWith('/issues/11/comments')) {
++        created = { id: 602, ...JSON.parse(options.body), html_url: 'https://github.com/zhupanov/larch-migration-rehearsal-20260928/issues/11#issuecomment-602' }
++        return response(created)
++      }
++      if (options.method === 'GET' && url.pathname.endsWith('/issues/comments/602')) return response(created)
++      return response({ message: 'Completed comments must not be reread' }, 400)
++    })
++    await createComments()
++    assert.equal(state.comments['issue-comment:102'].targetId, 602)
++    assert.equal(calls.filter(call => call.method === 'POST').length, 1)
++    assert.ok(calls.every(call => !call.path.endsWith('/601')))
++    calls.length = 0
++    await createComments()
++    assert.deepEqual(calls, [])
++  })
++})
++
++test('a copied object with unfinished long-body restoration still finishes that work', async () => {
++  const record = source(1)
++  await fixture([record], async ({ state, calls, handle }) => {
++    const saved = state.objects[1] = mapping(record, 11)
++    const remote = remoteObject(record, saved.marker + '\n\nShort creation body', 11)
++    saved.bodySha256 = migration.sha256(migration.normalize(remote.body))
++    state.largeBodies[1] = { sourceNumber: 1, needsBodyRestore: true }
++    handle(async (url, options) => {
++      if (!url.pathname.endsWith('/issues/11')) return response({ message: 'Unexpected request' }, 400)
++      if (options.method === 'PATCH') Object.assign(remote, JSON.parse(options.body))
++      return response(remote)
++    })
++    await createObjects()
++    assert.equal(calls.filter(call => call.method === 'PATCH').length, 1)
++    assert.equal(state.largeBodies[1].needsBodyRestore, false)
++    assert.match(remote.body, /Original body 1/)
++    calls.length = 0
++    await createObjects()
++    assert.deepEqual(calls, [])
++  })
++})
++
++test('metadata resume skips completed issues and PRs while still closing an unfinished record', async () => {
++  const records = [source(1), source(2, { pull_request: {} }), source(3)]
++  await fixture(records, async ({ state, calls, handle }) => {
++    for (const record of records) state.objects[record.number] = mapping(record, record.number + 10)
++    state.objects[1].metadataVerifiedAt = state.objects[2].metadataVerifiedAt = '2026-01-01T00:00:00Z'
++    const rendered = await render(records[2], 'object', state.objects, {}, '', Infinity)
++    const remote = { ...remoteObject(records[2], rendered.body, 13), state: 'open', labels: [], assignees: [], milestone: null, locked: false }
++    state.objects[3].bodySha256 = migration.sha256(migration.normalize(remote.body))
++    handle(async (url, options) => {
++      if (!url.pathname.endsWith('/issues/13')) return response({ message: 'Completed metadata must not be reread' }, 400)
++      if (options.method === 'PATCH') Object.assign(remote, JSON.parse(options.body))
++      return response(remote)
++    })
++    await updateObjects()
++    assert.equal(remote.state, 'closed')
++    assert.equal(calls.filter(call => call.method === 'PATCH').length, 1)
++    assert.ok(state.objects[3].metadataVerifiedAt)
++    assert.ok(calls.every(call => call.path.endsWith('/issues/13')))
++    calls.length = 0
++    await updateObjects()
++    assert.deepEqual(calls, [])
++  })
++})
++
++test('a completed object checkpoint with a different source identity fails without remote requests', async () => {
++  const record = source(1)
++  await fixture([record], async ({ state, calls }) => {
++    state.objects[1] = { ...mapping(record, 11), sourceIssueId: record.id + 1 }
++    await assert.rejects(createObjects(), /Invalid completed object checkpoint/)
++    assert.deepEqual(calls, [])
++  })
++})
++
++test('a completed comment checkpoint cannot silently hide a pending creation', async () => {
++  const record = source(1)
++  await fixture([record], async ({ state, calls }) => {
++    state.objects[1] = mapping(record, 11)
++    const marker = migration.marker('issue-comment', 101)
++    state.comments['issue-comment:101'] = { status: 'verified', sourceId: 101, sourceKind: 'issue-comment', sourceNumber: 1, targetId: 601, targetNumber: 11, marker }
++    state.pending['comment:issue-comment:101'] = { marker }
++    await assert.rejects(postComment({ id: 101 }, 'issue-comment', 1, 'Comment', marker), /Invalid completed comment checkpoint/)
++    assert.deepEqual(calls, [])
++  })
++})
++
++test('a malformed metadata checkpoint fails without remote requests', async () => {
++  const record = source(1)
++  await fixture([record], async ({ state, calls }) => {
++    state.objects[1] = { ...mapping(record, 11), metadataVerifiedAt: 'not-a-timestamp' }
++    await assert.rejects(updateObjects(), /Invalid completed metadata checkpoint/)
++    assert.deepEqual(calls, [])
++  })
++})
 diff --git a/migrationSafety.test.js b/migrationSafety.test.js
 new file mode 100644
 index 0000000..f8ba61f
@@ -6415,10 +6668,10 @@ index 58dae93..b953eee 100644
      process.exit(1)
    })
 diff --git a/updateIssues.js b/updateIssues.js
-index 67e214f..34f9902 100644
+index 67e214f..df48a92 100644
 --- a/updateIssues.js
 +++ b/updateIssues.js
-@@ -1,78 +1,67 @@
+@@ -1,78 +1,77 @@
 -const request = require('request-promise')
 -const fs = require('fs-extra')
 -const glob = require('glob')
@@ -6503,6 +6756,16 @@ index 67e214f..34f9902 100644
 +    if (migration.isDeferred(source.number)) continue
 +    const target = state.objects[source.number]
 +    if (!target || target.status !== 'verified') throw new Error('Missing object mapping for source #' + source.number)
++    if (target.metadataVerifiedAt) {
++      if (!Number.isFinite(Date.parse(target.metadataVerifiedAt)) ||
++          target.sourceNumber !== source.number || target.sourceIssueId !== source.id ||
++          target.marker !== migration.marker('object', source.id) ||
++          !Number.isSafeInteger(target.targetNumber) || target.targetNumber < 1 ||
++          !Number.isSafeInteger(target.targetIssueId) || target.targetIssueId < 1 ||
++          state.pending['object:' + source.number]) throw new Error('Invalid completed metadata checkpoint: #' + source.number)
++      processed++
++      continue
+     }
 +    const presentation = objectPresentation(source, state.objects, target)
 +    const rendered = await render(source, 'object', state.objects, state.commentUrls, presentation.extra, Infinity)
 +    const labels = (source.labels || []).map(label => typeof label === 'string' ? label : label.name)
@@ -6515,7 +6778,7 @@ index 67e214f..34f9902 100644
 +      labels,
 +      assignees,
 +      milestone: source.milestone ? state.milestones[source.milestone.number]?.targetNumber : null,
-     }
++    }
 +    if (source.milestone && !body.milestone) throw new Error('Missing milestone mapping: ' + source.milestone.number)
 +    if (target.targetKind === 'issue' && source.state_reason) body.state_reason = source.state_reason
 +    let current = await migration.call('GET', '/issues/' + target.targetNumber)
