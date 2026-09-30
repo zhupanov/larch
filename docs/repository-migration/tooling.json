@@ -1,10 +1,10 @@
 {
   "upstream": "NicholasBoll/github-migration",
   "upstreamRevision": "241c203953fb516609b16f454098daa1b48d7d73",
-  "adaptationCommit": "0635e9827f222f0e803df7f12ffece720d9ed57a",
-  "patchSha256": "354c10449fcac8e71d1bc3158c0aa413c036ae60f30752777d98339ba9b307fc",
-  "patchBytes": 439155,
-  "tests": "37 targeted recovery, replay, resume, release, completion, and safety tests passed; prior offline validation skipped 7,384 completed mappings without remote record reads",
+  "adaptationCommit": "ebe7cb0e205dfc5b81d178a49a6433f2a64e9885",
+  "patchSha256": "8c9eb2589020dba3286efbfa7aee5c138209d9b0829b4db02af0a858c2f4e609",
+  "patchBytes": 445023,
+  "tests": "46 targeted recovery, replay, resume, release, completion, and safety tests passed; prior offline validation skipped 7,384 completed mappings without remote record reads",
   "schemaVersion": 1,
   "patch": "github-migration.patch",
   "retention": "The adaptation Git bundle and execution data are retained privately by the repository owner.",
@@ -21,5 +21,20 @@
     "reconcileBeforeRetry": true,
     "settlementMilliseconds": 90000,
     "stopOnUnresolvedFailure": true
+  },
+  "creationFailureRecovery": {
+    "httpStatuses": [
+      500,
+      502,
+      503,
+      504
+    ],
+    "transportFailures": true,
+    "responseBodyInterruptions": true,
+    "maximumPostAttemptsPerInvocation": 3,
+    "reconcileBeforeRetry": true,
+    "settlementMilliseconds": 90000,
+    "stopOnUnresolvedFailure": true,
+    "requestAdapterDoesNotRetryUncertainWrites": true
   }
 }

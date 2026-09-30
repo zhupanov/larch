@@ -1,9 +1,9 @@
 diff --git a/LARCH_MIGRATION.md b/LARCH_MIGRATION.md
 new file mode 100644
-index 0000000..b786492
+index 0000000..6928d0e
 --- /dev/null
 +++ b/LARCH_MIGRATION.md
-@@ -0,0 +1,177 @@
+@@ -0,0 +1,180 @@
 +# Larch repository migration
 +
 +This adaptation migrates `character-ai/larch` into the existing public
@@ -82,13 +82,16 @@ index 0000000..b786492
 +ledger. A host/PID lock admits one destination writer. Before a creation request,
 +the tool saves its intent and stable provenance marker. Resume reconciles a
 +possible remote success before retrying. Failed writes never count as migrated.
-+Creation responses with HTTP 500, 502, 503, or 504 enter bounded recovery in the
-+same process. Recovery first looks for the saved provenance marker. If the
-+record is still absent, it waits until at least 90 seconds after the attempted
-+write, checks again, and only then retries. A creation permits at most three
-+POST attempts per invocation. Persistent errors, unreadable recovery evidence,
++Creation responses with HTTP 500, 502, 503, or 504 and connection failures enter
++bounded recovery in the same process. This includes connections lost while
++reading a creation response. Recovery first looks for the saved provenance
++marker. If the record is still absent, it waits until at least 90 seconds after
++the saved attempt time, checks again, and only then retries. A creation permits
++at most three POST attempts per invocation. Persistent errors, unreadable recovery evidence,
 +duplicate markers, and body mismatches stop the stage. Authentication,
-+validation, and uncertain transport failures also stop for operator recovery.
++validation, and transport failures with unreadable recovery evidence stop for
++operator recovery. The request adapter never repeats an uncertain write itself;
++only a checkpointed creation can recover through provenance checks.
 +On restart, the three bulk stages trust their completed per-record checkpoints.
 +They check saved identities locally and skip remote rereads of copied issues,
 +PRs, comments, and completed metadata updates. An unfinished creation request
@@ -2249,10 +2252,10 @@ index 0000000..bd777d4
 +module.exports = { collectionFile, validateCollection, loadCollection }
 diff --git a/historyCompletion.test.js b/historyCompletion.test.js
 new file mode 100644
-index 0000000..95730d6
+index 0000000..9e2b5ff
 --- /dev/null
 +++ b/historyCompletion.test.js
-@@ -0,0 +1,81 @@
+@@ -0,0 +1,82 @@
 +const assert = require('node:assert/strict')
 +const { test } = require('node:test')
 +const fs = require('fs-extra')
@@ -2275,7 +2278,7 @@ index 0000000..95730d6
 +  assert.throws(() => assertOwnedPlanningIssue({ ...original, state: 'closed', state_reason: 'completed' }, original), /without this completion intent/)
 +})
 +
-+test('lost completion-comment and issue-close responses resume once, with no duplicate comment', async () => {
++test('a lost completion-comment response recovers and the interrupted closure resumes without duplicates', async () => {
 +  const priorCwd = process.cwd(), priorFetch = global.fetch, priorArgv = process.argv
 +  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'larch-completion-test-'))
 +  let remote = structuredClone(original), comment, posts = 0, closes = 0
@@ -2314,11 +2317,12 @@ index 0000000..95730d6
 +    state.commentStage = { completedAt: 'now' }
 +    state.replayAudit = { verifiedAt: 'now', objects: 1, pullRequests: 0, issueComments: 0, inlineComments: 0, reviews: 0, workflowRuns: 0, actionsEnabled: false }
 +    await migration.save()
-+    await assert.rejects(main(), /transport failed/)
-+    assert.ok(state.pending['planning-completion:4'])
-+    await assert.rejects(main(), /transport failed/)
++    await assert.rejects(main(), /PATCH .*transport failed/)
 +    assert.equal(Object.keys(state.pending).length, 0)
 +    assert.equal(state.planningIssueCompletions[4].commentId, 88)
++    assert.equal(state.planningIssueCompletions[4].verifiedAt, undefined)
++    assert.equal(posts, 1)
++    assert.equal(closes, 1)
 +    await main()
 +    await main()
 +    assert.equal(posts, 1)
@@ -2721,10 +2725,10 @@ index 0000000..b6af292
 +module.exports = { render, continuation, originalBlock, objectPresentation, limit }
 diff --git a/migrationRecovery.test.js b/migrationRecovery.test.js
 new file mode 100644
-index 0000000..88990bf
+index 0000000..9192826
 --- /dev/null
 +++ b/migrationRecovery.test.js
-@@ -0,0 +1,165 @@
+@@ -0,0 +1,257 @@
 +const assert = require('node:assert/strict')
 +const { test } = require('node:test')
 +const fs = require('fs-extra')
@@ -2793,20 +2797,104 @@ index 0000000..88990bf
 +      assert.ok(calls.some(call => call.endpoint === readPath && call.method === 'GET'))
 +    }, endpoint, readPath)
 +  })
++  test('a connection lost after accepting ' + endpoint + ' adopts the existing record without another POST', async () => {
++    await fixture(async ({ options, remote, calls, handle }) => {
++      handle(async call => {
++        if (call.method === 'POST') throw new Error('Connection lost after accepting the write')
++        return response(call.endpoint === options.endpoint ? [remote] : remote)
++      })
++      assert.equal((await migration.createOnce(options)).id, remote.id)
++      assert.equal(calls.filter(call => call.method === 'POST').length, 1)
++      assert.ok(calls.some(call => call.endpoint === readPath && call.method === 'GET'))
++    }, endpoint, readPath)
++  })
 +}
++
++test('a creation response interrupted during its body read reconciles the accepted record', async () => {
++  await fixture(async ({ options, remote, calls, handle }) => {
++    handle(async call => {
++      if (call.method === 'POST') return { text: async () => { throw new Error('Response body connection lost') } }
++      return response(call.endpoint === options.endpoint ? [remote] : remote)
++    })
++    assert.equal((await migration.createOnce(options)).id, remote.id)
++    assert.equal(calls.filter(call => call.method === 'POST').length, 1)
++  })
++})
++
++test('an absent transport write settles and receives two absence checks before its bounded retry', async () => {
++  await fixture(async ({ options, remote, calls, handle }) => {
++    let posts = 0, attemptedAt
++    handle(async call => {
++      if (call.method === 'POST') {
++        if (++posts === 1) {
++          attemptedAt = Date.parse(migration.state().pending[options.key].attemptedAt)
++          throw new Error('Connection lost before acceptance')
++        }
++        return response(remote)
++      }
++      return response(call.endpoint === options.endpoint ? [] : remote)
++    })
++    assert.equal((await migration.createOnce(options)).id, remote.id)
++    assert.deepEqual(calls.slice(0, 4).map(call => call.method), ['POST', 'GET', 'GET', 'POST'])
++    assert.equal(posts, 2)
++    assert.ok(calls.filter(call => call.method === 'POST')[1].at - attemptedAt >= 90000)
++  })
++})
++
++test('a delayed transport success appears during settlement and is not posted twice', async () => {
++  await fixture(async ({ options, remote, calls, handle }) => {
++    let lists = 0
++    handle(async call => {
++      if (call.method === 'POST') throw new Error('Connection lost after acceptance')
++      if (call.endpoint === options.endpoint) return response(++lists === 1 ? [] : [remote])
++      return response(remote)
++    })
++    assert.equal((await migration.createOnce(options)).id, remote.id)
++    assert.equal(calls.filter(call => call.method === 'POST').length, 1)
++    assert.equal(lists, 2)
++    const secondLookup = calls.filter(call => call.method === 'GET' && call.endpoint === options.endpoint)[1]
++    assert.ok(secondLookup.at - Date.parse(migration.state().pending[options.key].attemptedAt) >= 90000)
++  })
++})
++
++test('persistent transport failures stop at three writes and preserve the pending checkpoint', async () => {
++  await fixture(async ({ options, calls, handle }) => {
++    const attemptedAt = []
++    handle(async call => {
++      if (call.method === 'POST') {
++        attemptedAt.push(Date.parse(migration.state().pending[options.key].attemptedAt))
++        throw new Error('Connection unavailable for writes')
++      }
++      return response([])
++    })
++    await assert.rejects(migration.createOnce(options), /transport failed; reconcile writes/)
++    assert.equal(calls.filter(call => call.method === 'POST').length, 3)
++    assert.ok(attemptedAt[1] - attemptedAt[0] >= 90000)
++    assert.ok(attemptedAt[2] - attemptedAt[1] >= 90000)
++    assert.ok(migration.state().pending[options.key].attemptedAt)
++    const ledger = (await fs.readFile('larch/rehearsal-state.jsonl', 'utf8')).trim().split('\n').map(line => JSON.parse(line))
++    assert.deepEqual(ledger.filter(event => event.action === 'create-transport-error').map(event => event.nextAction), ['reconcile', 'reconcile', 'stop'])
++  })
++})
 +
 +test('a rejected server write waits for settlement and verifies absence before its bounded retry', async () => {
 +  await fixture(async ({ options, remote, calls, handle }) => {
-+    let posts = 0
++    let posts = 0, attemptedAt
 +    handle(async call => {
-+      if (call.method === 'POST') return ++posts === 1 ? response({ message: 'Unavailable' }, 503) : response(remote)
++      if (call.method === 'POST') {
++        if (++posts === 1) {
++          attemptedAt = Date.parse(migration.state().pending[options.key].attemptedAt)
++          return response({ message: 'Unavailable' }, 503)
++        }
++        return response(remote)
++      }
 +      return response(call.endpoint === options.endpoint ? [] : remote)
 +    })
 +    assert.equal((await migration.createOnce(options)).id, remote.id)
 +    assert.equal(posts, 2)
 +    assert.deepEqual(calls.slice(0, 4).map(call => call.method), ['POST', 'GET', 'GET', 'POST'])
 +    const writes = calls.filter(call => call.method === 'POST')
-+    assert.ok(writes[1].at - writes[0].at >= 90000)
++    assert.ok(writes[1].at - attemptedAt >= 90000)
 +  })
 +})
 +
@@ -2828,12 +2916,19 @@ index 0000000..88990bf
 +
 +test('persistent server errors stop after three POST attempts and retain the unresolved checkpoint', async () => {
 +  await fixture(async ({ options, calls, handle }) => {
-+    handle(async call => call.method === 'POST' ? response({ message: 'Internal error' }, 500) : response([]))
++    const attemptedAt = []
++    handle(async call => {
++      if (call.method === 'POST') {
++        attemptedAt.push(Date.parse(migration.state().pending[options.key].attemptedAt))
++        return response({ message: 'Internal error' }, 500)
++      }
++      return response([])
++    })
 +    await assert.rejects(migration.createOnce(options), /HTTP 500/)
 +    const writes = calls.filter(call => call.method === 'POST')
 +    assert.equal(writes.length, 3)
-+    assert.ok(writes[1].at - writes[0].at >= 90000)
-+    assert.ok(writes[2].at - writes[1].at >= 90000)
++    assert.ok(attemptedAt[1] - attemptedAt[0] >= 90000)
++    assert.ok(attemptedAt[2] - attemptedAt[1] >= 90000)
 +    assert.ok(migration.state().pending[options.key].attemptedAt)
 +    const ledger = (await fs.readFile('larch/rehearsal-state.jsonl', 'utf8')).trim().split('\n').map(line => JSON.parse(line))
 +    const errors = ledger.filter(event => event.action === 'create-server-error')
@@ -2882,11 +2977,12 @@ index 0000000..88990bf
 +  })
 +}
 +
-+test('an uncertain transport failure retains operator recovery and is never blindly retried', async () => {
++test('a transport failure with unreadable recovery evidence stops without another POST', async () => {
 +  await fixture(async ({ options, calls, handle }) => {
 +    handle(async () => { throw new Error('Connection lost after a possible write') })
 +    await assert.rejects(migration.createOnce(options), /transport failed; reconcile writes/)
-+    assert.equal(calls.length, 1)
++    assert.equal(calls.filter(call => call.method === 'POST').length, 1)
++    assert.equal(calls.filter(call => call.method === 'GET').length, 6)
 +    assert.ok(migration.state().pending[options.key].attemptedAt)
 +  })
 +})
@@ -3178,10 +3274,10 @@ index 0000000..61833a3
 +})
 diff --git a/migrationRequest.js b/migrationRequest.js
 new file mode 100644
-index 0000000..126f712
+index 0000000..196b82d
 --- /dev/null
 +++ b/migrationRequest.js
-@@ -0,0 +1,85 @@
+@@ -0,0 +1,87 @@
 +const config = require('./config')
 +
 +const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
@@ -3216,7 +3312,7 @@ index 0000000..126f712
 +      await sleep(waitUntil - Date.now())
 +    }
 +    if (isWrite) nextWriteAt = Date.now() + Math.ceil(3600000 / config.apiCallsPerHour)
-+    let response
++    let response, responseText
 +    try {
 +      response = await fetch(url, {
 +        method,
@@ -3231,14 +3327,16 @@ index 0000000..126f712
 +        redirect: 'error',
 +        signal: AbortSignal.timeout(60000),
 +      })
++      responseText = await response.text()
 +    } catch (_) {
 +      if (!isWrite && attempt < 5) {
 +        await sleep(1000 * (2 ** attempt))
 +        continue
 +      }
-+      throw new Error(method + ' ' + url.pathname + ': transport failed; reconcile writes before retrying')
++      const error = new Error(method + ' ' + url.pathname + ': transport failed; reconcile writes before retrying')
++      error.code = 'MIGRATION_TRANSPORT_FAILURE'
++      throw error
 +    }
-+    const responseText = await response.text()
 +    let data
 +    try { data = responseText ? JSON.parse(responseText) : null } catch (_) { data = null }
 +    if (response.headers.get('x-ratelimit-remaining') === '0') {
@@ -3508,10 +3606,10 @@ index 0000000..d4191d6
 +})
 diff --git a/migrationSafety.test.js b/migrationSafety.test.js
 new file mode 100644
-index 0000000..f8ba61f
+index 0000000..0d881e3
 --- /dev/null
 +++ b/migrationSafety.test.js
-@@ -0,0 +1,125 @@
+@@ -0,0 +1,144 @@
 +const assert = require('node:assert/strict')
 +const { test } = require('node:test')
 +const fs = require('fs-extra')
@@ -3557,12 +3655,31 @@ index 0000000..f8ba61f
 +  config.enableWrites = true
 +  try {
 +    global.fetch = async () => { attempts++; throw new Error('request might have succeeded') }
-+    await assert.rejects(request({ url: target + '/issues', method: 'POST', body: { title: 'test' } }), /reconcile writes/)
++    await assert.rejects(request({ url: target + '/issues', method: 'POST', body: { title: 'test' } }), error => {
++      assert.equal(error.code, 'MIGRATION_TRANSPORT_FAILURE')
++      assert.match(error.message, /reconcile writes/)
++      return true
++    })
 +    assert.equal(attempts, 1)
 +  } finally {
 +    config.enableWrites = false
 +    global.fetch = originalFetch
 +  }
++})
++
++test('an interrupted GET response body can be read again without any write', async () => {
++  const originalFetch = global.fetch
++  let attempts = 0
++  try {
++    global.fetch = async (url, options) => {
++      assert.equal(options.method, 'GET')
++      return ++attempts === 1
++        ? { text: async () => { throw new Error('Connection lost while reading') } }
++        : new Response(JSON.stringify({ id: 42 }), { status: 200 })
++    }
++    assert.deepEqual(await request({ url: source + '/issues/42', json: true }), { id: 42 })
++    assert.equal(attempts, 2)
++  } finally { global.fetch = originalFetch }
 +})
 +
 +test('interrupted pagination resumes cached pages without changing their source data', async () => {
@@ -3639,10 +3756,10 @@ index 0000000..f8ba61f
 +})
 diff --git a/migrationState.js b/migrationState.js
 new file mode 100644
-index 0000000..e17607a
+index 0000000..870ffee
 --- /dev/null
 +++ b/migrationState.js
-@@ -0,0 +1,174 @@
+@@ -0,0 +1,175 @@
 +const fs = require('fs-extra')
 +const path = require('node:path')
 +const os = require('node:os')
@@ -3768,7 +3885,7 @@ index 0000000..e17607a
 +  try {
 +    response = await call('POST', endpoint, body)
 +  } catch (error) {
-+    if ([500, 502, 503, 504].includes(error.statusCode)) error.retryableCreate = true
++    if ([500, 502, 503, 504].includes(error.statusCode) || error.code === 'MIGRATION_TRANSPORT_FAILURE') error.retryableCreate = true
 +    throw error
 +  }
 +  // A rehearsal can interrupt here, after GitHub accepted the write but before any response is checkpointed.
@@ -3789,10 +3906,11 @@ index 0000000..e17607a
 +      return await createAttempt(options)
 +    } catch (error) {
 +      if (!error.retryableCreate) throw error
-+      await audit({ key: options.key, action: 'create-server-error', status: error.statusCode,
++      const transportFailure = error.code === 'MIGRATION_TRANSPORT_FAILURE'
++      await audit({ key: options.key, action: transportFailure ? 'create-transport-error' : 'create-server-error', status: error.statusCode,
 +        attempt, maxAttempts, nextAction: attempt < maxAttempts ? 'reconcile' : 'stop' })
 +      if (attempt === maxAttempts) throw error
-+      console.log('GitHub HTTP ' + error.statusCode + ' for ' + options.key +
++      console.log('GitHub ' + (transportFailure ? 'transport failure' : 'HTTP ' + error.statusCode) + ' for ' + options.key +
 +        '; reconciling the pending write before recovery attempt ' + (attempt + 1) + '/' + maxAttempts)
 +    }
 +  }
