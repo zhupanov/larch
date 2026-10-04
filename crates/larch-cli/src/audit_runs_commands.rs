@@ -679,7 +679,7 @@ pub fn close_priors(arguments: &[OsString]) -> ExitCode {
         return ExitCode::from(EXIT_MUTATION_REFUSED);
     }
     let repo = parsed.value("--repo").map_or_else(
-        || "character-ai/larch".to_owned(),
+        || "zhupanov/larch".to_owned(),
         |value| value.to_string_lossy().into_owned(),
     );
     let repository = match repository_ref(&repo) {
@@ -1480,7 +1480,7 @@ pub fn preflight(arguments: &[OsString]) -> ExitCode {
     let repo_slug = {
         let value = string_option(&parsed, "--repo");
         if value.is_empty() {
-            "character-ai/larch".to_owned()
+            "zhupanov/larch".to_owned()
         } else {
             value
         }
@@ -1727,7 +1727,7 @@ pub fn resolve_prs(arguments: &[OsString]) -> ExitCode {
     let repo_slug = {
         let value = string_option(&parsed, "--repo");
         if value.is_empty() {
-            "character-ai/larch".to_owned()
+            "zhupanov/larch".to_owned()
         } else {
             value
         }
@@ -2031,7 +2031,7 @@ pub fn map_runs(arguments: &[OsString]) -> ExitCode {
     let repo_slug = {
         let value = string_option(&parsed, "--repo");
         if value.is_empty() {
-            "character-ai/larch".to_owned()
+            "zhupanov/larch".to_owned()
         } else {
             value
         }

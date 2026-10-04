@@ -110,6 +110,7 @@ pub struct PrepareArguments {
     pub repository: larch_core::GitHubRepositoryRef,
     pub bump: Option<BumpType>,
     pub out_dir: PathBuf,
+    pub no_fetch: bool,
 }
 
 struct Classification {
@@ -505,7 +506,9 @@ fn prepare_inner(arguments: &PrepareArguments) -> Result<(), PrepareError> {
         open_repository().map_err(|error| PrepareError::new("not-on-main", error))?;
     verify_origin(&repository, &arguments.repository)?;
     verify_main_worktree(&repository)?;
-    fetch_origin_main(&root)?;
+    if !arguments.no_fetch {
+        fetch_origin_main(&root)?;
+    }
     let repository = GixRepository::open(&root)
         .map_err(|error| PrepareError::new("origin-main-unresolvable", error.to_string()))?;
 

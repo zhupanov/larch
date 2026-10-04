@@ -2,6 +2,8 @@
 
 Larch is a Claude Code workflow automation framework that orchestrates multi-agent design, code review, and implementation through collaborative AI-driven processes.
 
+Active development, issues, and releases are hosted at [zhupanov/larch](https://github.com/zhupanov/larch).
+
 > **New to larch?** First [prepare your repository](docs/preparing-your-repo.md) for agent-assisted development, then follow the flow below.
 
 ## Primary Flow

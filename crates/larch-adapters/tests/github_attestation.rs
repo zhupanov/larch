@@ -117,19 +117,15 @@ fn release_request() -> ImmutableReleaseAttestationRequest {
 }
 
 #[test]
-fn verifies_real_larch_artifact_and_immutable_release_bundles_offline() {
-    let artifact_transport = FakeTransport::bundles(vec![PROVENANCE.to_vec()]);
-    let verified =
-        run(AttestationOperations::new(&artifact_transport).verify_artifact(&artifact_request()))
-            .expect("artifact attestation");
-    assert_eq!(verified.subject.digest(), MANIFEST_DIGEST);
-
-    let release_transport = FakeTransport::bundles(vec![RELEASE.to_vec()]);
-    let verified =
-        run(AttestationOperations::new(&release_transport)
-            .verify_immutable_release(&release_request()))
-        .expect("release attestation");
-    assert_eq!(verified.asset_count, 6);
+fn rejects_real_upstream_bundles_under_destination_repository_policy() {
+    assert_eq!(
+        artifact_failure(vec![PROVENANCE.to_vec()], &artifact_request()),
+        AttestationServiceErrorKind::Verification
+    );
+    assert_eq!(
+        release_failure(vec![RELEASE.to_vec()], &release_request()),
+        AttestationServiceErrorKind::Verification
+    );
 }
 
 #[test]

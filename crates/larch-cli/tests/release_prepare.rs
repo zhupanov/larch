@@ -244,6 +244,92 @@ fn release_prepare_accepts_local_main_behind_origin_tip() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn release_prepare_no_fetch_leaves_git_refs_and_fetch_head_untouched() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let repository = repository();
+    git(
+        repository.path(),
+        ["remote", "add", "origin", "https://github.com/o/r.git"],
+    );
+    git(
+        repository.path(),
+        ["update-ref", "refs/remotes/origin/main", "HEAD"],
+    );
+    let tools = tempfile::tempdir().expect("isolated tools");
+    let gh = tools.path().join("gh");
+    fs::write(&gh, "#!/bin/sh\nexit 1\n").expect("offline GitHub CLI");
+    fs::set_permissions(&gh, fs::Permissions::from_mode(0o755)).expect("executable fixture");
+    let inherited = std::env::var_os("PATH").unwrap_or_default();
+    let real_git = std::env::split_paths(&inherited)
+        .map(|directory| directory.join("git"))
+        .find(|candidate| candidate.is_file())
+        .expect("Git executable");
+    let git_wrapper = tools.path().join("git");
+    fs::write(
+        &git_wrapper,
+        "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = fetch ]; then exit 97; fi\ndone\nexec \"$LARCH_TEST_REAL_GIT\" \"$@\"\n",
+    )
+    .expect("offline Git wrapper");
+    fs::set_permissions(&git_wrapper, fs::Permissions::from_mode(0o755))
+        .expect("executable Git fixture");
+    let search_path = std::env::join_paths(
+        std::iter::once(tools.path().to_path_buf()).chain(std::env::split_paths(&inherited)),
+    )
+    .expect("tool search path");
+    let out_dir = tempfile::tempdir().expect("output directory");
+    let before = head(repository.path());
+
+    larch()
+        .current_dir(repository.path())
+        .env("PATH", &search_path)
+        .env("LARCH_TEST_REAL_GIT", &real_git)
+        .env_remove("LARCH_GH_TOKEN")
+        .env_remove("GH_TOKEN")
+        .env_remove("GITHUB_TOKEN")
+        .args([
+            "release",
+            "prepare",
+            "--repo",
+            "o/r",
+            "--no-fetch",
+            "--out-dir",
+            out_dir.path().to_str().expect("UTF-8 output directory"),
+        ])
+        .assert()
+        .failure()
+        .stdout(predicates::str::contains("ERROR=gh-release-list-failed\n"));
+
+    assert_eq!(head(repository.path()), before);
+    assert!(!repository.path().join(".git/FETCH_HEAD").exists());
+    assert_eq!(
+        String::from_utf8(git_output(repository.path(), ["rev-parse", "origin/main"]).stdout)
+            .expect("UTF-8 ref")
+            .trim(),
+        before
+    );
+
+    larch()
+        .current_dir(repository.path())
+        .env("PATH", search_path)
+        .env("LARCH_TEST_REAL_GIT", real_git)
+        .args([
+            "release",
+            "prepare",
+            "--repo",
+            "o/r",
+            "--out-dir",
+            out_dir.path().to_str().expect("UTF-8 output directory"),
+        ])
+        .assert()
+        .failure()
+        .stdout(predicates::str::contains(
+            "ERROR=fetch-origin-main-failed\n",
+        ));
+}
+
 #[test]
 fn release_prepare_accepts_clean_main_with_conversion_attributes() {
     let repository = repository();

@@ -9,9 +9,10 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  MIGRATION_CHIEF: ${{ vars.LARCH_MIGRATION_CHIEF }}
 
 concurrency:
-  group: migration-governance-chief-7687
+  group: migration-governance-${{ github.repository }}
   cancel-in-progress: true
 
 jobs:
@@ -55,12 +56,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ ! "$MIGRATION_CHIEF" =~ ^[1-9][0-9]*$ ]]; then
+            printf '%s\n' 'Set LARCH_MIGRATION_CHIEF to the imported Chief issue number.' >&2
+            exit 2
+          fi
           report_path="$RUNNER_TEMP/migration-governance.json"
           summary_path="$RUNNER_TEMP/migration-governance-comment.md"
           set +e
           scripts/larch.sh issue migration-audit \
-            --repo character-ai/larch \
-            --chief 7687 \
+            --repo "$GITHUB_REPOSITORY" \
+            --chief "$MIGRATION_CHIEF" \
             --output "$report_path" \
             --table-output stderr 2> "$summary_path"
           audit_rc=$?
@@ -104,10 +109,10 @@ jobs:
         run: |
           set -euo pipefail
           scripts/larch.sh tracking-issue upsert-summary \
-            --issue 7687 \
-            --marker '<!-- larch:migration-governance v1 chief=7687 -->' \
+            --issue "$MIGRATION_CHIEF" \
+            --marker "<!-- larch:migration-governance v1 chief=$MIGRATION_CHIEF -->" \
             --content-file "$RUNNER_TEMP/migration-governance-comment.md" \
-            --repo character-ai/larch
+            --repo "$GITHUB_REPOSITORY"
 
       - name: Apply the audit outcome
         if: ${{ always() }}

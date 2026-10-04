@@ -1,0 +1,801 @@
+{
+  "schemaVersion": 1,
+  "status": "reviewed-plan",
+  "observedAt": "2026-09-28T17:28:35.063Z",
+  "source": "character-ai/larch",
+  "target": "zhupanov/larch",
+  "applicationEvidenceIssue": "https://github.com/zhupanov/larch/issues/2",
+  "dispositions": [
+    {
+      "setting": "repository.description",
+      "disposition": "intentionally-changed",
+      "source": "Claude configuration and skills",
+      "destination": "Skills and agentic config for semi-automated software development",
+      "reason": "Retain the repository owner's destination description."
+    },
+    {
+      "setting": "repository.homepage",
+      "disposition": "reproduced",
+      "source": "",
+      "destination": ""
+    },
+    {
+      "setting": "repository.default_branch",
+      "disposition": "reproduced",
+      "source": "main",
+      "destination": "main"
+    },
+    {
+      "setting": "repository.has_issues",
+      "disposition": "reproduced",
+      "source": true,
+      "destination": true
+    },
+    {
+      "setting": "repository.has_projects",
+      "disposition": "reproduced",
+      "source": true,
+      "destination": true
+    },
+    {
+      "setting": "repository.has_wiki",
+      "disposition": "reproduced",
+      "source": true,
+      "destination": true
+    },
+    {
+      "setting": "repository.has_discussions",
+      "disposition": "reproduced",
+      "source": false,
+      "destination": false
+    },
+    {
+      "setting": "repository.has_downloads",
+      "disposition": "reproduced",
+      "source": false,
+      "destination": false
+    },
+    {
+      "setting": "repository.has_pull_requests",
+      "disposition": "reproduced",
+      "source": true,
+      "destination": true
+    },
+    {
+      "setting": "repository.pull_request_creation_policy",
+      "disposition": "reproduced",
+      "source": "all",
+      "destination": "all"
+    },
+    {
+      "setting": "repository.allow_forking",
+      "disposition": "reproduced",
+      "source": true,
+      "destination": true
+    },
+    {
+      "setting": "repository.is_template",
+      "disposition": "reproduced",
+      "source": false,
+      "destination": false
+    },
+    {
+      "setting": "repository.web_commit_signoff_required",
+      "disposition": "reproduced",
+      "source": false,
+      "destination": false
+    },
+    {
+      "setting": "repository.allow_squash_merge",
+      "disposition": "reproduced",
+      "source": true,
+      "destination": true
+    },
+    {
+      "setting": "repository.allow_merge_commit",
+      "disposition": "reproduced",
+      "source": true,
+      "destination": true
+    },
+    {
+      "setting": "repository.allow_rebase_merge",
+      "disposition": "reproduced",
+      "source": false,
+      "destination": false
+    },
+    {
+      "setting": "repository.allow_auto_merge",
+      "disposition": "reproduced",
+      "source": true,
+      "destination": true
+    },
+    {
+      "setting": "repository.delete_branch_on_merge",
+      "disposition": "reproduced",
+      "source": true,
+      "destination": true
+    },
+    {
+      "setting": "repository.allow_update_branch",
+      "disposition": "reproduced",
+      "source": true,
+      "destination": true
+    },
+    {
+      "setting": "repository.squash_merge_commit_title",
+      "disposition": "reproduced",
+      "source": "COMMIT_OR_PR_TITLE",
+      "destination": "COMMIT_OR_PR_TITLE"
+    },
+    {
+      "setting": "repository.squash_merge_commit_message",
+      "disposition": "reproduced",
+      "source": "COMMIT_MESSAGES",
+      "destination": "COMMIT_MESSAGES"
+    },
+    {
+      "setting": "repository.merge_commit_title",
+      "disposition": "reproduced",
+      "source": "MERGE_MESSAGE",
+      "destination": "MERGE_MESSAGE"
+    },
+    {
+      "setting": "repository.merge_commit_message",
+      "disposition": "reproduced",
+      "source": "PR_TITLE",
+      "destination": "PR_TITLE"
+    },
+    {
+      "setting": "merge_queue",
+      "disposition": "inapplicable",
+      "reason": "Personal repositories do not support merge queues. Preserve required checks, squash-only main merges, and require an up-to-date branch.",
+      "owner": "zhupanov"
+    },
+    {
+      "setting": "organization-access",
+      "disposition": "inapplicable",
+      "reason": "Organization teams, inherited organization administrators, and optional organization runner labels do not transfer to a personal account. The direct maintainer is zhupanov."
+    },
+    {
+      "setting": "github-apps",
+      "disposition": "intentionally-changed",
+      "reason": "The destination owner confirmed no installed apps. Every required source check belongs to built-in GitHub Actions. Optional source organization Copilot integration is not required for destination CI."
+    },
+    {
+      "setting": "secrets-and-external-resources",
+      "disposition": "reproduced",
+      "reason": "No repository Actions or Dependabot secrets, environments, deploy keys, webhooks, self-hosted runners, or autolinks were found. No secret values are exported."
+    },
+    {
+      "setting": "projects-discussions-pages-wiki",
+      "disposition": "reproduced",
+      "reason": "Projects and Discussions have zero records, Pages is absent, and both Git wiki remotes were verified uninitialized."
+    },
+    {
+      "setting": "LARCH_MIGRATION_CHIEF",
+      "disposition": "intentionally-changed",
+      "reason": "Use the actual imported destination number for source Chief issue 7687; enable its workflow after the canonical repository changes merge."
+    },
+    {
+      "setting": "historical-automation-suppression",
+      "disposition": "intentionally-changed",
+      "reason": "Actions stays disabled until historical replay, archive audit, owned-ref cleanup, and leaves 4 and 5 are complete."
+    },
+    {
+      "setting": "release-immutability",
+      "disposition": "reproduced",
+      "source": true,
+      "destination": true
+    },
+    {
+      "setting": "source-only-disabled-security-features",
+      "disposition": "inapplicable",
+      "reason": "Disabled organization-only AI detection and delegated security controls are absent from the personal repository."
+    },
+    {
+      "setting": "public-fork-identity",
+      "disposition": "intentionally-changed",
+      "reason": "Retain the existing public fork, planning issues, and Git history. Identity, stars, subscribers, and network counters are not copied."
+    },
+    {
+      "setting": "topics",
+      "disposition": "reproduced",
+      "source": [],
+      "destination": []
+    },
+    {
+      "setting": "actions",
+      "disposition": "reproduced",
+      "source": {
+        "enabled": true,
+        "allowed_actions": "all",
+        "sha_pinning_required": false
+      },
+      "destination": {
+        "enabled": true,
+        "allowed_actions": "all",
+        "sha_pinning_required": false
+      }
+    },
+    {
+      "setting": "workflowPermissions",
+      "disposition": "reproduced",
+      "source": {
+        "default_workflow_permissions": "read",
+        "can_approve_pull_request_reviews": false
+      },
+      "destination": {
+        "default_workflow_permissions": "read",
+        "can_approve_pull_request_reviews": false
+      }
+    },
+    {
+      "setting": "forkApproval",
+      "disposition": "reproduced",
+      "source": {
+        "approval_policy": "first_time_contributors"
+      },
+      "destination": {
+        "approval_policy": "first_time_contributors"
+      }
+    },
+    {
+      "setting": "privateVulnerabilityReporting",
+      "disposition": "reproduced",
+      "source": {
+        "enabled": false
+      },
+      "destination": {
+        "enabled": false
+      }
+    },
+    {
+      "setting": "vulnerabilityAlerts",
+      "disposition": "reproduced",
+      "source": false,
+      "destination": false
+    },
+    {
+      "setting": "automatedSecurityFixes",
+      "disposition": "reproduced",
+      "source": {
+        "present": true,
+        "value": {
+          "enabled": false,
+          "paused": false
+        }
+      },
+      "destination": {
+        "present": true,
+        "value": {
+          "enabled": false,
+          "paused": false
+        }
+      }
+    },
+    {
+      "setting": "directCollaborators",
+      "disposition": "reproduced",
+      "source": [
+        {
+          "login": "zhupanov",
+          "role_name": "admin"
+        }
+      ],
+      "destination": [
+        {
+          "login": "zhupanov",
+          "role_name": "admin"
+        }
+      ]
+    },
+    {
+      "setting": "interactionLimits",
+      "disposition": "reproduced",
+      "source": {},
+      "destination": {}
+    },
+    {
+      "setting": "issueForms",
+      "disposition": "reproduced",
+      "source": {
+        "present": false
+      },
+      "destination": {
+        "present": false
+      }
+    },
+    {
+      "setting": "projects",
+      "disposition": "reproduced",
+      "source": 0,
+      "destination": 0
+    },
+    {
+      "setting": "discussions",
+      "disposition": "reproduced",
+      "source": 0,
+      "destination": 0
+    },
+    {
+      "setting": "milestones",
+      "disposition": "reproduced",
+      "source": [],
+      "destination": []
+    },
+    {
+      "setting": "ruleset.CI and branch safety",
+      "disposition": "intentionally-changed",
+      "source": {
+        "name": "CI and branch safety",
+        "target": "branch",
+        "enforcement": "active",
+        "conditions": {
+          "ref_name": {
+            "exclude": [],
+            "include": [
+              "refs/heads/main"
+            ]
+          }
+        },
+        "bypass_actors": [],
+        "rules": [
+          {
+            "type": "merge_queue",
+            "parameters": {
+              "merge_method": "SQUASH",
+              "max_entries_to_build": 1,
+              "min_entries_to_merge": 1,
+              "max_entries_to_merge": 1,
+              "min_entries_to_merge_wait_minutes": 0,
+              "grouping_strategy": "ALLGREEN",
+              "check_response_timeout_minutes": 60
+            }
+          },
+          {
+            "type": "non_fast_forward"
+          },
+          {
+            "type": "pull_request",
+            "parameters": {
+              "required_approving_review_count": 0,
+              "dismiss_stale_reviews_on_push": false,
+              "required_reviewers": [],
+              "require_code_owner_review": false,
+              "dismissal_restriction": {
+                "enabled": false,
+                "allowed_actors": []
+              },
+              "require_last_push_approval": false,
+              "required_review_thread_resolution": false,
+              "require_extra_approval_for_unattributed_changes": true,
+              "allowed_merge_methods": [
+                "merge",
+                "rebase",
+                "squash"
+              ]
+            }
+          },
+          {
+            "type": "required_status_checks",
+            "parameters": {
+              "strict_required_status_checks_policy": false,
+              "do_not_enforce_on_create": false,
+              "required_status_checks": [
+                {
+                  "context": "agent-lint",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "agent-sync",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "contains-pins",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "gitleaks",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "lint",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "lint-local",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "rust-coverage",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "rust-gate",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "shellcheck",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "test-harnesses-gate",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "trufflehog",
+                  "integration_id": 15368
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "destination": {
+        "name": "CI and branch safety",
+        "target": "branch",
+        "enforcement": "active",
+        "conditions": {
+          "ref_name": {
+            "exclude": [],
+            "include": [
+              "refs/heads/main"
+            ]
+          }
+        },
+        "bypass_actors": [],
+        "rules": [
+          {
+            "type": "non_fast_forward"
+          },
+          {
+            "type": "pull_request",
+            "parameters": {
+              "required_approving_review_count": 0,
+              "dismiss_stale_reviews_on_push": false,
+              "required_reviewers": [],
+              "require_code_owner_review": false,
+              "dismissal_restriction": {
+                "enabled": false,
+                "allowed_actors": []
+              },
+              "require_last_push_approval": false,
+              "required_review_thread_resolution": false,
+              "require_extra_approval_for_unattributed_changes": true,
+              "allowed_merge_methods": [
+                "squash"
+              ]
+            }
+          },
+          {
+            "type": "required_status_checks",
+            "parameters": {
+              "strict_required_status_checks_policy": true,
+              "do_not_enforce_on_create": false,
+              "required_status_checks": [
+                {
+                  "context": "agent-lint",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "agent-sync",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "contains-pins",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "gitleaks",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "lint",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "lint-local",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "rust-coverage",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "rust-gate",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "shellcheck",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "test-harnesses-gate",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "trufflehog",
+                  "integration_id": 15368
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "setting": "ruleset.Code review",
+      "disposition": "reproduced",
+      "source": {
+        "name": "Code review",
+        "target": "branch",
+        "enforcement": "disabled",
+        "conditions": {
+          "ref_name": {
+            "exclude": [],
+            "include": [
+              "refs/heads/main"
+            ]
+          }
+        },
+        "bypass_actors": [
+          {
+            "actor_id": 5,
+            "actor_type": "RepositoryRole",
+            "bypass_mode": "always"
+          }
+        ],
+        "rules": [
+          {
+            "type": "pull_request",
+            "parameters": {
+              "required_approving_review_count": 1,
+              "dismiss_stale_reviews_on_push": true,
+              "required_reviewers": [],
+              "require_code_owner_review": true,
+              "dismissal_restriction": {
+                "enabled": false,
+                "allowed_actors": []
+              },
+              "require_last_push_approval": false,
+              "required_review_thread_resolution": false,
+              "require_extra_approval_for_unattributed_changes": true,
+              "allowed_merge_methods": [
+                "merge",
+                "rebase",
+                "squash"
+              ]
+            }
+          }
+        ]
+      },
+      "destination": {
+        "name": "Code review",
+        "target": "branch",
+        "enforcement": "disabled",
+        "conditions": {
+          "ref_name": {
+            "exclude": [],
+            "include": [
+              "refs/heads/main"
+            ]
+          }
+        },
+        "bypass_actors": [
+          {
+            "actor_id": 5,
+            "actor_type": "RepositoryRole",
+            "bypass_mode": "always"
+          }
+        ],
+        "rules": [
+          {
+            "type": "pull_request",
+            "parameters": {
+              "required_approving_review_count": 1,
+              "dismiss_stale_reviews_on_push": true,
+              "required_reviewers": [],
+              "require_code_owner_review": true,
+              "dismissal_restriction": {
+                "enabled": false,
+                "allowed_actors": []
+              },
+              "require_last_push_approval": false,
+              "required_review_thread_resolution": false,
+              "require_extra_approval_for_unattributed_changes": true,
+              "allowed_merge_methods": [
+                "merge",
+                "rebase",
+                "squash"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "setting": "security_and_analysis.secret_scanning",
+      "disposition": "reproduced",
+      "source": {
+        "status": "enabled"
+      },
+      "destination": {
+        "status": "enabled"
+      }
+    },
+    {
+      "setting": "security_and_analysis.secret_scanning_push_protection",
+      "disposition": "reproduced",
+      "source": {
+        "status": "enabled"
+      },
+      "destination": {
+        "status": "enabled"
+      }
+    },
+    {
+      "setting": "security_and_analysis.dependabot_security_updates",
+      "disposition": "reproduced",
+      "source": {
+        "status": "disabled"
+      },
+      "destination": {
+        "status": "disabled"
+      }
+    },
+    {
+      "setting": "security_and_analysis.secret_scanning_non_provider_patterns",
+      "disposition": "reproduced",
+      "source": {
+        "status": "disabled"
+      },
+      "destination": {
+        "status": "disabled"
+      }
+    },
+    {
+      "setting": "security_and_analysis.secret_scanning_ai_detection",
+      "disposition": "inapplicable",
+      "source": {
+        "status": "disabled"
+      },
+      "destination": null
+    },
+    {
+      "setting": "security_and_analysis.secret_scanning_validity_checks",
+      "disposition": "reproduced",
+      "source": {
+        "status": "disabled"
+      },
+      "destination": {
+        "status": "disabled"
+      }
+    },
+    {
+      "setting": "security_and_analysis.secret_scanning_delegated_alert_dismissal",
+      "disposition": "inapplicable",
+      "source": {
+        "status": "disabled"
+      },
+      "destination": null
+    },
+    {
+      "setting": "security_and_analysis.secret_scanning_delegated_bypass",
+      "disposition": "inapplicable",
+      "source": {
+        "status": "disabled"
+      },
+      "destination": null
+    },
+    {
+      "setting": "labels",
+      "disposition": "reproduced",
+      "source": [
+        {
+          "name": "audit-report",
+          "color": "0E8A16",
+          "description": "Larch /implement run-log audit reports (auto-managed by /audit-runs)"
+        },
+        {
+          "name": "bug",
+          "color": "d73a4a",
+          "description": "Something isn't working"
+        },
+        {
+          "name": "difficulty:hard",
+          "color": "ededed",
+          "description": "larch difficulty rating"
+        },
+        {
+          "name": "difficulty:moderate",
+          "color": "ededed",
+          "description": "larch difficulty rating"
+        },
+        {
+          "name": "difficulty:trivial",
+          "color": "ededed",
+          "description": "larch difficulty rating"
+        },
+        {
+          "name": "documentation",
+          "color": "0075ca",
+          "description": "Improvements or additions to documentation"
+        },
+        {
+          "name": "duplicate",
+          "color": "cfd3d7",
+          "description": "This issue or pull request already exists"
+        },
+        {
+          "name": "enhancement",
+          "color": "a2eeef",
+          "description": "New feature or request"
+        },
+        {
+          "name": "from-implement-oos",
+          "color": "ededed",
+          "description": "OOS findings filed by /implement Step 9a.1"
+        },
+        {
+          "name": "full-rust-ci",
+          "color": "ededed",
+          "description": null
+        },
+        {
+          "name": "good first issue",
+          "color": "7057ff",
+          "description": "Good for newcomers"
+        },
+        {
+          "name": "help wanted",
+          "color": "008672",
+          "description": "Extra attention is needed"
+        },
+        {
+          "name": "invalid",
+          "color": "e4e669",
+          "description": "This doesn't seem right"
+        },
+        {
+          "name": "oos-correctness",
+          "color": "d73a4a",
+          "description": "High-risk correctness or regression OOS deferral"
+        },
+        {
+          "name": "question",
+          "color": "d876e3",
+          "description": "Further information is requested"
+        },
+        {
+          "name": "wontfix",
+          "color": "ffffff",
+          "description": "This will not be worked on"
+        }
+      ],
+      "reason": "Reconcile source labels and retain labels belonging to the existing destination planning issues."
+    },
+    {
+      "setting": "code-scanning",
+      "disposition": "reproduced",
+      "source": "not-configured",
+      "destination": "not-configured",
+      "reason": "The inactive default-setup language hints are repository-generated metadata, not an enabled analysis policy."
+    },
+    {
+      "setting": "workflows",
+      "disposition": "intentionally-changed",
+      "reason": "Inherit the four file-based workflows. Leaf 3 changes canonical repository bindings and omits organization-only merge-group cache promotion. Fork workflow registration and required CI checks are verified after historical cleanup."
+    },
+    {
+      "setting": "caches",
+      "disposition": "inapplicable",
+      "reason": "GitHub Actions caches are repository-scoped. Destination CI builds and publishes fresh caches; source cache entries are not copied."
+    },
+    {
+      "setting": "custom_properties",
+      "disposition": "inapplicable",
+      "source": {},
+      "reason": "The source has no custom property values, and organization custom properties do not belong to a personal repository."
+    }
+  ]
+}

@@ -25,8 +25,8 @@ use std::{
 use url::Url;
 use x509_cert::{Certificate, der::Decode};
 
-const REPOSITORY: &str = "character-ai/larch";
-const REPOSITORY_URL: &str = "https://github.com/character-ai/larch";
+const REPOSITORY: &str = "zhupanov/larch";
+const REPOSITORY_URL: &str = "https://github.com/zhupanov/larch";
 const WORKFLOW_PATH: &str = ".github/workflows/rust-release-assets.yaml";
 const OIDC_ISSUER: &str = "https://token.actions.githubusercontent.com";
 const GITHUB_HOSTED: &str = "github-hosted";
@@ -835,13 +835,33 @@ mod tests {
     }
 
     fn provenance_statement() -> Statement {
-        statement(&parse_bundle(PROVENANCE).expect("bundle")).expect("statement")
+        let mut value = statement(&parse_bundle(PROVENANCE).expect("bundle")).expect("statement");
+        let source_ref = artifact_request().tag().source_ref();
+        // Exercise destination statement policy without rewriting a signed fixture.
+        value.predicate["buildDefinition"]["externalParameters"]["workflow"]["repository"] =
+            REPOSITORY_URL.into();
+        value.predicate["runDetails"]["builder"]["id"] = workflow_identity(&source_ref).into();
+        value.predicate["buildDefinition"]["resolvedDependencies"][0]["uri"] =
+            format!("git+{REPOSITORY_URL}@{source_ref}").into();
+        value
+    }
+
+    #[test]
+    fn upstream_provenance_is_not_destination_provenance() {
+        let upstream = statement(&parse_bundle(PROVENANCE).expect("bundle")).expect("statement");
+        assert_eq!(
+            validate_artifact_statement(&upstream, &artifact_request())
+                .expect_err("upstream repository is outside destination policy")
+                .kind(),
+            AttestationServiceErrorKind::Verification
+        );
     }
 
     #[test]
     fn provenance_policy_rejects_every_identity_and_hosted_runner_mismatch() {
         let request = artifact_request();
-        validate_artifact_statement(&provenance_statement(), &request).expect("valid fixture");
+        validate_artifact_statement(&provenance_statement(), &request)
+            .expect("valid destination statement policy");
 
         let mut variants = Vec::new();
         for path in [

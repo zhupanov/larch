@@ -2547,7 +2547,7 @@ struct PromoteReleaseArguments {
 
 #[derive(Args)]
 struct PromoteLatestArguments {
-    #[arg(long = "repo", default_value = "character-ai/larch")]
+    #[arg(long = "repo", default_value = "zhupanov/larch")]
     repository: String,
     #[arg(long)]
     dry_run: bool,
@@ -2642,17 +2642,20 @@ struct ClassifyBumpArguments {
 
 #[derive(Args)]
 struct PrepareReleaseArguments {
-    #[arg(long = "repo", default_value = "character-ai/larch", value_parser = parse_repository)]
+    #[arg(long = "repo", default_value = "zhupanov/larch", value_parser = parse_repository)]
     repository: larch_core::GitHubRepositoryRef,
     #[arg(long, value_parser = ["major", "minor", "patch"])]
     bump: Option<String>,
     #[arg(long, required = true)]
     out_dir: PathBuf,
+    /// Plan from the existing origin/main ref without fetching Git objects or refs.
+    #[arg(long)]
+    no_fetch: bool,
 }
 
 #[derive(Args)]
 struct ReconcileNotesArguments {
-    #[arg(long = "repo", default_value = "character-ai/larch", value_parser = parse_repository)]
+    #[arg(long = "repo", default_value = "zhupanov/larch", value_parser = parse_repository)]
     repository: larch_core::GitHubRepositoryRef,
     #[arg(long)]
     baseline_tag: String,
@@ -4206,6 +4209,7 @@ fn run_release_prepare(arguments: PrepareReleaseArguments) -> ExitCode {
         repository: arguments.repository,
         bump,
         out_dir: arguments.out_dir,
+        no_fetch: arguments.no_fetch,
     })
 }
 

@@ -1528,7 +1528,7 @@
 {"path":"skills/implement/scripts/write-final-report.md","kind":"contains","needle":"`scripts/larch.sh final-report write` records explicit `steps_ran.step9a1=false`","id":"ported _structure_implement_specialized.py:98 [6cb9c3480c]"}
 {"path":"skills/implement/scripts/write-final-report.md","kind":"contains","needle":"## Bail-time `steps_ran` invariant","id":"ported _structure_implement_specialized.py:98 [ea8c17ff92]"}
 {"path":"skills/learn-from-bugs/SKILL.md","kind":"contains","needle":"A self-analysis filing failure must never block the scan marker or the primary residual filing pass","id":"ported _structure_learn_from_bugs_specialized.py:159 [02c487f2b6]"}
-{"path":"skills/learn-from-bugs/SKILL.md","kind":"contains","needle":"--input-file \"$RUN_DIR/self-analysis-issue.md\" --repo character-ai/larch","id":"ported _structure_learn_from_bugs_specialized.py:159 [12ddf628d7]"}
+{"path":"skills/learn-from-bugs/SKILL.md","kind":"contains","needle":"--input-file \"$RUN_DIR/self-analysis-issue.md\" --repo zhupanov/larch","id":"ported _structure_learn_from_bugs_specialized.py:159 [12ddf628d7]"}
 {"path":"skills/learn-from-bugs/SKILL.md","kind":"contains","needle":"When zero suggestions survive, state that to the operator","id":"ported _structure_learn_from_bugs_specialized.py:159 [1d40099ea5]"}
 {"path":"skills/learn-from-bugs/SKILL.md","kind":"contains","needle":"append a brief `9. End-of-run self-analysis` section to `${RUN_DIR}/report.md` that names that issue number","id":"ported _structure_learn_from_bugs_specialized.py:159 [3ae3651849]"}
 {"path":"skills/learn-from-bugs/SKILL.md","kind":"contains","needle":"9. End-of-run self-analysis","id":"ported _structure_learn_from_bugs_specialized.py:159 [43c3c81472]"}

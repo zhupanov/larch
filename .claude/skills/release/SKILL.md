@@ -11,7 +11,7 @@ disable-model-invocation: true
 
 **MANDATORY: READ ENTIRE FILE before composing user-facing prose: `$PWD/skills/shared/readability-style.md`.**
 
-Operator-run release cut for `character-ai/larch`. It merges the candidate through the normal queue, builds and tags a projection commit from the merged `main` commit, then gates publication and Latest promotion on the complete asset and immutable-release verification for that projection commit. This dev-only skill lives under `.claude/skills/release/` and is not exported in the plugin package. All runtime script paths use `$PWD/.claude/skills/release/scripts/...` from the larch repo root.
+Operator-run release cut for `zhupanov/larch`. It merges the candidate through the protected merge path, builds and tags a projection commit from the merged `main` commit, then gates publication and Latest promotion on the complete asset and immutable-release verification for that projection commit. This dev-only skill lives under `.claude/skills/release/` and is not exported in the plugin package. All runtime script paths use `$PWD/.claude/skills/release/scripts/...` from the larch repo root.
 
 ## First release after the projection cutover
 
@@ -30,7 +30,7 @@ Parse from `$ARGUMENTS` before any Bash helper runs. All boolean flags default t
 | `--dry-run` | Compute and preview only; the ignored working-tree Rust build may refresh, but no branch, PR, merge, tag, Release, promote, or `/upgrade-larch` write occurs |
 | `--skip-approve`, `-s` | Skip Step 4 approval only when `PR_COUNT>0`, acting as Confirm |
 | `--bump major\|minor\|patch` | Override the aggregate bump type from `release prepare` |
-| `--repo OWNER/REPO` | Hub repo for `gh` (default: `scripts/larch.sh gh resolve-repo`, falling back to `character-ai/larch`) |
+| `--repo OWNER/REPO` | Hub repo for `gh` (default: `scripts/larch.sh gh resolve-repo`, falling back to `zhupanov/larch`) |
 
 ## Pre-lifecycle bootstrap
 
@@ -115,7 +115,7 @@ else
 fi
 if [ "$sync_rc" -eq 0 ]; then
   if [ -z "${REPO:-}" ]; then
-    REPO=$(CLAUDE_PLUGIN_ROOT="$PWD" LARCH_BINARY="$WORKTREE_LARCH" "$PWD/scripts/larch.sh" gh resolve-repo 2>/dev/null || echo "character-ai/larch")
+    REPO=$(CLAUDE_PLUGIN_ROOT="$PWD" LARCH_BINARY="$WORKTREE_LARCH" "$PWD/scripts/larch.sh" gh resolve-repo 2>/dev/null || echo "zhupanov/larch")
   fi
 fi
 ```
@@ -131,10 +131,15 @@ On **`--dry-run`**: do not invoke `scripts/larch.sh push rebase`; continue to St
 ```bash
 PREPARE_DIR="$(mktemp -d)"
 WORKTREE_LARCH="$PWD/target/release/larch"
+prepare_args=(--repo "$REPO" --out-dir "$PREPARE_DIR")
+if [ -n "${BUMP_OVERRIDE:-}" ]; then
+  prepare_args+=(--bump "$BUMP_OVERRIDE")
+fi
+if [ "$dry_run" = "true" ]; then
+  prepare_args+=(--no-fetch)
+fi
 prepare_out=$(CLAUDE_PLUGIN_ROOT="$PWD" LARCH_BINARY="$WORKTREE_LARCH" "$PWD/scripts/larch.sh" release prepare \
-  --repo "$REPO" \
-  ${BUMP_OVERRIDE:+--bump "$BUMP_OVERRIDE"} \
-  --out-dir "$PREPARE_DIR")
+  "${prepare_args[@]}")
 ```
 
 Parse `prepare_out` for `BASELINE_TAG`, `RELEASE_SHA`, `CURRENT_VERSION`, `NEW_VERSION`, `BUMP_TYPE`, `PR_COUNT`, `IGNORED_LARCHLOG_PR_COUNT`, `PR_LIST_FILE`. Then derive:
@@ -227,11 +232,12 @@ CLAUDE_PLUGIN_ROOT="$PWD" LARCH_BINARY="$WORKTREE_LARCH" "$PWD/scripts/larch.sh"
 ```
 
 Record `PR_NUMBER` from `scripts/larch.sh pr create` stdout. First wait for the
-candidate's ordinary PR checks. Then submit it through the normal merge queue;
-never pass `--admin`, a merge strategy, or a queue-bypass option. A release
-branch that sits behind `origin/main` is expected when other PRs merge mid-run:
-`merge pr` only refuses when another release bumped `plugin.json` on main. Do
-not rebase the release branch for tip movement alone.
+candidate's ordinary PR checks. `merge pr` uses the merge queue when enabled
+and otherwise requests a protected squash merge. Never pass `--admin` or a
+queue-bypass option. With a merge queue, ordinary `origin/main` advancement
+does not require rebasing the release branch. Without a queue, update the
+branch and rerun checks when strict branch protection requires it. A competing
+release that changes `plugin.json` on main requires a new version decision.
 
 ```bash
 CLAUDE_PLUGIN_ROOT="$PWD" LARCH_BINARY="$WORKTREE_LARCH" "$PWD/scripts/larch.sh" ci wait --pr "$PR_NUMBER" --repo "$REPO"
@@ -405,7 +411,7 @@ CLAUDE_PLUGIN_ROOT="$PWD" LARCH_BINARY="$WORKTREE_LARCH" "$PWD/scripts/larch.sh"
 ```
 
 The authoritative tag and assets now name a projection commit whose first
-parent is the commit the queue placed on `main`. `release finish` proves that
+parent is the commit GitHub placed on `main`. `release finish` proves that
 first parent is an ancestor of `origin/main` without bypassing a squash-only
 queue.
 
@@ -601,7 +607,7 @@ If `NEW_VERSION_INSTALLED=true`, `MARKETPLACE_RECONCILED=true`, or `RESTART_REQU
 
 Runtime helpers:
 
-- `"$PWD/scripts/larch.sh" release prepare`: fetch once, pin `RELEASE_SHA`, write PR list (larch-logs housekeeping PRs excluded; count reported as `IGNORED_LARCHLOG_PR_COUNT`), aggregate bump KV
+- `"$PWD/scripts/larch.sh" release prepare`: fetch once unless `--no-fetch` is set for a dry run, pin `RELEASE_SHA`, write PR list (larch-logs housekeeping PRs excluded; count reported as `IGNORED_LARCHLOG_PR_COUNT`), aggregate bump KV
 - `"$PWD/scripts/larch.sh" release set-version`: synchronized plugin, Cargo workspace, internal path dependency, and lockfile version write
 - `"$PWD/scripts/larch.sh" release ensure-policy`: read and verify immutable-release policy without mutating repository configuration
 - `"$PWD/scripts/larch.sh" release stage`: resolve the merged PR commit, build and tag its projection commit, and create or verify its draft Release; `--dry-run` builds and proves the projection only, with no tag, push, or draft

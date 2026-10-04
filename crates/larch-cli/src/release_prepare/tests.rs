@@ -388,6 +388,7 @@ mod release_prepare_tests {
             repository: repo,
             bump: None,
             out_dir: output.path().to_path_buf(),
+            no_fetch: false,
         };
         let runtime = LarchRuntime::current_thread().expect("test runtime");
         runtime
@@ -442,6 +443,7 @@ mod release_prepare_tests {
             repository: GitHubRepositoryRef::new("o", "r").expect("repository reference"),
             bump: Some(BumpType::Patch),
             out_dir: output.path().to_path_buf(),
+            no_fetch: false,
         };
         LarchRuntime::current_thread()
             .expect("test runtime")
@@ -489,6 +491,7 @@ mod release_prepare_tests {
             repository: GitHubRepositoryRef::new("o", "r").expect("repository reference"),
             bump: Some(BumpType::Minor),
             out_dir: output.path().to_path_buf(),
+            no_fetch: false,
         };
         let runtime = LarchRuntime::current_thread().expect("test runtime");
 
@@ -574,6 +577,7 @@ mod release_prepare_tests {
             repository: GitHubRepositoryRef::new("o", "r").expect("repository reference"),
             bump: Some(BumpType::Major),
             out_dir: output.path().to_path_buf(),
+            no_fetch: false,
         };
         let runtime = LarchRuntime::current_thread().expect("test runtime");
         let invalid = FakeReleaseService {
@@ -629,6 +633,7 @@ mod release_prepare_tests {
             repository: GitHubRepositoryRef::new("o", "r").expect("repository reference"),
             bump: Some(BumpType::Minor),
             out_dir: output.path().to_path_buf(),
+            no_fetch: false,
         };
         let runtime = LarchRuntime::current_thread().expect("test runtime");
         let cases = [
@@ -936,6 +941,7 @@ mod release_prepare_tests {
             repository: GitHubRepositoryRef::new("o", "r").expect("repository reference"),
             bump: None,
             out_dir: output.path().to_path_buf(),
+            no_fetch: false,
         };
         let runtime = LarchRuntime::current_thread().expect("test runtime");
         assert_eq!(

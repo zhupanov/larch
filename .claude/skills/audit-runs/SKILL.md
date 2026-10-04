@@ -32,7 +32,7 @@ This is a **dev-only** operator skill (`.claude/skills/`). It is NOT shipped wit
   - `since <ISO8601-instant>` — PRs merged after that instant (same interpretable forms as GitHub `mergedAt`: `…Z` or explicit `±HH:MM` offset). This filter is **not** tied to the Pacific wall-clock convention used for audit report titles and `audit_timestamp`.
   - `#N` or `PR #N` — exactly one PR
   - Default when empty: treat as `since last audit` (requires a prior audit-report issue; continues to error if no prior report or malformed frontmatter — same as the explicit `since last audit` form)
-- `--repo <owner/name>`: target repo. Default: `character-ai/larch`
+- `--repo <owner/name>`: target repo. Default: `zhupanov/larch`
 - `--allow-concurrent`: override the shared 5-minute `audit-report` concurrency guard (not skill-scoped)
 - **Removed flag**: `--no-fix-issues` is not supported. If any token in the skill argv is exactly `--no-fix-issues`, refuse immediately with a clear usage error (flag removed); do not proceed or silently ignore it.
 

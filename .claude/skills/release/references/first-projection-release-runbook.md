@@ -13,7 +13,7 @@ larch repo root:
 set -euo pipefail
 WORKTREE_LARCH="$PWD/target/release/larch"
 cargo build --quiet --locked --release --package larch-cli
-REPO="$(CLAUDE_PLUGIN_ROOT="$PWD" LARCH_BINARY="$WORKTREE_LARCH" "$PWD/scripts/larch.sh" gh resolve-repo 2>/dev/null || echo "character-ai/larch")"
+REPO="$(CLAUDE_PLUGIN_ROOT="$PWD" LARCH_BINARY="$WORKTREE_LARCH" "$PWD/scripts/larch.sh" gh resolve-repo 2>/dev/null || echo "zhupanov/larch")"
 ```
 
 `NEW_VERSION` and `PR_NUMBER` come from the live `/release` run: Step 2 prints

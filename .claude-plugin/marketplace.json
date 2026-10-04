@@ -9,7 +9,7 @@
       "name": "larch",
       "source": {
         "source": "git-subdir",
-        "url": "https://github.com/character-ai/larch.git",
+        "url": "https://github.com/zhupanov/larch.git",
         "path": "plugin",
         "ref": "stable"
       },

@@ -10,7 +10,7 @@ use std::{
 use tempfile::TempDir;
 
 const SOURCE: &str =
-    "https://raw.githubusercontent.com/character-ai/larch/main/.claude-plugin/marketplace.json";
+    "https://raw.githubusercontent.com/zhupanov/larch/main/.claude-plugin/marketplace.json";
 
 struct Harness {
     _temp: TempDir,

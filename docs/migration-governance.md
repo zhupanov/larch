@@ -216,18 +216,21 @@ GitHub, Git, network, filesystem, process, or issue mutation behavior.
 
 ## Workflow handoff
 
-After Chief umbrella #7687 closed,
+After [character-ai/larch#7687](https://github.com/character-ai/larch/issues/7687) closed,
 `.github/workflows/migration-governance.yaml` became an on-demand workflow with
 only the `workflow_dispatch` trigger. A dispatch checks out the audited commit,
 loads the pinned Rust toolchain, builds the `larch-cli` package from the
 lockfile, and verifies the `larch` binary. It creates the repository's private
 GitHub CLI configuration for the typed client, then selects that binary with
-`LARCH_BINARY` and runs through the verified bootstrap:
+`LARCH_BINARY` and runs through the verified bootstrap. Set the repository
+variable `LARCH_MIGRATION_CHIEF` to the Chief issue's verified destination
+number. The workflow binds that value as `MIGRATION_CHIEF` and uses the current
+`GITHUB_REPOSITORY`; it refuses a missing or invalid issue number:
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/scripts/larch.sh" issue migration-audit \
-  --repo character-ai/larch \
-  --chief 7687 \
+  --repo "$GITHUB_REPOSITORY" \
+  --chief "$MIGRATION_CHIEF" \
   --output "$RUNNER_TEMP/migration-governance.json" \
   --table-output stderr
 ```
@@ -245,7 +248,8 @@ the retired Python runtime.
 The aggregate's count-table renderer supplies the bounded Chief summary. The
 workflow passes that file to `tracking-issue upsert-summary`, which redacts
 secrets and temporary paths before publication. The comment starts with the
-exact marker `<!-- larch:migration-governance v1 chief=7687 -->`. A missing
+marker `<!-- larch:migration-governance v1 chief=<number> -->`, using the
+configured Chief issue number. A missing
 marker creates the comment. One matching marker updates it. Duplicate markers
 fail closed without another mutation.
 
