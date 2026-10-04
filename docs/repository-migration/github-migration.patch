@@ -1,9 +1,9 @@
 diff --git a/LARCH_MIGRATION.md b/LARCH_MIGRATION.md
 new file mode 100644
-index 0000000..6928d0e
+index 0000000..d2b529a
 --- /dev/null
 +++ b/LARCH_MIGRATION.md
-@@ -0,0 +1,180 @@
+@@ -0,0 +1,218 @@
 +# Larch repository migration
 +
 +This adaptation migrates `character-ai/larch` into the existing public
@@ -87,11 +87,34 @@ index 0000000..6928d0e
 +reading a creation response. Recovery first looks for the saved provenance
 +marker. If the record is still absent, it waits until at least 90 seconds after
 +the saved attempt time, checks again, and only then retries. A creation permits
-+at most three POST attempts per invocation. Persistent errors, unreadable recovery evidence,
-+duplicate markers, and body mismatches stop the stage. Authentication,
-+validation, and transport failures with unreadable recovery evidence stop for
-+operator recovery. The request adapter never repeats an uncertain write itself;
-+only a checkpointed creation can recover through provenance checks.
++at most three POST attempts per invocation. Reconciliation and readback GETs
++retry connection failures and HTTP 500, 502, 503, and 504 for as long as needed,
++with exponential delays capped at five minutes. Explicit rate-limit rejections
++on reads and writes respect GitHub's retry/reset instructions and remain pending
++instead of exhausting the uncertain-write attempt budget. The pending write stays saved throughout an outage.
++Authentication and validation errors, duplicate markers, body mismatches, and
++creation failures after three reconciled POST attempts stop for operator recovery.
++The request adapter never repeats an uncertain write itself;
++only a checkpointed operation can recover after confirming its remote state.
++Metadata, lock-state, and comment-reference setters use `updateVerified`.
++It checkpoints the exact request digest before a mutation. After a connection
++failure or HTTP 500/502/503/504 response, it reads the remote result and adopts
++an already accepted update. Otherwise it waits for settlement, reads again,
++and revalidates ownership and the previous body before retrying. These guarded
++setters retry transient failures with backoff capped at five minutes. A changed
++request digest, authentication failure, owner edit, or readback mismatch stops
++the stage with its pending record intact. This recovery never repeats a POST.
++Native sub-issue and dependency additions use `addRelationVerified`, restricted
++to their exact relationship endpoints and ID payloads. It journals a `relation:`
++intent before POST, adopts an accepted relationship after a lost response, and
++requires two absence reads separated by settlement before retrying. Transient
++failures use the same capped backoff as guarded updates. Each retry validates
++the complete relationship group and sub-issue order; an existing different
++parent is never replaced. Old `nativeRelations.edges` intents are preserved and
++reconciled by the same helper. Completed groups with unchanged saved identities
++are skipped on continuation; `auditHistorical` still rereads every group before
++#5 can close. Authentication, validation, changed mappings, and unexpected
++relationships stop the stage with evidence intact.
 +On restart, the three bulk stages trust their completed per-record checkpoints.
 +They check saved identities locally and skip remote rereads of copied issues,
 +PRs, comments, and completed metadata updates. An unfinished creation request
@@ -109,6 +132,21 @@ index 0000000..6928d0e
 +archive file. Preserve the original Git mirror independently of synthetic refs.
 +
 +## Configuration and canonical identity
++
++Repository PATCH payloads contain only changed policy fields. The effective
++`allow_forking` value remains part of the full readback comparison, but its
++private-fork control is writable only on an organization-owned private repository.
++A different unsupported value stops before mutation. When GitHub returns an
++error after applying settings, the stage accepts the result only if a fresh read
++matches the complete desired policy; otherwise it preserves the intent and fails.
++When a read still reports the approved old value after a write, the stage retries
++only the read for up to 90 seconds of backoff. It never repeats the mutation
++during this settlement, and an unexpected third value stops immediately.
++Ruleset comparison treats an omitted optional review-dismissal restriction as
++disabled with no actors, matching GitHub's personal-repository response. An
++explicit enabled restriction, a nonempty actor list, or a malformed value stays
++distinct. Required checks, branch freshness, review rules, and merge methods
++still require exact policy matches.
 +
 +`inventoryConfiguration` reads settings without reading secret values.
 +`restoreConfiguration` consumes its reviewed plan. It verifies the history
@@ -2506,10 +2544,10 @@ index 0000000..6169538
 +})
 diff --git a/historySupplement.test.js b/historySupplement.test.js
 new file mode 100644
-index 0000000..e310c22
+index 0000000..e39a68a
 --- /dev/null
 +++ b/historySupplement.test.js
-@@ -0,0 +1,125 @@
+@@ -0,0 +1,124 @@
 +const assert = require('node:assert/strict')
 +const { test } = require('node:test')
 +const fs = require('fs-extra')
@@ -2597,11 +2635,10 @@ index 0000000..e310c22
 +    if (options.method === 'POST') { posts++; remote.push({ id: 112, number: 12 }); throw new Error('Connection lost after successful write') }
 +    return response(remote)
 +  }
-+  await assert.rejects(restoreGroup(group, state), /reconcile writes/)
-+  assert.equal(state.nativeRelations.edges['blocked-by:1:2'].status, undefined)
 +  await restoreGroup(group, state)
 +  assert.equal(posts, 1)
 +  assert.equal(state.nativeRelations.edges['blocked-by:1:2'].status, 'verified')
++  assert.equal(Object.keys(state.pending).length, 0)
 +}))
 +
 +test('sub-issue restoration never replaces an existing different parent', async () => isolated(async state => {
@@ -2723,12 +2760,194 @@ index 0000000..b6af292
 +  }
 +}
 +module.exports = { render, continuation, originalBlock, objectPresentation, limit }
+diff --git a/migrationMutationRecovery.test.js b/migrationMutationRecovery.test.js
+new file mode 100644
+index 0000000..f59faf7
+--- /dev/null
++++ b/migrationMutationRecovery.test.js
+@@ -0,0 +1,176 @@
++const assert = require('node:assert/strict')
++const { test } = require('node:test')
++const fs = require('fs-extra')
++const os = require('node:os')
++const path = require('node:path')
++
++process.env.MIGRATION_SOURCE_TOKEN = 'migration-test-source-token'
++process.env.MIGRATION_TARGET_TOKEN = 'migration-test-target-token'
++process.env.MIGRATION_TEST_REPO = 'larch-migration-rehearsal-20260928'
++process.env.MIGRATION_WRITE = '1'
++const config = require('./config')
++config.apiCallsPerHour = 3600000
++const migration = require('./migrationState')
++const RealDate = Date
++let clock = RealDate.now()
++const response = (value, status = 200) => new Response(JSON.stringify(value), { status })
++
++const fixture = async run => {
++  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'migration-update-recovery-'))
++  const cwd = process.cwd(), originalFetch = global.fetch, originalTimeout = global.setTimeout
++  const calls = [], delays = []
++  const remote = { id: 42, number: 42, body: 'owned original body', state: 'open', locked: false }
++  let handler = async () => response({ message: 'Unexpected request' }, 400)
++  clock = Math.max(clock, RealDate.now())
++  global.Date = class extends RealDate {
++    constructor(...args) { super(...(args.length ? args : [clock])) }
++    static now() { return clock }
++  }
++  global.setTimeout = (callback, delay, ...args) => {
++    delays.push(delay); clock += delay
++    return originalTimeout(callback, 0, ...args)
++  }
++  const options = { key: 'metadata:1', endpoint: '/issues/42', body: { state: 'closed', body: 'owned desired body' },
++    matches: item => item.state === 'closed' && item.body === 'owned desired body',
++    guard: item => {
++      if (item.id !== 42 || !['owned original body', 'owned desired body'].includes(item.body)) throw new Error('Owner changed the remote record')
++    } }
++  try {
++    process.chdir(directory)
++    global.fetch = async (url, request) => {
++      if (url.pathname.endsWith('/actions/permissions')) return response({ enabled: false })
++      const call = { method: request.method, path: url.pathname, at: clock }
++      calls.push(call)
++      return handler(call, request)
++    }
++    await migration.open('update-recovery-test')
++    await run({ options, remote, calls, delays, handle: value => { handler = value } })
++  } finally {
++    await migration.close()
++    process.chdir(cwd)
++    global.fetch = originalFetch
++    global.setTimeout = originalTimeout
++    global.Date = RealDate
++    await fs.remove(directory)
++  }
++}
++
++test('an accepted PATCH with a lost response is reconciled without another PATCH', async () => {
++  await fixture(async ({ options, remote, calls, handle }) => {
++    handle(async (call, request) => {
++      if (call.method === 'PATCH') {
++        Object.assign(remote, JSON.parse(request.body))
++        throw new Error('Connection lost after acceptance')
++      }
++      return response(remote)
++    })
++    assert.equal((await migration.updateVerified(options)).state, 'closed')
++    assert.equal(calls.filter(call => call.method === 'PATCH').length, 1)
++    assert.equal(migration.state().pending[options.key], undefined)
++  })
++})
++
++test('an unaccepted update is retried after two reads and settlement', async () => {
++  await fixture(async ({ options, remote, calls, handle }) => {
++    let patches = 0
++    handle(async (call, request) => {
++      if (call.method === 'PATCH') {
++        if (++patches === 1) throw new Error('Connection lost before acceptance')
++        Object.assign(remote, JSON.parse(request.body))
++      }
++      return response(remote)
++    })
++    await migration.updateVerified(options)
++    const writes = calls.filter(call => call.method === 'PATCH')
++    assert.equal(writes.length, 2)
++    assert.ok(writes[1].at - writes[0].at >= 90000)
++    assert.deepEqual(calls.map(call => call.method), ['GET', 'PATCH', 'GET', 'GET', 'PATCH', 'GET'])
++    assert.equal(migration.state().pending[options.key], undefined)
++  })
++})
++
++test('prolonged transient setter failures recover after guarded backoff', async () => {
++  await fixture(async ({ options, remote, calls, delays, handle }) => {
++    let patches = 0
++    handle(async (call, request) => {
++      if (call.method === 'PATCH') {
++        if (++patches <= 20) return response({ message: 'Service unavailable' }, 503)
++        Object.assign(remote, JSON.parse(request.body))
++      }
++      return response(remote)
++    })
++    await migration.updateVerified(options)
++    assert.equal(patches, 21)
++    assert.equal(Math.max(...delays), 300000)
++    assert.ok(delays.reduce((a, b) => a + b, 0) > 3600000)
++    assert.equal(calls.filter(call => call.method === 'POST').length, 0)
++  })
++})
++
++test('an owner edit during an outage stops recovery before another mutation', async () => {
++  await fixture(async ({ options, remote, calls, handle }) => {
++    handle(async call => {
++      if (call.method === 'PATCH') {
++        remote.body = 'Owner edited this while the request was interrupted'
++        throw new Error('Connection unavailable')
++      }
++      return response(remote)
++    })
++    await assert.rejects(migration.updateVerified(options), /Owner changed/)
++    assert.equal(calls.filter(call => call.method === 'PATCH').length, 1)
++    assert.ok(migration.state().pending[options.key])
++  })
++})
++
++for (const status of [401, 403, 404, 422]) {
++  test('HTTP ' + status + ' remains terminal for updates', async () => {
++    await fixture(async ({ options, remote, calls, handle }) => {
++      handle(async call => call.method === 'GET' ? response(remote) : response({ message: 'Rejected' }, status))
++      await assert.rejects(migration.updateVerified(options), new RegExp('HTTP ' + status))
++      assert.equal(calls.filter(call => call.method === 'PATCH').length, 1)
++    })
++  })
++}
++
++test('a saved update accepted before interruption is adopted on restart without a write', async () => {
++  await fixture(async ({ options, remote, calls, handle }) => {
++    const pending = { kind: 'verified-update', digest: migration.sha256(JSON.stringify({ method: 'PATCH', endpoint: options.endpoint, readEndpoint: options.endpoint, body: options.body })),
++      startedAt: new Date().toISOString(), attemptedAt: new Date().toISOString(), failures: 1 }
++    migration.state().pending[options.key] = pending
++    await migration.save()
++    await migration.close()
++    await migration.open('update-recovery-restart')
++    Object.assign(remote, options.body)
++    handle(async () => response(remote))
++    calls.length = 0
++    await migration.updateVerified(options)
++    assert.deepEqual(calls.map(call => call.method), ['GET'])
++    assert.equal(migration.state().pending[options.key], undefined)
++  })
++})
++
++test('a pending update with a changed digest is rejected without remote calls', async () => {
++  await fixture(async ({ options, calls }) => {
++    migration.state().pending[options.key] = { kind: 'verified-update', digest: 'different' }
++    await assert.rejects(migration.updateVerified(options), /Mutation changed/)
++    assert.deepEqual(calls, [])
++  })
++})
++
++for (const method of ['PUT', 'DELETE']) {
++  test('an accepted lock ' + method + ' with a lost response is adopted without repeating it', async () => {
++    await fixture(async ({ options, remote, calls, handle }) => {
++      remote.locked = method === 'DELETE'
++      const locked = !remote.locked
++      const operation = { ...options, key: 'lock:1', method, endpoint: '/issues/42/lock', readEndpoint: '/issues/42',
++        body: method === 'PUT' ? {} : undefined, matches: item => item.locked === locked }
++      handle(async call => {
++        if (call.method === method) { remote.locked = locked; throw new Error('Response lost') }
++        return response(remote)
++      })
++      await migration.updateVerified(operation)
++      assert.equal(calls.filter(call => call.method === method).length, 1)
++      assert.equal(migration.state().pending[operation.key], undefined)
++    })
++  })
++}
 diff --git a/migrationRecovery.test.js b/migrationRecovery.test.js
 new file mode 100644
-index 0000000..9192826
+index 0000000..676fa3c
 --- /dev/null
 +++ b/migrationRecovery.test.js
-@@ -0,0 +1,257 @@
+@@ -0,0 +1,293 @@
 +const assert = require('node:assert/strict')
 +const { test } = require('node:test')
 +const fs = require('fs-extra')
@@ -2977,13 +3196,49 @@ index 0000000..9192826
 +  })
 +}
 +
-+test('a transport failure with unreadable recovery evidence stops without another POST', async () => {
-+  await fixture(async ({ options, calls, handle }) => {
-+    handle(async () => { throw new Error('Connection lost after a possible write') })
-+    await assert.rejects(migration.createOnce(options), /transport failed; reconcile writes/)
++test('a prolonged outage during reconciliation waits and adopts remote success without another POST', async () => {
++  await fixture(async ({ options, remote, calls, delays, handle }) => {
++    let reads = 0
++    handle(async call => {
++      if (call.method === 'POST') throw new Error('Connection lost after a possible write')
++      if (++reads <= 30) throw new Error('Network remains unavailable')
++      return response(call.endpoint === options.endpoint ? [remote] : remote)
++    })
++    assert.equal((await migration.createOnce(options)).id, remote.id)
 +    assert.equal(calls.filter(call => call.method === 'POST').length, 1)
-+    assert.equal(calls.filter(call => call.method === 'GET').length, 6)
++    assert.equal(calls.filter(call => call.method === 'GET').length, 32)
++    assert.ok(delays.reduce((total, delay) => total + delay, 0) > 3600000)
++    assert.equal(Math.max(...delays), 300000)
 +    assert.ok(migration.state().pending[options.key].attemptedAt)
++  })
++})
++
++test('a prolonged outage after a successful POST resumes its readback without recreating it', async () => {
++  await fixture(async ({ options, remote, calls, handle }) => {
++    let reads = 0
++    handle(async call => {
++      if (call.method === 'POST') return response(remote)
++      if (++reads <= 12) throw new Error('Readback connection unavailable')
++      return response(remote)
++    })
++    assert.equal((await migration.createOnce(options)).id, remote.id)
++    assert.equal(calls.filter(call => call.method === 'POST').length, 1)
++    assert.equal(reads, 13)
++    assert.equal(migration.state().pending[options.key].response.id, remote.id)
++  })
++})
++
++test('prolonged HTTP 503 responses during reconciliation wait without another POST', async () => {
++  await fixture(async ({ options, remote, calls, handle }) => {
++    let reads = 0
++    handle(async call => {
++      if (call.method === 'POST') throw new Error('Connection lost after a possible write')
++      if (++reads <= 12) return response({ message: 'Service unavailable' }, 503)
++      return response(call.endpoint === options.endpoint ? [remote] : remote)
++    })
++    assert.equal((await migration.createOnce(options)).id, remote.id)
++    assert.equal(calls.filter(call => call.method === 'POST').length, 1)
++    assert.equal(reads, 14)
 +  })
 +})
 diff --git a/migrationReferences.js b/migrationReferences.js
@@ -3140,6 +3395,219 @@ index 0000000..bcdae75
 +  assert.ok(unicode.title.length <= 256)
 +  assert.equal(unicode.title.isWellFormed(), true)
 +})
+diff --git a/migrationRelationRecovery.test.js b/migrationRelationRecovery.test.js
+new file mode 100644
+index 0000000..f82ecc2
+--- /dev/null
++++ b/migrationRelationRecovery.test.js
+@@ -0,0 +1,207 @@
++const assert = require('node:assert/strict')
++const { test } = require('node:test')
++const fs = require('fs-extra')
++const os = require('node:os')
++const path = require('node:path')
++
++process.env.MIGRATION_SOURCE_TOKEN = 'migration-test-source-token'
++process.env.MIGRATION_TARGET_TOKEN = 'migration-test-target-token'
++process.env.MIGRATION_TEST_REPO = 'larch-migration-rehearsal-20260928'
++process.env.MIGRATION_WRITE = '1'
++const config = require('./config')
++config.apiCallsPerHour = 3600000
++const migration = require('./migrationState')
++const { restoreGroup } = require('./restoreNativeRelations')
++const RealDate = Date
++let clock = RealDate.now()
++const response = (value, status = 200, headers = {}) => new Response(JSON.stringify(value), { status, headers })
++
++const fixture = async (run, kind = 'blocked-by') => {
++  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'migration-relation-recovery-'))
++  const cwd = process.cwd(), originalFetch = global.fetch, originalTimeout = global.setTimeout
++  const edge = { kind, sourceNumber: 1, relatedNumber: 2, position: 0,
++    targetNumber: 11, targetIssueId: 111, relatedTargetNumber: 12, relatedTargetIssueId: 112 }
++  const group = { kind, sourceNumber: 1, targetNumber: 11, edges: [edge] }
++  const key = kind + ':1:2', remote = [], calls = [], delays = []
++  let parent, handler
++  clock = Math.max(clock, RealDate.now())
++  global.Date = class extends RealDate {
++    constructor(...args) { super(...(args.length ? args : [clock])) }
++    static now() { return clock }
++  }
++  global.setTimeout = (callback, delay, ...args) => {
++    delays.push(delay); clock += delay
++    return originalTimeout(callback, 0, ...args)
++  }
++  try {
++    process.chdir(directory)
++    global.fetch = async (url, options) => {
++      if (url.pathname.endsWith('/actions/permissions')) return response({ enabled: false })
++      const call = { method: options.method, path: url.pathname, page: Number(url.searchParams.get('page') || 1), at: clock }
++      calls.push(call)
++      if (url.pathname.endsWith('/parent')) return response(parent || { message: 'Not Found' }, parent ? 200 : 404)
++      if (handler) return handler(call, options)
++      if (options.method === 'POST') remote.push({ id: 112, number: 12 })
++      return response(remote.slice((call.page - 1) * 100, call.page * 100))
++    }
++    await migration.open('relation-recovery-test')
++    await run({ group, edge, key, remote, calls, delays, handle: value => { handler = value }, setParent: value => { parent = value } })
++  } finally {
++    await migration.close()
++    process.chdir(cwd)
++    global.fetch = originalFetch
++    global.setTimeout = originalTimeout
++    global.Date = RealDate
++    await fs.remove(directory)
++  }
++}
++
++test('an accepted relation with a lost response is adopted in the same invocation', async () => fixture(async ({ group, key, remote, calls, handle }) => {
++  handle(async call => {
++    if (call.method === 'POST') { remote.push({ id: 112, number: 12 }); throw new Error('Lost response') }
++    return response(remote)
++  })
++  await restoreGroup(group, migration.state())
++  assert.equal(calls.filter(call => call.method === 'POST').length, 1)
++  assert.equal(remote.length, 1)
++  assert.equal(migration.state().nativeRelations.edges[key].status, 'verified')
++  assert.deepEqual(migration.state().pending, {})
++}))
++
++test('an absent relation is retried only after two reads and 90 seconds of settlement', async () => fixture(async ({ group, remote, calls, handle }) => {
++  let writes = 0
++  handle(async call => {
++    if (call.method === 'POST') {
++      if (++writes === 1) throw new Error('Connection lost before acceptance')
++      remote.push({ id: 112, number: 12 })
++    }
++    return response(remote)
++  })
++  await restoreGroup(group, migration.state())
++  assert.deepEqual(calls.map(call => call.method), ['GET', 'POST', 'GET', 'GET', 'POST', 'GET'])
++  const posts = calls.filter(call => call.method === 'POST')
++  assert.ok(posts[1].at - posts[0].at >= 90000)
++  assert.equal(remote.length, 1)
++}))
++
++test('a prolonged relation write outage recovers with capped backoff and no duplicate edge', async () => fixture(async ({ group, remote, delays, handle }) => {
++  let writes = 0
++  handle(async call => {
++    if (call.method === 'POST') {
++      if (++writes <= 20) return response({ message: 'Service unavailable' }, 503)
++      remote.push({ id: 112, number: 12 })
++    }
++    return response(remote)
++  })
++  await restoreGroup(group, migration.state())
++  assert.equal(writes, 21)
++  assert.equal(Math.max(...delays), 300000)
++  assert.ok(delays.reduce((total, delay) => total + delay, 0) > 3600000)
++  assert.equal(remote.length, 1)
++}))
++
++test('a legacy interrupted relation intent is restored and settled before retry', async () => fixture(async ({ group, edge, key, calls }) => {
++  const at = Date.now()
++  migration.state().nativeRelations = { edges: { [key]: { ...edge, intentAt: new Date().toISOString() } }, archival: [] }
++  await migration.save(); await migration.close(); await migration.open('relation-restart')
++  await restoreGroup(group, migration.state())
++  const posts = calls.filter(call => call.method === 'POST')
++  assert.equal(posts.length, 1)
++  assert.ok(posts[0].at - at >= 90000)
++  assert.deepEqual(calls.map(call => call.method), ['GET', 'GET', 'POST', 'GET'])
++  assert.deepEqual(migration.state().pending, {})
++}))
++
++test('a legacy accepted relation is adopted after restart without posting it again', async () => fixture(async ({ group, edge, key, remote, calls }) => {
++  migration.state().nativeRelations = { edges: { [key]: { ...edge, intentAt: new Date().toISOString() } }, archival: [] }
++  remote.push({ id: 112, number: 12 })
++  await migration.save(); await migration.close(); await migration.open('relation-restart')
++  await restoreGroup(group, migration.state())
++  assert.deepEqual(calls.map(call => call.method), ['GET'])
++  assert.equal(migration.state().nativeRelations.edges[key].status, 'verified')
++  assert.deepEqual(migration.state().pending, {})
++}))
++
++test('a saved modern intent survives an interrupted response and resumes without a duplicate', async () => fixture(async ({ group, key, remote, calls, handle }) => {
++  handle(async call => {
++    if (call.method === 'POST') {
++      remote.push({ id: 112, number: 12 })
++      return response({ message: 'Simulated stop after remote acceptance' }, 418)
++    }
++    return response(remote)
++  })
++  await assert.rejects(restoreGroup(group, migration.state()), /HTTP 418/)
++  assert.ok(migration.state().pending['relation:' + key])
++  await migration.close(); await migration.open('relation-restart')
++  await restoreGroup(group, migration.state())
++  assert.equal(calls.filter(call => call.method === 'POST').length, 1)
++  assert.equal(remote.length, 1)
++  assert.deepEqual(migration.state().pending, {})
++}))
++
++for (const status of [401, 403, 404, 422]) {
++  test('a permanent relation HTTP ' + status + ' remains terminal', async () => fixture(async ({ group, calls, handle }) => {
++    handle(async call => response(call.method === 'POST' ? { message: 'Rejected' } : [], call.method === 'POST' ? status : 200))
++    await assert.rejects(restoreGroup(group, migration.state()), new RegExp('HTTP ' + status))
++    assert.equal(calls.filter(call => call.method === 'POST').length, 1)
++  }))
++}
++
++test('a parent changed during an outage prevents another sub-issue write', async () => fixture(async ({ group, calls, handle, setParent }) => {
++  handle(async call => {
++    if (call.method === 'POST') { setParent({ id: 999 }); throw new Error('Connection lost') }
++    return response([])
++  })
++  await assert.rejects(restoreGroup(group, migration.state()), /replace an existing destination parent/)
++  assert.equal(calls.filter(call => call.method === 'POST').length, 1)
++}, 'sub-issue'))
++
++test('an unexpected relation added during an outage prevents another mutation', async () => fixture(async ({ group, remote, calls, handle }) => {
++  handle(async call => {
++    if (call.method === 'POST') { remote.push({ id: 999 }); throw new Error('Connection lost') }
++    return response(remote)
++  })
++  await assert.rejects(restoreGroup(group, migration.state()), /Unexpected native relationships/)
++  assert.equal(calls.filter(call => call.method === 'POST').length, 1)
++}))
++
++test('a completed group resumes from its checkpoint and rejects changed mappings', async () => fixture(async ({ group, calls }) => {
++  await restoreGroup(group, migration.state())
++  calls.length = 0
++  await restoreGroup(group, migration.state())
++  assert.deepEqual(calls, [])
++  group.edges[0].relatedTargetIssueId = 999
++  await assert.rejects(restoreGroup(group, migration.state()), /mapping changed/)
++  assert.deepEqual(calls, [])
++}))
++
++test('a changed request digest prevents a repeated relation write', async () => fixture(async ({ group, key, calls }) => {
++  migration.state().pending['relation:' + key] = { kind: 'verified-relation', digest: 'different' }
++  await assert.rejects(restoreGroup(group, migration.state()), /Mutation changed/)
++  assert.equal(calls.filter(call => call.method === 'POST').length, 0)
++}))
++
++test('the relation helper cannot be used for issue creation or forced reparenting', async () => fixture(async ({ calls }) => {
++  const options = { key: 'unsafe', matches: () => false, guard: () => {}, beforeWrite: async () => {} }
++  await assert.rejects(migration.addRelationVerified({ ...options, endpoint: '/issues', body: { issue_id: 112 } }), /guarded native issue relationship/)
++  await assert.rejects(migration.addRelationVerified({ ...options, endpoint: '/issues/11/sub_issues', body: { sub_issue_id: 112, replace_parent: true } }), /guarded native issue relationship/)
++  await assert.rejects(migration.updateVerified({ ...options, method: 'POST', endpoint: '/issues/11/dependencies/blocked_by', body: { issue_id: 112 } }), /guarded state-setting/)
++  assert.deepEqual(calls, [])
++}))
++
++test('explicit rate-limit rejections survive more than six attempts and respect reset headers', async () => fixture(async ({ group, remote, calls, handle }) => {
++  let writes = 0
++  handle(async call => {
++    if (call.method === 'POST') {
++      if (++writes <= 8) return response({ message: 'API rate limit exceeded' }, 403,
++        { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(Math.ceil((Date.now() + 120000) / 1000)) })
++      remote.push({ id: 112, number: 12 })
++    }
++    return response(remote)
++  })
++  await restoreGroup(group, migration.state())
++  const posts = calls.filter(call => call.method === 'POST')
++  assert.equal(posts.length, 9)
++  for (let index = 1; index < posts.length; index++) assert.ok(posts[index].at - posts[index - 1].at >= 120000)
++  assert.equal(remote.length, 1)
++}))
 diff --git a/migrationReplay.test.js b/migrationReplay.test.js
 new file mode 100644
 index 0000000..61833a3
@@ -3274,10 +3742,10 @@ index 0000000..61833a3
 +})
 diff --git a/migrationRequest.js b/migrationRequest.js
 new file mode 100644
-index 0000000..196b82d
+index 0000000..68d8190
 --- /dev/null
 +++ b/migrationRequest.js
-@@ -0,0 +1,87 @@
+@@ -0,0 +1,97 @@
 +const config = require('./config')
 +
 +const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
@@ -3288,6 +3756,12 @@ index 0000000..196b82d
 +  let message = String(error && error.message || error)
 +  for (const secret of secrets) message = message.split(secret).join('[REDACTED]')
 +  return message.slice(0, 1500)
++}
++const waitForReadRetry = async (pathname, attempt, reason) => {
++  const delay = Math.min(300000, 1000 * (2 ** Math.min(attempt, 9)))
++  console.log('GitHub GET ' + pathname + ': ' + reason + '; waiting ' +
++    Math.ceil(delay / 1000) + ' seconds before read retry ' + (attempt + 1))
++  await sleep(delay)
 +}
 +
 +const request = async (options) => {
@@ -3306,7 +3780,7 @@ index 0000000..196b82d
 +    throw new Error('Destination writes are disabled; set MIGRATION_WRITE=1 for a validated stage')
 +  }
 +  const isWrite = method !== 'GET'
-+  for (let attempt = 0; attempt < 6; attempt++) {
++  for (let attempt = 0; ; attempt++) {
 +    const waitUntil = Math.max(nextReadAt, isWrite ? nextWriteAt : 0)
 +    if (waitUntil > Date.now()) {
 +      await sleep(waitUntil - Date.now())
@@ -3329,8 +3803,10 @@ index 0000000..196b82d
 +      })
 +      responseText = await response.text()
 +    } catch (_) {
-+      if (!isWrite && attempt < 5) {
-+        await sleep(1000 * (2 ** attempt))
++      if (!isWrite) {
++        // Reads are safe to repeat through a prolonged outage. In particular,
++        // keep uncertain writes pending until their reconciliation can be read.
++        await waitForReadRetry(url.pathname, attempt, 'connection unavailable')
 +        continue
 +      }
 +      const error = new Error(method + ' ' + url.pathname + ': transport failed; reconcile writes before retrying')
@@ -3347,14 +3823,16 @@ index 0000000..196b82d
 +    const retryAfter = Number(response.headers.get('retry-after') || 0)
 +    const rateLimited = response.status === 429 ||
 +      ([403, 422].includes(response.status) && (retryAfter > 0 || /rate limit|secondary rate|abuse detection|submitted too quickly|spam detection/i.test(message)))
-+    if (rateLimited && attempt < 5) {
-+      const delay = Math.max(retryAfter * 1000, nextReadAt - Date.now(), 60000 * (2 ** attempt))
++    // An explicit rate-limit rejection has not accepted the mutation. Keep
++    // respecting GitHub's reset/backoff instead of exhausting a write budget.
++    if (rateLimited) {
++      const delay = Math.max(retryAfter * 1000, nextReadAt - Date.now(), 60000 * (2 ** Math.min(attempt, 4)))
 +      console.log('GitHub rate limit: waiting ' + Math.ceil(delay / 1000) + ' seconds before retry')
 +      nextReadAt = Date.now() + delay
 +      continue
 +    }
-+    if (!isWrite && response.status >= 500 && attempt < 5) {
-+      await sleep(1000 * (2 ** attempt))
++    if (!isWrite && [500, 502, 503, 504].includes(response.status)) {
++      await waitForReadRetry(url.pathname, attempt, 'HTTP ' + response.status)
 +      continue
 +    }
 +    const error = new Error(method + ' ' + url.pathname + ': HTTP ' + response.status + ': ' + message)
@@ -3367,10 +3845,10 @@ index 0000000..196b82d
 +module.exports = request
 diff --git a/migrationResume.test.js b/migrationResume.test.js
 new file mode 100644
-index 0000000..d4191d6
+index 0000000..558e421
 --- /dev/null
 +++ b/migrationResume.test.js
-@@ -0,0 +1,233 @@
+@@ -0,0 +1,254 @@
 +const assert = require('node:assert/strict')
 +const { test } = require('node:test')
 +const fs = require('fs-extra')
@@ -3575,6 +4053,27 @@ index 0000000..d4191d6
 +  })
 +})
 +
++test('metadata replay survives a lost PATCH response and checkpoints the accepted result', async () => {
++  const record = source(1)
++  await fixture([record], async ({ state, calls, handle }) => {
++    state.objects[1] = mapping(record, 11)
++    const rendered = await render(record, 'object', state.objects, {}, '', Infinity)
++    const remote = { ...remoteObject(record, rendered.body, 11), state: 'open', labels: [], assignees: [], milestone: null, locked: false }
++    state.objects[1].bodySha256 = migration.sha256(migration.normalize(remote.body))
++    handle(async (url, options) => {
++      if (options.method === 'PATCH') {
++        Object.assign(remote, JSON.parse(options.body))
++        throw new Error('Response lost after metadata was accepted')
++      }
++      return response(remote)
++    })
++    await updateObjects()
++    assert.equal(calls.filter(call => call.method === 'PATCH').length, 1)
++    assert.ok(state.objects[1].metadataVerifiedAt)
++    assert.deepEqual(state.pending, {})
++  })
++})
++
 +test('a completed object checkpoint with a different source identity fails without remote requests', async () => {
 +  const record = source(1)
 +  await fixture([record], async ({ state, calls }) => {
@@ -3756,10 +4255,10 @@ index 0000000..0d881e3
 +})
 diff --git a/migrationState.js b/migrationState.js
 new file mode 100644
-index 0000000..870ffee
+index 0000000..296e8f8
 --- /dev/null
 +++ b/migrationState.js
-@@ -0,0 +1,175 @@
+@@ -0,0 +1,259 @@
 +const fs = require('fs-extra')
 +const path = require('node:path')
 +const os = require('node:os')
@@ -3915,6 +4414,90 @@ index 0000000..870ffee
 +    }
 +  }
 +}
++const updateVerified = async ({ key, method = 'PATCH', endpoint, body, readEndpoint = endpoint, matches, guard, initial }) => {
++  if (!config.enableWrites || !key || !['PATCH', 'PUT', 'DELETE'].includes(method) || typeof matches !== 'function' || typeof guard !== 'function') {
++    throw new Error('Verified updates require an enabled, guarded state-setting operation')
++  }
++  return mutateVerified({ key, method, endpoint, body, readEndpoint, matches, guard, initial })
++}
++const addRelationVerified = async ({ key, endpoint, body, matches, guard, beforeWrite, initial, legacyAttemptedAt }) => {
++  const subIssue = /^\/issues\/[1-9]\d*\/sub_issues$/.test(endpoint)
++  const dependency = /^\/issues\/[1-9]\d*\/dependencies\/blocked_by$/.test(endpoint)
++  const id = body && (subIssue ? body.sub_issue_id : body.issue_id)
++  const keys = body && Object.keys(body).sort().join(',')
++  if (!config.enableWrites || !key || (!subIssue && !dependency) || !Number.isSafeInteger(id) || id <= 0 ||
++      (subIssue ? keys !== 'replace_parent,sub_issue_id' || body.replace_parent !== false : keys !== 'issue_id') ||
++      typeof matches !== 'function' || typeof guard !== 'function' || typeof beforeWrite !== 'function') {
++    throw new Error('Verified relation writes require an enabled, guarded native issue relationship')
++  }
++  return mutateVerified({ key, method: 'POST', endpoint, body, readEndpoint: endpoint, matches, guard, beforeWrite,
++    initial, readMany: true, pendingKind: 'verified-relation', legacyAttemptedAt })
++}
++const mutateVerified = async ({ key, method, endpoint, body, readEndpoint, matches, guard, initial,
++  beforeWrite, readMany = false, pendingKind = 'verified-update', legacyAttemptedAt }) => {
++  const digest = sha256(JSON.stringify({ method, endpoint, readEndpoint, body, ...(readMany ? { readMany: true } : {}) }))
++  let pending = state.pending[key]
++  if (legacyAttemptedAt && !Number.isFinite(Date.parse(legacyAttemptedAt))) throw new Error('Invalid saved relation intent: ' + key)
++  if (!pending && legacyAttemptedAt) {
++    pending = state.pending[key] = { kind: pendingKind, digest, method, endpoint, readEndpoint,
++      startedAt: legacyAttemptedAt, attemptedAt: legacyAttemptedAt, failures: 0 }
++    await save()
++  }
++  if (pending && (pending.kind !== pendingKind || pending.digest !== digest ||
++      !Number.isFinite(Date.parse(pending.startedAt)) ||
++      (pending.attemptedAt && !Number.isFinite(Date.parse(pending.attemptedAt))) ||
++      !Number.isSafeInteger(pending.failures) || pending.failures < 0)) throw new Error('Mutation changed while pending: ' + key)
++  let current = initial
++  const read = () => readMany ? list(readEndpoint) : call('GET', readEndpoint)
++  const operation = readMany ? 'relation' : 'update'
++  const finish = async (remote, action) => {
++    if (pending) {
++      await audit({ key, action, method, endpoint, id: remote.id, number: remote.number })
++      delete state.pending[key]
++      await save()
++    }
++    return remote
++  }
++  for (;;) {
++    current = current || await read()
++    await guard(current)
++    if (matches(current)) return finish(current, 'reconciled-' + operation + '-success')
++    if (pending?.attemptedAt) {
++      // An interrupted mutation may still become visible. Read twice, separated
++      // by settlement/backoff, before considering another guarded update.
++      const delay = Math.max(0, Date.parse(pending.attemptedAt) + 90000 - Date.now(),
++        Math.min(300000, 30000 * (2 ** Math.min(Math.max(0, (pending.failures || 1) - 1), 4))))
++      console.log('Reconcile ' + key + ': waiting ' + Math.ceil(delay / 1000) + ' seconds before another read')
++      await new Promise(resolve => setTimeout(resolve, delay))
++      current = await read()
++      await guard(current)
++      if (matches(current)) return finish(current, 'reconciled-delayed-' + operation + '-success')
++    }
++    if (beforeWrite) await beforeWrite()
++    if (!pending) {
++      pending = state.pending[key] = { kind: pendingKind, digest, method, endpoint, readEndpoint, startedAt: new Date().toISOString(), failures: 0 }
++    }
++    pending.attemptedAt = new Date().toISOString()
++    await save()
++    await audit({ key, action: 'guarded-' + operation + '-intent', method, endpoint, digest })
++    try {
++      await call(method, endpoint, body)
++    } catch (error) {
++      if (error.code !== 'MIGRATION_TRANSPORT_FAILURE' && ![500, 502, 503, 504].includes(error.statusCode)) throw error
++      pending.failures++
++      pending.lastFailureAt = new Date().toISOString()
++      await save()
++      await audit({ key, action: operation + '-transient-failure', method, endpoint, status: error.statusCode, failures: pending.failures, nextAction: 'read-and-reconcile' })
++      console.log('Transient ' + operation + ' failure for ' + key + '; reading the remote result before retrying')
++      current = null
++      continue
++    }
++    current = await read()
++    await guard(current)
++    if (!matches(current)) throw new Error('Destination ' + operation + ' read-back differs: ' + key)
++    return finish(current, readMany ? 'relation-added-and-read-back' : 'updated-and-read-back')
++  }
++}
 +const issueFiles = async () => {
 +  let records = (await fs.readdir(path.join(config.source.repo, 'issues')))
 +    .filter(name => /^issue-\d+\.json$/.test(name))
@@ -3934,7 +4517,7 @@ index 0000000..870ffee
 +  catch (error) { console.error(request.safeError(error)); process.exitCode = 1 }
 +  finally { await close() }
 +}
-+module.exports = { api, headers, atomicJson, sha256, normalize, call, list, save, audit, open, close, marker, verifyBody, createOnce, issueFiles, isDeferred, run, state: () => state }
++module.exports = { api, headers, atomicJson, sha256, normalize, call, list, save, audit, open, close, marker, verifyBody, createOnce, updateVerified, addRelationVerified, issueFiles, isDeferred, run, state: () => state }
 diff --git a/package-lock.json b/package-lock.json
 new file mode 100644
 index 0000000..f111544
@@ -6370,10 +6953,10 @@ index 0000000..a1593f1
 +})
 diff --git a/repairHistoryReferences.js b/repairHistoryReferences.js
 new file mode 100644
-index 0000000..7928764
+index 0000000..fa57036
 --- /dev/null
 +++ b/repairHistoryReferences.js
-@@ -0,0 +1,51 @@
+@@ -0,0 +1,55 @@
 +const migration = require('./migrationState')
 +const { render, continuation } = require('./migrationContent')
 +const { discussion, inlineContext, assertReplayComplete, assertReplayAudited } = require('./historyCorpus')
@@ -6389,14 +6972,18 @@ index 0000000..7928764
 +    const saved = state.comments[piece.key]
 +    if (!saved || saved.status !== 'verified') throw new Error('Missing imported discussion mapping: ' + piece.key)
 +    let remote = await migration.call('GET', '/issues/comments/' + saved.targetId)
-+    if (remote.id !== saved.targetId || !String(remote.body || '').startsWith(piece.identity) || Number(remote.issue_url.split('/').pop()) !== saved.targetNumber) throw new Error('Destination comment identity changed: ' + piece.key)
 +    const desired = migration.sha256(migration.normalize(piece.body))
 +    const observed = migration.sha256(migration.normalize(remote.body))
-+    if (desired !== observed) {
-+      if (observed !== saved.bodySha256) throw new Error('Destination comment was edited outside the migration: ' + saved.targetUrl)
++    const guard = item => {
++      if (item.id !== saved.targetId || !String(item.body || '').startsWith(piece.identity) || Number(item.issue_url.split('/').pop()) !== saved.targetNumber) throw new Error('Destination comment identity changed: ' + piece.key)
++      const digest = migration.sha256(migration.normalize(item.body))
++      if (digest !== desired && digest !== saved.bodySha256) throw new Error('Destination comment was edited outside the migration: ' + saved.targetUrl)
++    }
++    guard(remote)
++    if (desired !== observed || state.pending['reference:' + piece.key]) {
 +      await migration.audit({ action: 'repair-comment-reference-intent', key: piece.key, targetId: saved.targetId, beforeSha256: observed, afterSha256: desired })
-+      await migration.call('PATCH', '/issues/comments/' + saved.targetId, { body: piece.body })
-+      remote = await migration.call('GET', '/issues/comments/' + saved.targetId)
++      remote = await migration.updateVerified({ key: 'reference:' + piece.key, endpoint: '/issues/comments/' + saved.targetId,
++        body: { body: piece.body }, guard, matches: item => migration.sha256(migration.normalize(item.body)) === desired, initial: remote })
 +      migration.verifyBody(remote, piece.body)
 +      changed++
 +    }
@@ -6427,10 +7014,10 @@ index 0000000..7928764
 +module.exports = { main, repairComment }
 diff --git a/repositoryConfiguration.js b/repositoryConfiguration.js
 new file mode 100644
-index 0000000..02645fe
+index 0000000..0f67dc8
 --- /dev/null
 +++ b/repositoryConfiguration.js
-@@ -0,0 +1,297 @@
+@@ -0,0 +1,340 @@
 +// Repository settings are separate from historical replay. The source stays read-only.
 +const fs = require('fs-extra')
 +const { execFileSync } = require('node:child_process')
@@ -6453,6 +7040,15 @@ index 0000000..02645fe
 +const fingerprint = value => migration.sha256(JSON.stringify(sorted(value)))
 +const same = (left, right) => isDeepStrictEqual(left, right)
 +const repositoryPolicy = value => ({ ...pick(value, repositoryFields), homepage: value.homepage || '' })
++const repositoryMutation = (current, desired) => {
++  if (Object.keys(desired).some(key => !repositoryFields.includes(key))) throw new Error('Unreviewed repository mutation field')
++  const policy = repositoryPolicy(current)
++  const changed = Object.fromEntries(Object.entries(desired).filter(([key, value]) => !same(policy[key], value)))
++  if ('allow_forking' in changed && ((current.owner?.type || current.ownerType) !== 'Organization' || current.visibility !== 'private')) {
++    throw new Error('The requested private-fork policy cannot be changed on this destination')
++  }
++  return changed
++}
 +const apiGet = (repository, endpoint) => request({ url: repository.baseUrl + '/' + repository.org + '/' + repository.repo + endpoint, headers: { Authorization: 'Bearer ' + repository.token }, json: true })
 +const optional = async operation => {
 +  try { return { present: true, value: await operation() } }
@@ -6475,7 +7071,14 @@ index 0000000..02645fe
 +  rules: value.rules.map(rule => {
 +    const result = structuredClone(rule)
 +    if (result.type === 'required_status_checks') result.parameters.required_status_checks.sort((a, b) => a.context.localeCompare(b.context))
-+    if (result.type === 'pull_request' && result.parameters.allowed_merge_methods) result.parameters.allowed_merge_methods.sort()
++    if (result.type === 'pull_request') {
++      if (result.parameters.allowed_merge_methods) result.parameters.allowed_merge_methods.sort()
++      // GitHub omits the optional disabled restriction on personal repositories.
++      // Preserve explicit restrictions, including disabled lists with actors.
++      if (!Object.hasOwn(result.parameters, 'dismissal_restriction')) {
++        result.parameters.dismissal_restriction = { enabled: false, allowed_actors: [] }
++      }
++    }
 +    return result
 +  }).sort((a, b) => a.type.localeCompare(b.type)),
 +})
@@ -6635,7 +7238,8 @@ index 0000000..02645fe
 +  }
 +}
 +
-+const reconcile = async ({ key, desired, before, read, write, ledger, save = migration.save, audit = migration.audit }) => {
++const reconcile = async ({ key, desired, before, read, write, ledger, save = migration.save, audit = migration.audit,
++  wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)) }) => {
 +  if (ledger[key]?.desiredFingerprint && ledger[key].desiredFingerprint !== fingerprint(desired)) throw new Error('Configuration intent changed during replay: ' + key)
 +  let current = await read()
 +  if (same(current, desired)) {
@@ -6647,9 +7251,33 @@ index 0000000..02645fe
 +  ledger[key] = { ...ledger[key], desiredFingerprint: fingerprint(desired), intentAt: new Date().toISOString() }
 +  await save()
 +  await audit({ action: 'configuration-intent', key, desiredFingerprint: fingerprint(desired) })
-+  await write()
-+  current = await read()
-+  if (!same(current, desired)) throw new Error('Configuration readback differs: ' + key)
++  const settledReadback = async () => {
++    // Successful setters can precede their read replicas. Retry only reads of
++    // the approved old value, never the mutation or an unexpected third value.
++    for (const delay of [0, 1000, 2000, 4000, 8000, 15000, 30000, 30000]) {
++      if (delay) {
++        await audit({ action: 'configuration-readback-wait', key, milliseconds: delay })
++        await wait(delay)
++      }
++      const observed = await read()
++      if (same(observed, desired)) return true
++      if (!same(observed, before)) return false
++    }
++    return false
++  }
++  try { await write() }
++  catch (error) {
++    // GitHub can apply settings before rejecting another field in the same
++    // request, or lose the response. Only the complete desired readback can
++    // turn that uncertain result into a verified operation.
++    await audit({ action: 'configuration-response-error', key, status: error.statusCode })
++    if (!await settledReadback()) throw error
++    ledger[key].responseErrorReconciledAt = new Date().toISOString()
++    ledger[key].verifiedAt = new Date().toISOString()
++    await save()
++    return
++  }
++  if (!await settledReadback()) throw new Error('Configuration readback differs: ' + key)
 +  ledger[key].verifiedAt = new Date().toISOString()
 +  await save()
 +}
@@ -6667,8 +7295,10 @@ index 0000000..02645fe
 +  const ledger = state.configuration.operations
 +  const get = endpoint => migration.call('GET', endpoint)
 +  const applySetting = (key, desired, before, read, write) => reconcile({ key, desired, before, read, write, ledger })
++  let currentRepository
 +  await applySetting('repository', plan.desired.repository, repositoryPolicy(plan.targetSnapshot.repository),
-+    async () => repositoryPolicy(await get('')), () => migration.call('PATCH', '', plan.desired.repository))
++    async () => { currentRepository = await get(''); return repositoryPolicy(currentRepository) },
++    () => migration.call('PATCH', '', repositoryMutation(currentRepository, plan.desired.repository)))
 +  await applySetting('topics', plan.desired.topics, plan.targetSnapshot.repository.topics,
 +    async () => (await get('/topics')).names, () => migration.call('PUT', '/topics', { names: plan.desired.topics }))
 +  for (const [key, endpoint] of [['workflowPermissions', '/actions/permissions/workflow'], ['forkApproval', '/actions/permissions/fork-pr-contributor-approval']]) {
@@ -6727,19 +7357,34 @@ index 0000000..02645fe
 +  console.log('Repository controls restored; a separate normal PR must verify CI and protected squash merge')
 +}
 +
-+module.exports = { inventory, buildPlan, apply, assertPrerequisites, reconcile, personalRuleset, rulesetPolicy, repositoryPolicy, fingerprint, repositoryFields }
++module.exports = { inventory, buildPlan, apply, assertPrerequisites, reconcile, personalRuleset, rulesetPolicy, repositoryPolicy, repositoryMutation, fingerprint, repositoryFields }
 diff --git a/repositoryConfiguration.test.js b/repositoryConfiguration.test.js
 new file mode 100644
-index 0000000..04d43b6
+index 0000000..dea2dab
 --- /dev/null
 +++ b/repositoryConfiguration.test.js
-@@ -0,0 +1,68 @@
+@@ -0,0 +1,170 @@
 +const assert = require('node:assert/strict')
 +const { test } = require('node:test')
 +process.env.MIGRATION_SOURCE_TOKEN = 'migration-test-source-token'
 +process.env.MIGRATION_TARGET_TOKEN = 'migration-test-target-token'
 +process.env.MIGRATION_TEST_REPO = 'larch-migration-rehearsal-20260928'
-+const { personalRuleset, assertPrerequisites, reconcile } = require('./repositoryConfiguration')
++const { personalRuleset, rulesetPolicy, fingerprint, assertPrerequisites, reconcile, repositoryMutation } = require('./repositoryConfiguration')
++
++test('public personal settings updates omit unchanged private-fork controls and preserve full policy checks', () => {
++  const current = { owner: { type: 'User' }, visibility: 'public', allow_forking: true, allow_rebase_merge: true, homepage: null }
++  const desired = { allow_forking: true, allow_rebase_merge: false, homepage: '' }
++  assert.deepEqual(repositoryMutation(current, desired), { allow_rebase_merge: false })
++  assert.equal(desired.allow_forking, true)
++  assert.deepEqual(repositoryMutation({ ...current, allow_rebase_merge: false }, desired), {})
++})
++
++test('an unsupported changed private-fork policy and repository identity mutations are rejected', () => {
++  assert.throws(() => repositoryMutation({ owner: { type: 'User' }, visibility: 'public', allow_forking: true }, { allow_forking: false }), /cannot be changed/)
++  assert.throws(() => repositoryMutation({ owner: { type: 'Organization' }, visibility: 'public', allow_forking: true }, { allow_forking: false }), /cannot be changed/)
++  assert.deepEqual(repositoryMutation({ owner: { type: 'Organization' }, visibility: 'private', allow_forking: true }, { allow_forking: false }), { allow_forking: false })
++  assert.throws(() => repositoryMutation({}, { name: 'renamed' }), /Unreviewed/)
++})
 +
 +const sourceRule = () => ({ name: 'CI and branch safety', source_type: 'Repository', target: 'branch', enforcement: 'active',
 +  conditions: { ref_name: { include: ['refs/heads/main'], exclude: [] } }, bypass_actors: [],
@@ -6771,6 +7416,35 @@ index 0000000..04d43b6
 +  assert.throws(() => personalRuleset(external), /external app/)
 +})
 +
++test('omitted review-dismissal restrictions compare equal only to the disabled empty policy', () => {
++  const omitted = sourceRule(), explicit = sourceRule()
++  explicit.rules[2].parameters.dismissal_restriction = { enabled: false, allowed_actors: [] }
++  assert.deepEqual(rulesetPolicy(omitted), rulesetPolicy(explicit))
++  assert.equal(Object.hasOwn(omitted.rules[2].parameters, 'dismissal_restriction'), false)
++})
++
++test('enabled, populated, and malformed review-dismissal restrictions remain distinct', () => {
++  const baseline = rulesetPolicy(sourceRule())
++  for (const restriction of [null, { enabled: true, allowed_actors: [] }, { enabled: false, allowed_actors: [{ type: 'User', id: 42 }] }]) {
++    const changed = sourceRule()
++    changed.rules[2].parameters.dismissal_restriction = restriction
++    assert.notDeepEqual(rulesetPolicy(changed), baseline)
++  }
++})
++
++test('an accepted ruleset with an omitted disabled restriction is adopted without another write', async () => {
++  const desired = personalRuleset(sourceRule()), remote = structuredClone(desired)
++  delete remote.rules.find(rule => rule.type === 'pull_request').parameters.dismissal_restriction
++  const key = 'ruleset:CI and branch safety'
++  const ledger = { [key]: { desiredFingerprint: fingerprint(desired), intentAt: 'saved-intent' } }
++  let writes = 0
++  await reconcile({ key, before: null, desired, ledger, read: async () => rulesetPolicy(remote),
++    write: async () => { writes++ }, save: async () => {}, audit: async () => {} })
++  assert.equal(writes, 0)
++  assert.equal(ledger[key].intentAt, 'saved-intent')
++  assert.ok(ledger[key].verifiedAt)
++})
++
 +test('CI restoration requires the archive, history audit, cleanup, and completed prerequisite leaves', async () => {
 +  const state = { target: 'zhupanov/larch', cleanup: { completedAt: 'now' }, historyAudit: { verifiedAt: 'now', archiveManifestSha256: 'a'.repeat(64) }, archive: { builtAt: 'now', manifestSha256: 'a'.repeat(64) } }
 +  const calls = []
@@ -6788,12 +7462,32 @@ index 0000000..04d43b6
 +  const ledger = {}
 +  const input = { key: 'actions', before: false, desired: true, ledger, read: async () => remote,
 +    write: async () => { remote = true; writes++; throw new Error('Lost response') }, save: async () => {}, audit: async () => {} }
-+  await assert.rejects(reconcile(input), /Lost response/)
++  await reconcile(input)
 +  assert.ok(ledger.actions.intentAt)
 +  await reconcile(input)
 +  await reconcile(input)
 +  assert.equal(writes, 1)
 +  assert.ok(ledger.actions.verifiedAt)
++  assert.ok(ledger.actions.responseErrorReconciledAt)
++})
++
++test('a settings rejection is accepted only when every desired setting is independently read back', async () => {
++  const before = { allow_forking: true, allow_rebase_merge: true }
++  const desired = { allow_forking: true, allow_rebase_merge: false }
++  for (const applied of [false, true]) {
++    let remote = before, writes = 0
++    const ledger = {}, error = Object.assign(new Error('Allow forks setting can only be changed on org-owned private repositories'), { statusCode: 422 })
++    const input = { key: 'repository', before, desired, ledger, read: async () => remote,
++      write: async () => { writes++; if (applied) remote = desired; throw error }, save: async () => {}, audit: async () => {}, wait: async () => {} }
++    if (applied) {
++      await reconcile(input)
++      assert.ok(ledger.repository.verifiedAt)
++    } else {
++      await assert.rejects(reconcile(input), /Allow forks setting/)
++      assert.equal(ledger.repository.verifiedAt, undefined)
++    }
++    assert.equal(writes, 1)
++  }
 +})
 +
 +test('unexpected owner edits stop settings replay before a mutation', async () => {
@@ -6801,6 +7495,44 @@ index 0000000..04d43b6
 +  await assert.rejects(reconcile({ key: 'description', before: 'Original', desired: 'Migrated', ledger: {},
 +    read: async () => 'Owner changed this', write: async () => { writes++ }, save: async () => {}, audit: async () => {} }), /changed outside/)
 +  assert.equal(writes, 0)
++})
++
++test('delayed settings visibility is reconciled by reads without repeating accepted or uncertain writes', async () => {
++  for (const lostResponse of [false, true]) {
++    const ledger = {}, delays = []
++    let reads = 0, writes = 0
++    await reconcile({ key: 'immutableReleases', before: false, desired: true, ledger,
++      read: async () => ++reads >= 4,
++      write: async () => { writes++; if (lostResponse) throw new Error('Lost response') },
++      save: async () => {}, audit: async () => {}, wait: async delay => { delays.push(delay) } })
++    assert.equal(writes, 1)
++    assert.deepEqual(delays, [1000, 2000])
++    assert.ok(ledger.immutableReleases.verifiedAt)
++    assert.equal(Boolean(ledger.immutableReleases.responseErrorReconciledAt), lostResponse)
++  }
++})
++
++test('a setting that remains unchanged fails after bounded read settlement and preserves its intent', async () => {
++  const ledger = {}, delays = []
++  let writes = 0
++  await assert.rejects(reconcile({ key: 'actions', before: false, desired: true, ledger,
++    read: async () => false, write: async () => { writes++ }, save: async () => {}, audit: async () => {},
++    wait: async delay => { delays.push(delay) } }), /Configuration readback differs/)
++  assert.equal(writes, 1)
++  assert.equal(delays.reduce((total, delay) => total + delay, 0), 90000)
++  assert.ok(ledger.actions.intentAt)
++  assert.equal(ledger.actions.verifiedAt, undefined)
++})
++
++test('an unexpected policy after a write is rejected without settlement or another mutation', async () => {
++  const ledger = {}, delays = []
++  let writes = 0
++  await assert.rejects(reconcile({ key: 'description', before: 'Original', desired: 'Migrated', ledger,
++    read: async () => writes ? 'Unexpected change' : 'Original', write: async () => { writes++ },
++    save: async () => {}, audit: async () => {}, wait: async delay => { delays.push(delay) } }), /Configuration readback differs/)
++  assert.equal(writes, 1)
++  assert.deepEqual(delays, [])
++  assert.equal(ledger.description.verifiedAt, undefined)
 +})
 diff --git a/restoreConfiguration.js b/restoreConfiguration.js
 new file mode 100644
@@ -6818,10 +7550,10 @@ index 0000000..1f0821a
 +module.exports = { main }
 diff --git a/restoreNativeRelations.js b/restoreNativeRelations.js
 new file mode 100644
-index 0000000..880fbab
+index 0000000..3364892
 --- /dev/null
 +++ b/restoreNativeRelations.js
-@@ -0,0 +1,82 @@
+@@ -0,0 +1,97 @@
 +const fs = require('fs-extra')
 +const config = require('./config')
 +const migration = require('./migrationState')
@@ -6857,27 +7589,40 @@ index 0000000..880fbab
 +
 +const restoreGroup = async (group, state) => {
 +  state.nativeRelations = state.nativeRelations || { edges: {}, archival: [] }
++  const keyFor = edge => group.kind + ':' + edge.sourceNumber + ':' + edge.relatedNumber
++  for (const edge of group.edges) {
++    const key = keyFor(edge), saved = state.nativeRelations.edges[key]
++    if (saved && Object.keys(edge).some(field => saved[field] !== edge[field])) throw new Error('Native relationship mapping changed: ' + key)
++    if (saved?.status === 'verified' && state.pending['relation:' + key]) throw new Error('Verified relationship has a pending write: ' + key)
++  }
++  // Retain the independent full audit at the leaf boundary; a continuation
++  // does not need to reread every previously verified group before resuming.
++  if (group.edges.every(edge => state.nativeRelations.edges[keyFor(edge)]?.status === 'verified')) return
 +  const endpoint = '/issues/' + group.targetNumber + (group.kind === 'sub-issue' ? '/sub_issues' : '/dependencies/blocked_by')
 +  const expected = group.edges.map(edge => edge.relatedTargetIssueId)
++  const guard = current => {
++    if (new Set(current.map(item => item.id)).size !== current.length || current.some(item => !expected.includes(item.id))) throw new Error('Unexpected native relationships on imported issue ' + group.targetNumber)
++    if (group.kind === 'sub-issue' && current.some((item, index) => item.id !== expected[index])) throw new Error('Sub-issue order changed outside the migration: ' + group.targetNumber)
++    for (const edge of group.edges) {
++      if (state.nativeRelations.edges[keyFor(edge)]?.status === 'verified' && !current.some(item => item.id === edge.relatedTargetIssueId)) throw new Error('Previously verified native relationship is missing: ' + keyFor(edge))
++    }
++  }
 +  let current = await migration.list(endpoint)
-+  if (new Set(current.map(item => item.id)).size !== current.length || current.some(item => !expected.includes(item.id))) throw new Error('Unexpected native relationships on imported issue ' + group.targetNumber)
-+  if (group.kind === 'sub-issue' && current.some((item, index) => item.id !== expected[index])) throw new Error('Sub-issue order changed outside the migration: ' + group.targetNumber)
++  guard(current)
 +  for (const edge of group.edges) {
-+    const key = group.kind + ':' + edge.sourceNumber + ':' + edge.relatedNumber
-+    if (!current.some(item => item.id === edge.relatedTargetIssueId)) {
-+      if (group.kind === 'sub-issue') {
++    const key = keyFor(edge), saved = state.nativeRelations.edges[key]
++    if (saved?.status === 'verified') continue
++    current = await migration.addRelationVerified({ key: 'relation:' + key, endpoint,
++      body: group.kind === 'sub-issue' ? { sub_issue_id: edge.relatedTargetIssueId, replace_parent: false } : { issue_id: edge.relatedTargetIssueId },
++      initial: current, legacyAttemptedAt: saved?.intentAt,
++      matches: items => items.some(item => item.id === edge.relatedTargetIssueId), guard,
++      beforeWrite: async () => {
++        if (group.kind !== 'sub-issue') return
 +        let parent
 +        try { parent = await migration.call('GET', '/issues/' + edge.relatedTargetNumber + '/parent') }
 +        catch (error) { if (error.statusCode !== 404) throw error }
 +        if (parent && parent.id !== edge.targetIssueId) throw new Error('Refusing to replace an existing destination parent')
-+      }
-+      state.nativeRelations.edges[key] = { ...edge, intentAt: new Date().toISOString() }
-+      await migration.save()
-+      await migration.audit({ action: 'create-native-relation-intent', key, ...edge })
-+      await migration.call('POST', endpoint, group.kind === 'sub-issue' ? { sub_issue_id: edge.relatedTargetIssueId, replace_parent: false } : { issue_id: edge.relatedTargetIssueId })
-+      current = await migration.list(endpoint)
-+      if (!current.some(item => item.id === edge.relatedTargetIssueId)) throw new Error('Native relation not present after successful API write')
-+    }
++      } })
 +    state.nativeRelations.edges[key] = { ...state.nativeRelations.edges[key], ...edge, status: 'verified', verifiedAt: new Date().toISOString() }
 +    await migration.save()
 +  }
@@ -6893,6 +7638,8 @@ index 0000000..880fbab
 +  const plan = planRelations(raw, state.objects, new Set(records.map(record => record.number)))
 +  state.nativeRelations = state.nativeRelations || { edges: {}, archival: [] }
 +  state.nativeRelations.archival = plan.archival
++  state.nativeRelations.expectedEdges = plan.groups.reduce((count, group) => count + group.edges.length, 0)
++  state.nativeRelations.expectedGroups = plan.groups.length
 +  await migration.save()
 +  for (const [index, group] of plan.groups.entries()) {
 +    await restoreGroup(group, state)
@@ -6985,10 +7732,10 @@ index 58dae93..b953eee 100644
      process.exit(1)
    })
 diff --git a/updateIssues.js b/updateIssues.js
-index 67e214f..df48a92 100644
+index 67e214f..e417936 100644
 --- a/updateIssues.js
 +++ b/updateIssues.js
-@@ -1,78 +1,77 @@
+@@ -1,78 +1,80 @@
 -const request = require('request-promise')
 -const fs = require('fs-extra')
 -const glob = require('glob')
@@ -7079,7 +7826,8 @@ index 67e214f..df48a92 100644
 +          target.marker !== migration.marker('object', source.id) ||
 +          !Number.isSafeInteger(target.targetNumber) || target.targetNumber < 1 ||
 +          !Number.isSafeInteger(target.targetIssueId) || target.targetIssueId < 1 ||
-+          state.pending['object:' + source.number]) throw new Error('Invalid completed metadata checkpoint: #' + source.number)
++          state.pending['object:' + source.number] || state.pending['metadata:' + source.number] ||
++          state.pending['lock:' + source.number]) throw new Error('Invalid completed metadata checkpoint: #' + source.number)
 +      processed++
 +      continue
      }
@@ -7099,31 +7847,33 @@ index 67e214f..df48a92 100644
 +    if (source.milestone && !body.milestone) throw new Error('Missing milestone mapping: ' + source.milestone.number)
 +    if (target.targetKind === 'issue' && source.state_reason) body.state_reason = source.state_reason
 +    let current = await migration.call('GET', '/issues/' + target.targetNumber)
-+    if (!String(current.body || '').startsWith(target.marker)) throw new Error('Refusing to update an unowned destination body')
 +    const matches = item => item.state === body.state && item.title === body.title && migration.normalize(item.body) === migration.normalize(body.body) &&
 +      sameSet((item.labels || []).map(label => label.name), labels) && sameSet((item.assignees || []).map(user => user.login), assignees) &&
 +      (item.milestone?.number || null) === body.milestone && (!body.state_reason || item.state_reason === body.state_reason)
-+    if (!matches(current)) {
-+      if (migration.normalize(current.body) !== migration.normalize(body.body) && migration.sha256(migration.normalize(current.body)) !== target.bodySha256) {
++    const guard = item => {
++      if (item.number !== target.targetNumber || (target.targetIssueId && item.id !== target.targetIssueId) ||
++          !String(item.body || '').startsWith(target.marker)) throw new Error('Refusing to update an unowned destination body')
++      if (migration.normalize(item.body) !== migration.normalize(body.body) && migration.sha256(migration.normalize(item.body)) !== target.bodySha256) {
 +        throw new Error('Destination body was edited outside the migration: ' + target.targetNumber)
 +      }
-+      if (body.state_reason && current.state === body.state && current.state_reason !== body.state_reason) {
++      if (body.state_reason && item.state === body.state && item.state_reason !== body.state_reason) {
 +        throw new Error('Close reason changed on an already closed destination issue; reconcile explicitly: ' + target.targetNumber)
 +      }
-+      await migration.audit({ action: 'update-object-intent', source: source.number, destination: target.targetNumber, bodySha256: migration.sha256(body.body), state: body.state })
-+      await migration.call('PATCH', '/issues/' + target.targetNumber, body)
-+      current = await migration.call('GET', '/issues/' + target.targetNumber)
-+      if (!matches(current)) throw new Error('Destination metadata read-back differs: source #' + source.number)
 +    }
++    current = await migration.updateVerified({ key: 'metadata:' + source.number, endpoint: '/issues/' + target.targetNumber,
++      body, matches, guard, initial: current })
 +    if (target.targetKind === 'pull') {
 +      const pull = await migration.call('GET', '/pulls/' + target.targetNumber)
 +      if (pull.state !== 'closed' || pull.merged || pull.merged_at) throw new Error('Historical PR must be closed and unmerged: ' + target.targetNumber)
 +    }
-+    if (Boolean(current.locked) !== Boolean(source.locked)) {
-+      if (source.locked) await migration.call('PUT', '/issues/' + target.targetNumber + '/lock', source.active_lock_reason ? { lock_reason: source.active_lock_reason } : {})
-+      else await migration.call('DELETE', '/issues/' + target.targetNumber + '/lock')
-+      current = await migration.call('GET', '/issues/' + target.targetNumber)
-+      if (Boolean(current.locked) !== Boolean(source.locked)) throw new Error('Lock state differs for source #' + source.number)
++    if (Boolean(current.locked) !== Boolean(source.locked) || state.pending['lock:' + source.number]) {
++      current = await migration.updateVerified({ key: 'lock:' + source.number,
++        method: source.locked ? 'PUT' : 'DELETE', endpoint: '/issues/' + target.targetNumber + '/lock',
++        body: source.locked ? (source.active_lock_reason ? { lock_reason: source.active_lock_reason } : {}) : undefined,
++        readEndpoint: '/issues/' + target.targetNumber, initial: current,
++        matches: item => Boolean(item.locked) === Boolean(source.locked),
++        guard: item => { guard(item); if (!matches(item)) throw new Error('Metadata changed during lock reconciliation: #' + source.number) },
++      })
 +    }
 +    target.bodySha256 = migration.sha256(migration.normalize(current.body))
 +    target.metadataVerifiedAt = new Date().toISOString()

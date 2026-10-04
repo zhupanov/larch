@@ -1,10 +1,10 @@
 {
   "upstream": "NicholasBoll/github-migration",
   "upstreamRevision": "241c203953fb516609b16f454098daa1b48d7d73",
-  "adaptationCommit": "ebe7cb0e205dfc5b81d178a49a6433f2a64e9885",
-  "patchSha256": "8c9eb2589020dba3286efbfa7aee5c138209d9b0829b4db02af0a858c2f4e609",
-  "patchBytes": 445023,
-  "tests": "46 targeted recovery, replay, resume, release, completion, and safety tests passed; prior offline validation skipped 7,384 completed mappings without remote record reads",
+  "adaptationCommit": "f9abbb843dca32732bb7b6368397f9246551d92a",
+  "patchSha256": "9b206d0ed3022a180cf51761facbfbb258f7a529f82a2233a305ec4cd9efe959",
+  "patchBytes": 485414,
+  "tests": "16 targeted repository configuration and final verification tests passed",
   "schemaVersion": 1,
   "patch": "github-migration.patch",
   "retention": "The adaptation Git bundle and execution data are retained privately by the repository owner.",
@@ -36,5 +36,94 @@
     "settlementMilliseconds": 90000,
     "stopOnUnresolvedFailure": true,
     "requestAdapterDoesNotRetryUncertainWrites": true
+  },
+  "prolongedReadRecovery": {
+    "transportFailures": true,
+    "httpStatuses": [
+      500,
+      502,
+      503,
+      504
+    ],
+    "maximumAttempts": null,
+    "maximumBackoffMilliseconds": 300000,
+    "uncertainWriteRetries": "unchanged; requires reconciliation"
+  },
+  "guardedUpdateRecovery": {
+    "methods": [
+      "PATCH",
+      "PUT",
+      "DELETE"
+    ],
+    "stages": [
+      "updateIssues metadata",
+      "updateIssues lock state",
+      "repairHistoryReferences comment bodies"
+    ],
+    "journalBeforeWrite": true,
+    "reconcileBeforeRetry": true,
+    "settlementMilliseconds": 90000,
+    "maximumBackoffMilliseconds": 300000,
+    "transientHttpStatuses": [
+      500,
+      502,
+      503,
+      504
+    ],
+    "retryTransportFailures": true,
+    "retryTransientSettersIndefinitely": true,
+    "guardOwnershipAndBodyBeforeEachWrite": true,
+    "retryCreationPostPolicyUnchanged": true
+  },
+  "nativeRelationshipRecovery": {
+    "stage": "restore-native-relations",
+    "methods": [
+      "POST"
+    ],
+    "endpoints": [
+      "/issues/{number}/sub_issues",
+      "/issues/{number}/dependencies/blocked_by"
+    ],
+    "journalBeforeWrite": true,
+    "reconcileBeforeRetry": true,
+    "settlementMilliseconds": 90000,
+    "maximumBackoffMilliseconds": 300000,
+    "retryTransportFailures": true,
+    "transientHttpStatuses": [
+      500,
+      502,
+      503,
+      504
+    ],
+    "retryTransientRelationsIndefinitely": true,
+    "replaceExistingParent": false,
+    "verifyGroupMembershipAndOrder": true,
+    "preserveAndReconcileLegacyIntents": true,
+    "resumeVerifiedGroups": "skip unchanged checkpoint identities; retain independent full audit"
+  },
+  "repositoryConfigurationRecovery": {
+    "patchOnlyChangedFields": true,
+    "effectiveForkingPolicyStillVerified": true,
+    "privateForkControlWritableOnlyOnPrivateOrganizationRepository": true,
+    "acceptErrorResponseOnlyAfterCompleteDesiredReadback": true,
+    "rejectUnexpectedOwnerEdits": true,
+    "desiredPolicyUnchanged": true,
+    "finalVerifierUsesConfiguredTarget": true,
+    "readbackSettlement": {
+      "maximumBackoffMilliseconds": 90000,
+      "retryOnlyReads": true,
+      "repeatWrites": false,
+      "requireApprovedOldValue": true,
+      "unexpectedPolicyStopsImmediately": true
+    },
+    "rulesetDefaultComparison": {
+      "missingDismissalRestriction": {
+        "enabled": false,
+        "allowed_actors": []
+      },
+      "explicitRestrictionsPreserved": true,
+      "allOtherRuleFieldsCompared": true,
+      "independentGraphqlReadbackVerified": true
+    }
   }
 }

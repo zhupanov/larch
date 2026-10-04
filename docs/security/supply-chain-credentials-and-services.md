@@ -28,6 +28,10 @@ licenses, duplicate versions, wildcard requirements, and unapproved registries
 or Git sources. [`ARCHITECTURE.md`](../../ARCHITECTURE.md#dependency-policy)
 owns contributor instructions for dependency changes.
 
+The locked Rustls version includes the fix for
+[RUSTSEC-2026-0285](https://rustsec.org/advisories/RUSTSEC-2026-0285), which
+rejects TLS 1.3 handshake messages received at the wrong encryption level.
+
 ### CI tool bootstrap and caches
 
 `.github/main-cache-inventory.json` is the cache-class inventory. Its canonical
