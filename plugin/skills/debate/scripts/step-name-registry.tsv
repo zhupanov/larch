@@ -1,0 +1,8 @@
+step	name
+0	setup
+1	source
+2	initialize
+3	debate rounds
+4	adjudicate
+5	publish proposal
+6	cleanup

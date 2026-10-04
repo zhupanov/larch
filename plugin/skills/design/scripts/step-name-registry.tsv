@@ -1,0 +1,22 @@
+step	name
+0	setup
+0c	scan
+1c	questions
+1d	discussion r1
+1d.5	brainstorm
+1d.7	outline
+1e	gate A
+2a	sentinel prep
+2b	full plan
+2b.5	plan size
+3	plan review
+3.5	gate B
+3b	finalize
+4	rejected findings
+4b	gate C
+5	finalize
+5b	oos
+5b.5	arch diagram
+5c	plan write
+5d	l3 velocity
+6	cleanup

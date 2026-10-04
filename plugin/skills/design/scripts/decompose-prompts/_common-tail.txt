@@ -1,0 +1,36 @@
+## Panel input
+
+{PLAN_OR_FEATURE_BLOCK}
+
+{DISCUSSION_BLOCK}
+
+## Independently mergeable constraint (mandatory)
+
+Each proposed piece must be a **self-contained PR** that can land on `main` **before** its dependents are designed or implemented. If piece A must merge before piece B, express that as **A blocks B** (B is blocked-by A). **Circular** blocker relationships are forbidden — verify the directed dependency graph is acyclic.
+
+## Piece count guidance
+
+Recommend **2–5** independently mergeable pieces (soft guidance). If you believe **more than five** pieces are warranted, justify explicitly in your response.
+
+## Required output schema (Markdown)
+
+Respond with **exactly** this structure (headings and list keys as shown):
+
+```markdown
+## Recommendation
+split | no-split
+
+## Pieces (only when Recommendation is split)
+
+### Piece 1: <short title>
+- Scope: <files / behaviors covered>
+- Firm-headings: <bare parent-plan paths, comma-separated; no `###` or backticks>
+- Acceptance: <one or more implementable criteria for this piece>
+- Dependencies: none | blocked-by Piece N[, Piece M ...]
+- Diff_lines estimate: <integer>
+- Why independently mergeable: <one paragraph>
+
+### Piece 2: ...
+```
+
+Use `## Recommendation` as the first structured heading so downstream tooling can detect your verdict.

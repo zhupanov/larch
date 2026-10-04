@@ -1,0 +1,12 @@
+step	name
+0	setup
+1	research
+1.1	planner
+1.1.c	interactive-review
+1.2	lane-assign
+2	validation
+2.5	citation-validation
+2.6	critique loop
+3	report
+3.5	auto-issue
+4	cleanup

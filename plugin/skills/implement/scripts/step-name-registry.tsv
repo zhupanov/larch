@@ -1,0 +1,28 @@
+step	name
+0	setup
+1.m	update main (Rebase Checkpoint Macro internal label; not a standalone orchestrator step)
+1.r	rebase after plan materialization (Rebase Checkpoint Macro internal label; not a standalone orchestrator step)
+2	implementation
+3	checks (1)
+4	commit (impl)
+4.r	rebase
+5	code review
+6	checks (2)
+7	commit (review)
+7.r	rebase
+7a	pre-ship
+7a.r	rebase
+8	ship PR
+8a	release notes
+8b	rebase
+9a.1	OOS issues
+9	create PR
+10	CI monitor
+11	execution-issues
+12	CI+merge loop
+14	local cleanup
+15	verify main
+16	rejected findings
+17	final report
+18	logs flush
+19	cleanup

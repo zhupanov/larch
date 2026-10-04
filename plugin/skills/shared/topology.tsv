@@ -1,0 +1,31 @@
+debate.panel	debate.panel	persistent Cursor subprocess + Codex subprocess + Claude Agent session	crates/larch-core/src/external_defaults.rs
+debate.rounds	two-round debate protocol	blind position round + validated mailbox negotiation round	crates/larch-cli/src/debate_commands.rs
+debate.adjudication	AskUserQuestion	default operator decisions or autonomous anonymized voter panel	skills/debate/SKILL.md
+debate.publication	/issue	verified source creation + proposal filing + bidirectional links	skills/debate/SKILL.md
+design.plan_review.cursor_archetypes	Cursor	Architecture/Standards Innovation/Exploration Pragmatism/Safety Requirements/Completeness	skills/design/references/plan-review-runtime.md
+design.plan_review.codex_archetypes	Codex	Architecture/Standards Innovation/Exploration Pragmatism/Safety Requirements/Completeness	skills/design/references/plan-review-runtime.md
+design.plan_review.dynamic_archetypes	up to 1	scout proposes specialists fanned into Cursor+Codex dyn slots	crates/larch-cli/src/scout_commands.rs
+design.plan_review.panel_slots	round gated static plus dynamic	NDJSON manifest from scripts/larch.sh plan-review panel-dispatch via paths-file sidecar	crates/larch-cli/src/plan_review_commands.rs
+design.decompose.split_path	AskUserQuestion	main-agent inline proposal + single AskUserQuestion Partition/Override/chat	skills/design/references/decompose-panel.md
+design.decompose.umbrella_handoff	/umbrella	exact approved batch + dependencies + in-place original conversion	skills/design/references/decompose-panel.md
+implement.partition.umbrella_handoff	/umbrella	multi-issue target replacement owner	skills/implement/SKILL.md
+umbrella.leaf_filing	/issue	deduplication + prepared dependency wiring + identity-bound verified sentinel	skills/umbrella/SKILL.md
+complete_umbrella.audit_gap_filing	complete-umbrella file-gap	exact Rust-owned leaf filing + caller-bound graph attachment	skills/complete-umbrella/SKILL.md
+complete_umbrella.leaf_execution	bgjob	serial thin Claude orchestrator with larch skills disabled	skills/complete-umbrella/SKILL.md
+complete_umbrella.leaf_phases	fresh phase contexts	recon/design + implement + adversarial review + ship	skills/complete-umbrella/SKILL.md
+complete_umbrella.leaf_ship	Deterministic leaf ship driver	one umbrella leaf	crates/larch-cli/src/complete_umbrella_ship_commands.rs
+audit_umbrella.inline_audit	one inline context	exhaustive evidence ledger and residual-gap partition	skills/audit-umbrella/SKILL.md
+audit_umbrella.batch_mutation	AuditUmbrellaCommand	immutable snapshot + exact leaf creation + native graph reconciliation + read-back	crates/larch-cli/src/audit_umbrella_commands.rs
+design.decompose.harness_panel	decompose panel-dispatch	offline panel regression coverage	crates/larch-cli/src/decompose_commands.rs
+design.decompose.harness_agg	decompose aggregate	offline aggregator merge coverage	crates/larch-cli/src/decompose_commands.rs
+design.decompose.harness_file	decompose prepare	offline prepare annotate close-original coverage	crates/larch-cli/src/decompose_commands.rs
+design.plan.preview_emit	Step 3 plan-candidate preview	Gate C final-plan preview	crates/larch-cli/src/plan_review_commands.rs
+design.plan_commands.validate	Tier2+opt-in Tier3	plan fenced bash/sh	crates/larch-cli/src/plan_quality_commands.rs
+implement.conflict_review.panel	ci-fixer	ci-fixer MODE conflict self-review only	skills/implement/references/conflict-resolution.md
+implement.conflict_review.rounds_max	2 total	resolution-review rounds	agents/ci-fixer.md
+research.lanes	four research lanes	architecture + edge cases + external comparisons + security	skills/research/references/research-phase.md
+research.validation_panel	3 reviewer lanes	Claude Code Reviewer subagent + Codex + Cursor	skills/research/references/validation-phase.md
+implement.review_and_fix.panel_hard	three specialists per vendor	correctness edge-cases testing	skills/review/SKILL.md
+deps.issue_audit	one approval gate	open-issue grouping + REGULAR refresh + explicit and latent dependency audit	skills/deps/SKILL.md
+runtime.residual_bash.inventory	residual-bash	hooks linters thin wrappers sleep helper G-track delegation fences and residual harnesses	crates/larch-harness-mark/src/residual_bash.rs
+runtime.pr_closes_issue	closes-issue	PR-body Closes issue extraction authority	crates/larch-cli/src/pr_commands.rs
