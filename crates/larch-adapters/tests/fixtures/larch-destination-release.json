@@ -1,0 +1,28 @@
+{
+  "repository": "zhupanov/larch",
+  "tag": "v57.0.22",
+  "releaseId": 402850266,
+  "commit": "3fb2c3ba5834ea6c55c576eb58c09029cb788653",
+  "sourceCommit": "16ee2a37a3a40abf4246f59a838c00ff33a21174",
+  "releaseUrl": "https://github.com/zhupanov/larch/releases/tag/v57.0.22",
+  "assets": [
+    {
+      "id": 609263732,
+      "name": "larch-v57.0.22-aarch64-apple-darwin.tar.gz",
+      "size": 35214328,
+      "digest": "sha256:07ab907da7b8cbdc17d8a7a4406a89e1f5420b7648b8c104b589499086bce213"
+    },
+    {
+      "id": 609263728,
+      "name": "larch-v57.0.22-manifest.json",
+      "size": 507,
+      "digest": "sha256:7ae99e7c557bd5f5d7436da37509aae819068d66fde4c4b6e4232903244fb70b"
+    },
+    {
+      "id": 609263724,
+      "name": "larch-v57.0.22-SHA256SUMS",
+      "size": 204,
+      "digest": "sha256:cd2e2f2ea6f3d5e1bdccda869d3aee036941a9513d8fad7e934c6e5b4bd61d3a"
+    }
+  ]
+}
